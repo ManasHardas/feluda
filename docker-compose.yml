@@ -1,0 +1,50 @@
+# Local development only. Credentials below are throwaway values for a database that listens on
+# localhost; they are not used anywhere else.
+name: neighborhood-watchdog
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: watchdog
+      POSTGRES_PASSWORD: watchdog_local_dev_only
+      POSTGRES_DB: watchdog
+    ports:
+      - "127.0.0.1:54329:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U watchdog -d watchdog"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    build: ./backend
+    command: ["python", "-m", "watchdog.migrate"]
+    environment:
+      DATABASE_URL: postgresql://watchdog:watchdog_local_dev_only@db:5432/watchdog
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles: ["api"]
+
+  api:
+    build: ./backend
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql://watchdog:watchdog_local_dev_only@db:5432/watchdog
+      DEV_AUTH_ENABLED: "true"
+      AUTH_JWT_SECRET: local-development-secret-not-for-production-use
+      PUBLIC_BASE_URL: http://localhost:8000
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    profiles: ["api"]
+
+volumes:
+  db-data:

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Privacy summary: Neighborhood Watchdog</title>
+<style nonce="{{NONCE}}">:root { --bg:#f6f4ef; --card:#ffffff; --ink:#1d2433; --muted:#5b6475; --line:#d9d5cb; --accent:#1f5f4a; --accent-ink:#ffffff; --warn-bg:#fff4d6; --warn-ink:#5c4400; --err:#9c1c1c; }
+@media (prefers-color-scheme: dark) { :root { --bg:#12161d; --card:#1b212b; --ink:#e9ecf1; --muted:#a3adbd; --line:#313a48; --accent:#6fcfae; --accent-ink:#0d1a15; --warn-bg:#3a3118; --warn-ink:#f3dc9a; --err:#ff9c9c; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:17px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+main { max-width: 38rem; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+h1 { font-size: 1.55rem; line-height:1.25; margin: 1rem 0 .25rem; }
+h2 { font-size: 1.1rem; margin: 1.6rem 0 .4rem; }
+p, li { color: var(--ink); } .muted { color: var(--muted); font-size:.95rem; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:1.1rem 1.1rem 1.25rem; margin-top:1rem; }
+label { display:block; font-weight:600; margin:.9rem 0 .3rem; }
+input[type=text], input[type=email], select { width:100%; padding:.7rem .75rem; font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:10px; }
+input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+.row { display:grid; grid-template-columns: 7rem 1fr; gap:.75rem; }
+.check { display:flex; gap:.6rem; align-items:flex-start; margin-top:1rem; font-weight:400; }
+.check input { margin-top:.3rem; width:1.15rem; height:1.15rem; }
+button, .button { display:inline-block; width:100%; margin-top:1.1rem; padding:.85rem 1rem; font:inherit; font-weight:650; color:var(--accent-ink); background:var(--accent); border:0; border-radius:10px; cursor:pointer; text-align:center; text-decoration:none; }
+button[disabled] { opacity:.55; cursor:default; }
+.notice { background:var(--warn-bg); color:var(--warn-ink); border-radius:10px; padding:.75rem .9rem; margin-top:1rem; }
+.error { color:var(--err); font-weight:600; margin-top:.8rem; }
+.hidden { display:none; }
+ul { padding-left:1.2rem; } li { margin:.25rem 0; }
+a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Privacy summary</h1>
+  <p class="muted">Neighborhood Watchdog is a private, invitation-only pilot run by your neighborhood organizer. This page says in plain words what the service handles. The full document is docs/PRIVACY.md in the public source repository.</p>
+  <div class="card">
+    <h2>What is collected</h2>
+    <ul>
+      <li>House number and street name, to match you to the list of addresses your organizer approved.</li>
+      <li>An e-mail address, used only to sign in with a one-time code.</li>
+      <li>Connectivity events from your phone: Wi-Fi lost or restored, internet reachable or not, cellular available or not, and when. Each event carries the phone platform, operating-system version and app version.</li>
+      <li>Optional: your internet provider and a label for your household.</li>
+      <li>A push-notification token so alerts can reach your phone.</li>
+    </ul>
+    <h2>What is never collected</h2>
+    <ul>
+      <li>Browsing history, websites, DNS lookups, messages or the contents of your phone.</li>
+      <li>Wi-Fi names, Wi-Fi passwords or router passwords. A scrambled fingerprint used to recognise your home network stays on your phone.</li>
+      <li>GPS or other location from your phone. The app does not ask for location permission.</li>
+      <li>Camera footage, microphone audio, or logins for cameras, alarms or internet providers.</li>
+      <li>Your legal name, or hardware identifiers of your phone.</li>
+    </ul>
+    <h2>Who can see what</h2>
+    <ul>
+      <li>You see your own household&rsquo;s events and status.</li>
+      <li>Other residents see only anonymous totals, such as how many households were affected.</li>
+      <li>The organizer manages the address list and memberships. Organizers do not see e-mail addresses, device details or your event history.</li>
+      <li>Whoever operates the server and database can technically access stored data. Access is limited and logged.</li>
+    </ul>
+    <h2>How long it is kept</h2>
+    <ul>
+      <li>Connectivity events: 30 days. Incident summaries and audit records: 90 days. Account data: until you delete your account.</li>
+      <li>Leaving the neighborhood or deleting your account removes your devices and their events. Anonymous incident totals remain.</li>
+    </ul>
+    <h2>Your choices</h2>
+    <ul>
+      <li>Switch monitoring off at any time in the app. The app then reports that it is paused; it is never shown as healthy.</li>
+      <li>Leave the neighborhood or delete your account in the app&rsquo;s settings.</li>
+    </ul>
+    <h2>Limits you should know</h2>
+    <ul>
+      <li>The app detects connectivity anomalies. It cannot confirm deliberate radio interference.</li>
+      <li>Phones, especially iPhones, pause apps in the background, so monitoring has gaps. No report does not mean no problem.</li>
+      <li>The service does not contact the police or anyone else on your behalf.</li>
+    </ul>
+  </div>
+  <p class="muted">Security concerns: {{SECURITY_CONTACT}}.</p>
+</main>
+</body>
+</html>

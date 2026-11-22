@@ -1,0 +1,47 @@
+[project]
+name = "neighborhood-watchdog-backend"
+version = "0.1.0"
+description = "Backend API, correlation engine and notification service for Neighborhood Watchdog"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
+    "psycopg[binary,pool]==3.2.3",
+    "pydantic==2.10.4",
+    "pydantic-settings==2.7.1",
+    "pyjwt[crypto]==2.10.1",
+    "httpx[http2]==0.28.1",
+    "email-validator==2.2.0",
+]
+
+[project.optional-dependencies]
+errors = ["sentry-sdk==2.19.2"]
+
+[dependency-groups]
+dev = [
+    "pytest==8.3.4",
+    "ruff==0.8.6",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -ra"
+markers = [
+    "db: needs a PostgreSQL database (TEST_DATABASE_URL)",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "C4", "SIM"]
+ignore = ["S101", "B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106", "S311"]
+"watchdog/simulation/*" = ["S311"]
