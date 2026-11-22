@@ -10,8 +10,8 @@ containers), Android builds with 90 unit tests passing plus lint and the release
 dependency audit is clean after an upgrade. Both apps' networking code also passes a full
 resident journey against a live local backend (`make live-ios`, `make live-android`). Still never
 done: either app running as an app against the backend, anything on a phone, any deployment, any
-CI run. Since the macOS update to 27.2.1, Xcode 26.3 can no longer run tests on the simulator
-(update Xcode); the iOS core tests run natively with `make ios-core-test` meanwhile.
+CI run. The iOS simulator tests pass again on Xcode 27.2 (`make ios-test`); `make ios-core-test`
+runs the core tests natively without a simulator.
 
 ## 1. What was built
 

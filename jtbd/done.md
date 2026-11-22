@@ -14,3 +14,4 @@
 - 2026-11-22: **Live contract checks.** Each app's real networking code completes the resident journey against a running local backend (`make live-ios`, `make live-android`); no contract mismatches found. Added a native Swift package so the iOS core tests run without a simulator (`make ios-core-test`).
 - 2026-11-22: **License and security contact.** MIT `LICENSE` added; security contact set in `SECURITY.md`; `CODEOWNERS` names the owner. Owner confirmed decision 0012 (a few dollars a month for an always-on host).
 - 2026-11-22: **Android dependency audit.** 155 resolved release dependencies checked against the OSV database; no known advisories. Recorded in `docs/RELEASE_VERIFICATION.md`.
+- 2026-11-22: **Xcode updated to 27.2 by the owner.** `make ios-test` passes again on the simulator: 98 tests run, 1 skipped (the live test), 0 failures. GitHub repository renamed to `ManasHardas/feluda`.

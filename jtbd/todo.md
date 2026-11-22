@@ -3,8 +3,7 @@
 Last updated 2026-11-22. Source brief: `neighborhood_watchdog_master_build_prompt_v2.md`. What has and has not been verified: `docs/STATUS.md`. Summary for whoever picks this up: `docs/HANDOFF.md`.
 
 ## Verification still owed (agent can do these)
-4. **Run each app as an app against a local backend** (Android emulator, iOS simulator): tap through sign-in, join, an event upload and an incident screen. The networking layer is verified (`make live-ios`, `make live-android`); the screens and the monitoring service have never run against a server. Needs an Android emulator image installed and a working iOS simulator. Done when: both complete the flow on screen.
-4a. **Update Xcode** to a version that supports macOS 27 (owner). Since the macOS update, Xcode 26.3 cannot run tests on the simulator. Done when: `make ios-test` passes again.
+4. **Run each app as an app against a local backend** (Android emulator, iOS simulator): tap through sign-in, join, an event upload and an incident screen. The networking layer is verified (`make live-ios`, `make live-android`); the screens and the monitoring service have never run against a server. Needs an Android emulator image installed; the iOS simulator works again. Done when: both complete the flow on screen.
 
 ## Needs the owner (cannot be done by the agent)
 6. **Publishing.** Owner chose the personal GitHub account `ManasHardas` (2026-11-22); public or private was not said, so it starts private. `main` is pushed; the working branch is not, because the GitHub login lacks the `workflow` permission (owner runs `gh auth refresh -h github.com -s workflow`). Done when: the repository exists, CI has run once, branch protection is set as in `CONTRIBUTING.md`, and the owner has said whether to make it public.

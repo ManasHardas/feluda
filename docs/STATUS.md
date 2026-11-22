@@ -33,7 +33,8 @@ what exists, what was actually run, and what was not.
 | **Live contract check, iOS** (`make live-ios`): the app's real API and sign-in code against a running local backend: sign-in by code, not-a-member, join, device and push-token registration, preferences, event upload and duplicate upload, status, neighborhood, incident list and detail, token refresh with rotation, device revoke, leave | passed, no contract mismatch | 2026-11-22 |
 | **Live contract check, Android** (`make live-android`): the same journey through the app's real OkHttp/Retrofit/token stack | passed, no contract mismatch | 2026-11-22 |
 | iOS core tests run natively on the Mac (`make ios-core-test`, a Swift package over the same sources) | 87 executed, 0 failures (1 skipped: the live test) | 2026-11-22 |
-| iOS tests on the simulator, after the macOS update to 27.2.1 with Xcode still 26.3 | **cannot run**: "test runner hung before establishing connection" for every test, including ones that passed on 2026-11-21. The simulator build still succeeds. Needs an Xcode update | 2026-11-22 |
+| iOS tests on the simulator, after the macOS update to 27.2.1 with Xcode still 26.3 | could not run ("test runner hung before establishing connection") | 2026-11-22 |
+| iOS tests on the simulator after updating Xcode to 27.2 (`make ios-test`) | 98 run, 1 skipped (live test), 0 failures | 2026-11-22 |
 | GitHub Actions workflows | **never ran** (the repository is not on GitHub) | |
 | Anything on a physical phone | **not done** | |
 | Any deployment | **not done** | |
