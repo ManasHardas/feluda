@@ -3,7 +3,6 @@ name = "neighborhood-watchdog-backend"
 version = "0.1.0"
 description = "Backend API, correlation engine and notification service for Neighborhood Watchdog"
 requires-python = ">=3.12"
-license = { text = "Apache-2.0" }
 dependencies = [
     "fastapi==0.115.6",
     "uvicorn[standard]==0.34.0",

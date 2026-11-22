@@ -187,7 +187,11 @@ class Diagnostics(Strict):
     """
 
     wifi_associated: bool | None = None
-    wifi_validated: bool | None = Field(None, description="The OS reports the Wi-Fi network has working internet.")
+    wifi_validated: bool | None = Field(
+        None,
+        description="Internet works over the Wi-Fi network: reported by the OS on Android, measured by the app's "
+        "own Wi-Fi-only probe on iOS.",
+    )
     wifi_radio_enabled: bool | None = Field(None, description="False when the user switched Wi-Fi off.")
     airplane_mode: bool | None = None
     home_network_match: bool | None = Field(

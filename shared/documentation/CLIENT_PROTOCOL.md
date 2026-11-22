@@ -187,3 +187,33 @@ Codes used: `unauthorized` (401), `not_a_member` (403), `forbidden` (403), `hous
 `device_revoked` (403), `device_not_registered` (404), `invitation_invalid` (404),
 `address_not_recognized` (422), `household_already_registered` (409), `validation_error` (422),
 `rate_limited` (429, with `Retry-After`), `not_found` (404).
+
+## 11. Clarifications agreed while building the apps
+
+- `wifi_validated`: Android uses the operating system's validated flag. iOS has no such flag and
+  uses the app's own HTTPS probe with cellular access disallowed. `internet_reachable` is the
+  any-path probe on both.
+- `MONITORING_PERMISSION_REQUIRED` is never produced on iOS (path monitoring needs no permission).
+  `PERMISSION_CHANGED` is sent for notification-permission and Background App Refresh changes.
+- Cellular-only states (`CELLULAR_AVAILABLE` / `CELLULAR_UNAVAILABLE` as a state) apply only to an
+  install that has never seen Wi-Fi since monitoring was set up. Otherwise no Wi-Fi with cellular
+  is `WIFI_DISCONNECTED`.
+- No Wi-Fi and no cellular but another usable path (wired, for example): `WIFI_DISCONNECTED`.
+- Wi-Fi associated again without confirmed internet, or a first association with no earlier loss:
+  `WIFI_ASSOCIATION_CHANGED`. `WIFI_RESTORED` is sent only once internet over Wi-Fi is confirmed
+  after a loss.
+- A cold launch after a state change emits `MONITORING_GAP_DETECTED` even when the gap is shorter
+  than 2 minutes, so a `RECONCILED` event always follows a gap event.
+- `external_power_lost_recently` is evaluated when the event is built (about 5 seconds after it
+  occurred).
+- Queue cap drop order: heartbeats, then lifecycle events, then the oldest connectivity events.
+- A `422` on a batch is retried one event at a time; the refused event is dropped and logged
+  locally. A `404 device_not_registered` triggers one re-registration and one retry.
+- Sign-out sends `MONITORING_STOPPED`, flushes for up to 5 seconds, then revokes this install's
+  device registration before logging out.
+- Push payload custom keys: FCM puts them in `data`; APNs puts them at the top level of the
+  payload next to `aps`. Apps should read both places.
+- `reported_via` is the transport the app believes the upload used. It is not proof of routing.
+- The second probe target is configurable (`PROBE_FALLBACK_URL`); the default is a plain HTTPS
+  request to a large public site and is disclosed on the Transparency screen.
+- UUIDs may be sent in upper or lower case.
