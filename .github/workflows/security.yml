@@ -58,6 +58,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+      actions: read
       security-events: write
     steps:
       - uses: actions/checkout@v4
@@ -66,3 +67,7 @@ jobs:
           languages: python
           source-root: backend
       - uses: github/codeql-action/analyze@v3
+        with:
+          # Code scanning results can only be uploaded on public repositories (or with Advanced
+          # Security). While the repository is private the analysis runs but nothing is uploaded.
+          upload: ${{ github.event.repository.private && 'never' || 'always' }}
