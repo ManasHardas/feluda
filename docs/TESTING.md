@@ -22,6 +22,12 @@ make backend-unit          # only the tests that need no database
 make android-test
 make ios-test
 make test                  # everything, plus lint and the API contract check
+make ios-core-test         # iOS core logic natively on the Mac, no simulator
+
+# Live contract checks: each app's real networking code against a running backend
+make live-backend          # terminal 1 (after make docker-up migrate seed)
+make live-ios              # terminal 2
+make live-android
 ```
 
 Database tests use a real PostgreSQL because row-level security cannot be tested otherwise. Each

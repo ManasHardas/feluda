@@ -91,7 +91,7 @@ def build_router(settings: Settings, clock) -> APIRouter:
     @router.post("/otp")
     def request_code(body: OtpRequest) -> dict:
         email = body.email.strip().lower()
-        code = f"{secrets.randbelow(1_000_000):06d}"
+        code = settings.dev_auth_fixed_code or f"{secrets.randbelow(1_000_000):06d}"
         with state.lock:
             state.codes[email] = (code, clock.now().timestamp() + CODE_SECONDS)
             state.last_code[email] = code

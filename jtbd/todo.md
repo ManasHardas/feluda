@@ -3,7 +3,8 @@
 Last updated 2026-11-22. Source brief: `neighborhood_watchdog_master_build_prompt_v2.md`. What has and has not been verified: `docs/STATUS.md`. Summary for whoever picks this up: `docs/HANDOFF.md`.
 
 ## Verification still owed (agent can do these)
-4. **Run each app against a local backend** (Android emulator, iOS simulator) through sign-in, join, device registration, an event upload and an incident screen. Neither app has ever talked to the backend. Done when: both complete the flow and any contract mismatches are fixed.
+4. **Run each app as an app against a local backend** (Android emulator, iOS simulator): tap through sign-in, join, an event upload and an incident screen. The networking layer is verified (`make live-ios`, `make live-android`); the screens and the monitoring service have never run against a server. Needs an Android emulator image installed and a working iOS simulator. Done when: both complete the flow on screen.
+4a. **Update Xcode** to a version that supports macOS 27 (owner). Since the macOS update, Xcode 26.3 cannot run tests on the simulator. Done when: `make ios-test` passes again.
 5. **Audit Android dependencies** (the backend audit is done and clean). Done when: results are recorded in `docs/RELEASE_VERIFICATION.md`.
 
 ## Needs the owner (cannot be done by the agent)

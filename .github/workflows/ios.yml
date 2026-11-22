@@ -26,6 +26,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Toolchain versions (recorded for build provenance)
         run: xcodebuild -version && swift --version
+      - name: Core logic tests, natively (no simulator)
+        run: swift test
       - name: Build for the simulator
         run: |
           xcodebuild -project NeighborhoodWatchdog.xcodeproj -scheme NeighborhoodWatchdog \

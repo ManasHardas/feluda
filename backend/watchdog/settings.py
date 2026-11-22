@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     auth_jwt_issuer: str = ""  # checked when set
     admin_require_mfa: bool = False  # require the "aal2" assurance level for /admin endpoints
     dev_auth_enabled: bool = False  # local emulator of the auth endpoints; refused outside development/test
+    dev_auth_fixed_code: str = ""  # emulator only: always issue this code, so automated app tests can sign in
     # Optional: lets "delete account" also delete the identity record at the provider (Supabase Auth admin API).
     auth_admin_url: str = ""  # e.g. https://<project>.supabase.co/auth/v1
     auth_service_role_key: str = ""  # server-side secret; never shipped in the mobile apps

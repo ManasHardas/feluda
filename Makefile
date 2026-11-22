@@ -14,7 +14,7 @@ export ANDROID_HOME ?= /opt/homebrew/share/android-commandlinetools
 IOS_DESTINATION ?= platform=iOS Simulator,name=iPhone 17
 
 .PHONY: help setup docker-up docker-down migrate seed run simulate backend-lint backend-unit backend-test \
-	backend-test-docker openapi openapi-check android-build android-test android-release ios-generate ios-build \
+	backend-test-docker live-backend live-ios live-android ios-core-test openapi openapi-check android-build android-test android-release ios-generate ios-build \
 	ios-test test sbom clean
 
 help: ## Show this help
@@ -52,6 +52,19 @@ backend-test: docker-up ## All backend tests (unit, integration, security, scena
 
 backend-test-docker: ## All backend tests inside containers (no local Python needed)
 	docker compose --profile test run --rm --build test
+
+LIVE_CODE := 424242
+live-backend: ## Backend for the apps' live contract tests (fixed local sign-in code; run in its own terminal)
+	cd $(BACKEND) && $(DEV_ENV) DEV_AUTH_FIXED_CODE=$(LIVE_CODE) uv run uvicorn watchdog.asgi:app --host 127.0.0.1 --port 8000
+
+live-ios: ## iOS networking code against the live local backend (needs `make live-backend` running and `make seed`)
+	DEV_AUTH_FIXED_CODE=$(LIVE_CODE) scripts/live_contract.sh ios
+
+live-android: ## Android networking code against the live local backend (same prerequisites)
+	DEV_AUTH_FIXED_CODE=$(LIVE_CODE) scripts/live_contract.sh android
+
+ios-core-test: ## iOS core logic tests run natively on the Mac (no simulator needed)
+	cd $(IOS) && swift test
 
 openapi: ## Regenerate shared/api-contracts/openapi.json from the backend
 	cd $(BACKEND) && uv run python -m watchdog.export_openapi

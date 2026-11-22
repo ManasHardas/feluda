@@ -7,8 +7,11 @@ says exactly what was run and what was not.
 
 After the restart everything that was blocked was run: backend 144 tests pass (also inside
 containers), Android builds with 90 unit tests passing plus lint and the release build, the
-dependency audit is clean after an upgrade. Still never done: either app talking to the backend,
-anything on a phone, any deployment, any CI run.
+dependency audit is clean after an upgrade. Both apps' networking code also passes a full
+resident journey against a live local backend (`make live-ios`, `make live-android`). Still never
+done: either app running as an app against the backend, anything on a phone, any deployment, any
+CI run. Since the macOS update to 27.2.1, Xcode 26.3 can no longer run tests on the simulator
+(update Xcode); the iOS core tests run natively with `make ios-core-test` meanwhile.
 
 ## 1. What was built
 

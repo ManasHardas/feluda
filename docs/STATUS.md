@@ -30,6 +30,10 @@ what exists, what was actually run, and what was not.
 | Backend tests inside containers (`make backend-test-docker`), which also builds the image's build stage | 143 passed, 1 skipped (the repository secret scan needs git) | 2026-11-22 |
 | Backend dependency audit (pip-audit) | First run found advisories in PyJWT 2.10.1 and Starlette 0.41.3; dependencies upgraded; **no known vulnerabilities** afterwards | 2026-11-22 |
 | Backend SBOM (`make sbom`, CycloneDX) | generated | 2026-11-22 |
+| **Live contract check, iOS** (`make live-ios`): the app's real API and sign-in code against a running local backend: sign-in by code, not-a-member, join, device and push-token registration, preferences, event upload and duplicate upload, status, neighborhood, incident list and detail, token refresh with rotation, device revoke, leave | passed, no contract mismatch | 2026-11-22 |
+| **Live contract check, Android** (`make live-android`): the same journey through the app's real OkHttp/Retrofit/token stack | passed, no contract mismatch | 2026-11-22 |
+| iOS core tests run natively on the Mac (`make ios-core-test`, a Swift package over the same sources) | 87 executed, 0 failures (1 skipped: the live test) | 2026-11-22 |
+| iOS tests on the simulator, after the macOS update to 27.2.1 with Xcode still 26.3 | **cannot run**: "test runner hung before establishing connection" for every test, including ones that passed on 2026-11-21. The simulator build still succeeds. Needs an Xcode update | 2026-11-22 |
 | GitHub Actions workflows | **never ran** (the repository is not on GitHub) | |
 | Anything on a physical phone | **not done** | |
 | Any deployment | **not done** | |
@@ -110,7 +114,8 @@ The production container image target (`runtime`) has not been built on its own 
 
 | Feature | Status |
 | --- | --- |
-| Either app talking to the backend | **Never done.** Contract field names and paths were cross-checked by reading and by the apps' JSON tests |
+| Each app's networking code talking to the backend | AUTOMATED_TESTED (`make live-ios`, `make live-android`), on the Mac, not on a device |
+| Each app running as an app (screens, monitoring, background work) against the backend | **Never done.** Needs an emulator or simulator session, or phones |
 | Staging environment | NOT DONE (EXTERNAL_CREDENTIAL_REQUIRED). The brief asked for a functioning staging environment; it does not exist |
 | Public GitHub repository, branch protection | NOT DONE: publishing is the owner's decision |
 | Signed release tags, SBOM, provenance | Workflow IMPLEMENTED; never run |

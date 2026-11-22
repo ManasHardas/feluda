@@ -11,3 +11,4 @@
 - 2026-11-22: **Phase 3, Android app.** `assembleDebug testDebugUnitTest lintDebug assembleRelease` pass, 90 unit tests. One test fake fixed (it consumed request bodies before the assertions). Not run on a device. Commit: see `git log` for "android: build verified".
 - 2026-11-22: **Backend tests the normal way.** `make backend-test` 144 passed; `make backend-test-docker` 143 passed, 1 skipped.
 - 2026-11-22: **Backend dependency audit and SBOM.** Advisories found in PyJWT and Starlette pins; upgraded; audit clean; SBOM generated.
+- 2026-11-22: **Live contract checks.** Each app's real networking code completes the resident journey against a running local backend (`make live-ios`, `make live-android`); no contract mismatches found. Added a native Swift package so the iOS core tests run without a simulator (`make ios-core-test`).
