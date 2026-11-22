@@ -7,9 +7,8 @@ neighborhood chat until they are fixed.
 
 - Preferred: GitHub's private vulnerability reporting (repository → Security → Report a
   vulnerability), once the repository is published and the feature is enabled.
-- Or e-mail the security contact: **SECURITY CONTACT NOT YET SET** (the owner must fill this in
-  before publishing; the same address is shown in the apps and on the registration page through the
-  `SECURITY_CONTACT` setting).
+- Or e-mail the security contact: **manas.hardas@gmail.com** (a deployment shows its own contact in
+  the apps and on the registration page through the `SECURITY_CONTACT` setting).
 
 Include: what is affected (app and version, or backend), how to reproduce it, and what an attacker
 could gain. If the report involves real residents' data, do not include that data.

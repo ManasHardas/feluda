@@ -54,7 +54,6 @@ These cannot be set from the code and have not been applied yet:
   reporting.
 - Create the environments `staging`, `production` (required reviewer) and `beta` for the deploy and
   distribution workflows.
-- Replace `@OWNER` in `.github/CODEOWNERS`.
 
 ## Reporting bugs
 

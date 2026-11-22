@@ -94,5 +94,4 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## License
 
-No license has been chosen yet. Until one is added, the code is published for inspection only and
-all rights are reserved by the owner.
+MIT. See `LICENSE`.

@@ -125,10 +125,10 @@ in each app's README. GitHub secrets and variables in `docs/APP_DISTRIBUTION.md`
 
 In `jtbd/todo.md`, in order. The ones only the owner can do:
 
-2. Decide whether and where to publish the repository (which GitHub account, public or private for
-   now), choose a license, set the security contact, replace `@OWNER` in CODEOWNERS.
-3. Create accounts: Supabase (two projects), Fly.io or another host, Firebase, Apple Developer
-   Program ($99 per year).
+2. Say whether the repository should be public (it is published privately under `ManasHardas`;
+   license MIT and the security contact are set).
+3. Create accounts: Supabase (two projects), Fly.io or another host, Firebase. The owner already
+   has the Apple Developer Program.
 4. Test on real phones (both test plans).
 5. Confirm the judgement calls in the decision records, 0010 first.
 6. Arrange an independent security review before going beyond a small pilot.

@@ -8,11 +8,10 @@ Last updated 2026-11-22. Source brief: `neighborhood_watchdog_master_build_promp
 5. **Audit Android dependencies** (the backend audit is done and clean). Done when: results are recorded in `docs/RELEASE_VERIFICATION.md`.
 
 ## Needs the owner (cannot be done by the agent)
-6. **Publishing.** Decide which GitHub account, public or private for now, and say go. Nothing has been pushed anywhere. Done when: the repository exists, CI has run once, branch protection is set as in `CONTRIBUTING.md`.
-7. **License.** None chosen; the README says all rights reserved until one is. Done when: a LICENSE file is added.
-8. **Security contact.** `SECURITY.md` has a placeholder. Done when: an address is set there and in the `SECURITY_CONTACT` settings.
-9. **Confirm the judgement calls** in `ai/docs/decisions/`, first 0010 (a lone phone losing Wi-Fi is shown but not pushed) and 0012 (a few dollars a month for an always-on host instead of a free one that sleeps). Done when: each is confirmed or changed.
-10. **Accounts and credentials:** Supabase (staging and production projects), a host (Fly.io by default), Firebase project, Apple Developer Program ($99 per year), an SMTP sender for sign-in codes. Steps: `docs/DEPLOYMENT.md`, `infrastructure/supabase/README.md`, `docs/APP_DISTRIBUTION.md`. Done when: staging answers the smoke test and one real push reaches each platform.
+6. **Publishing.** Owner chose the personal GitHub account `ManasHardas` (2026-11-22); public or private was not said, so it starts private. Done when: the repository exists, CI has run once, branch protection is set as in `CONTRIBUTING.md`, and the owner has said whether to make it public.
+8. **Security contact in deployments.** `SECURITY.md` has the address; the `SECURITY_CONTACT` setting of the backend and the app builds is set when staging is created (item 10). Done when: the registration page and both apps show it.
+9. **Confirm decision 0010** (a lone phone losing Wi-Fi is shown in the app but not pushed). 0012 (paid always-on host) was confirmed 2026-11-22. Done when: 0010 is confirmed or changed.
+10. **Accounts and credentials:** Supabase (staging and production projects), a host (Fly.io recommended), Firebase project, an SMTP sender for sign-in codes. The owner already has the Apple Developer Program. The owner fills in `.env.staging` (ignored by git; a blank template is written there) and puts key files in `secrets/`. Steps: `docs/DEPLOYMENT.md`, `infrastructure/supabase/README.md`, `docs/APP_DISTRIBUTION.md`. Done when: staging answers the smoke test and one real push reaches each platform.
 11. **Physical-device tests:** `apps/android/TESTING.md` (16 scenarios) and `apps/ios/TESTING.md` (11 scenarios). Done when: each scenario has a recorded result.
 12. **TestFlight first-build review** by Apple. Done when: an external tester can install.
 13. **Independent security review** before going beyond a small pilot (`docs/SECURITY_REVIEW.md`). Done when: a summary with scope, date, findings and remediation is published.

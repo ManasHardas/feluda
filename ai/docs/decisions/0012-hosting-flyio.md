@@ -17,3 +17,6 @@ after idle pays the cold start.
 
 **Not done.** No account exists and nothing is deployed. Prices and free-tier limits change;
 check them before committing (`docs/DEPLOYMENT.md` has the estimate and its assumptions).
+
+**Owner confirmation (2026-11-22).** The owner accepted paying a few dollars a month for an always-on
+machine. Fly.io stays the recommended host; the account does not exist yet.
