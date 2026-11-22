@@ -7,5 +7,7 @@
 - 2026-11-21: **Phase 6, notifications.** FCM and APNs senders, planning, retries, tracking, tested against fake transports. No real push sent. Commit `6728184`.
 - 2026-11-21: **Phase 7, security hardening.** Authorization, row-level-security and abuse tests (42), threat model, self-review. Commits `6728184`, `5f4f637`.
 - 2026-11-21: **Phase 8 and 9, documentation and configuration only.** Deployment files, distribution workflows and instructions exist. Nothing deployed or distributed: the remaining work is todo 10 to 12.
-
-Phase 3 (Android app) is not done: see todo 2.
+- 2026-11-22: **Mac restarted**; network works again.
+- 2026-11-22: **Phase 3, Android app.** `assembleDebug testDebugUnitTest lintDebug assembleRelease` pass, 90 unit tests. One test fake fixed (it consumed request bodies before the assertions). Not run on a device. Commit: see `git log` for "android: build verified".
+- 2026-11-22: **Backend tests the normal way.** `make backend-test` 144 passed; `make backend-test-docker` 143 passed, 1 skipped.
+- 2026-11-22: **Backend dependency audit and SBOM.** Advisories found in PyJWT and Starlette pins; upgraded; audit clean; SBOM generated.

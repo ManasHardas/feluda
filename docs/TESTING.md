@@ -10,7 +10,7 @@
 | Scenario simulation A to J | `backend/tests/test_scenarios.py` | PostgreSQL | 11 |
 | Notifications (routing, duplicates, retries, expiry, preferences, FCM and APNs request shape) | `backend/tests/test_notifications.py` | PostgreSQL | 14 |
 | Administration, configuration, retention, migrations, schema | `backend/tests/test_admin_and_ops.py` | PostgreSQL | 10 |
-| Android unit tests | `apps/android/app/src/test` | JDK 17, network for the first dependency download | 9 test files written; **never compiled or run** |
+| Android unit tests | `apps/android/app/src/test` | JDK 17, network for the first dependency download | 90 |
 | iOS unit tests | `apps/ios/NeighborhoodWatchdogTests` | Xcode, a simulator | 97 |
 
 Run them:

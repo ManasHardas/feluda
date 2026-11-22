@@ -1,15 +1,10 @@
 # To do, in priority order
 
-Last updated 2026-11-21 (end of the first build session). Source brief: `neighborhood_watchdog_master_build_prompt_v2.md`. What has and has not been verified: `docs/STATUS.md`. Summary for whoever picks this up: `docs/HANDOFF.md`.
+Last updated 2026-11-22. Source brief: `neighborhood_watchdog_master_build_prompt_v2.md`. What has and has not been verified: `docs/STATUS.md`. Summary for whoever picks this up: `docs/HANDOFF.md`.
 
-## Blocked on the machine
-1. **Restart the Mac.** It cannot open new TCP connections: about 32,500 sockets are stuck in TIME_WAIT / LAST_ACK and hold every local port (uptime was 65 days). Done when: `curl https://example.com` returns 200.
-
-## Verification still owed (agent can do these once the network works)
-2. **Android: finish the build.** Only `compileDebugKotlin` has run. Run `./gradlew --no-daemon assembleDebug testDebugUnitTest`, then `lintDebug` and `assembleRelease`, and fix what they report (test sources have never been compiled; R8 keep rules are untested). Done when: all four tasks pass and `docs/STATUS.md` says so.
-3. **Backend tests the normal way.** They passed (144) through a temporary relay. Done when: `make backend-test` and `make backend-test-docker` pass.
+## Verification still owed (agent can do these)
 4. **Run each app against a local backend** (Android emulator, iOS simulator) through sign-in, join, device registration, an event upload and an incident screen. Neither app has ever talked to the backend. Done when: both complete the flow and any contract mismatches are fixed.
-5. **Dependency audit and SBOM.** `make sbom` and the pip-audit step have never run. Done when: results are recorded in `docs/RELEASE_VERIFICATION.md`.
+5. **Audit Android dependencies** (the backend audit is done and clean). Done when: results are recorded in `docs/RELEASE_VERIFICATION.md`.
 
 ## Needs the owner (cannot be done by the agent)
 6. **Publishing.** Decide which GitHub account, public or private for now, and say go. Nothing has been pushed anywhere. Done when: the repository exists, CI has run once, branch protection is set as in `CONTRIBUTING.md`.

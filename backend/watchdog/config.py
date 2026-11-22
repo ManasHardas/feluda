@@ -177,8 +177,7 @@ def validate_overrides(values: dict[str, Any]) -> dict[str, float | int]:
 def load_config(conn, neighborhood_id: UUID | None) -> DetectionConfig:
     """Defaults, then global overrides, then this neighborhood's overrides."""
     rows = conn.execute(
-        "SELECT neighborhood_id, key, value FROM nw.system_configuration"
-        " WHERE neighborhood_id IS NULL OR neighborhood_id = %s",
+        "SELECT neighborhood_id, key, value FROM nw.system_configuration WHERE neighborhood_id IS NULL OR neighborhood_id = %s",
         [neighborhood_id],
     ).fetchall()
     global_values = {r["key"]: r["value"] for r in rows if r["neighborhood_id"] is None}

@@ -94,8 +94,7 @@ def _run(conn: Conn, neighborhood_id: UUID, now: datetime, cfg: DetectionConfig)
     households = {
         r["id"]: HouseholdInfo(id=r["id"], isp=r["isp"], latitude=r["latitude"], longitude=r["longitude"])
         for r in conn.execute(
-            "SELECT id, isp, latitude, longitude FROM nw.households"
-            " WHERE neighborhood_id = %s AND membership_status = 'active'",
+            "SELECT id, isp, latitude, longitude FROM nw.households WHERE neighborhood_id = %s AND membership_status = 'active'",
             [neighborhood_id],
         )
     }

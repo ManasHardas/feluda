@@ -22,6 +22,7 @@
             "type": "string"
           },
           "metadata": {
+            "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
           },
@@ -64,10 +65,12 @@
       "AdminConfigurationOut": {
         "properties": {
           "defaults": {
+            "additionalProperties": true,
             "title": "Defaults",
             "type": "object"
           },
           "values": {
+            "additionalProperties": true,
             "title": "Values",
             "type": "object"
           }
@@ -3325,6 +3328,7 @@
               "application/json": {
                 "schema": {
                   "items": {
+                    "additionalProperties": true,
                     "type": "object"
                   },
                   "title": "Response Export Incidents Api V1 Admin Incidents Export Get",

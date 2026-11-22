@@ -24,8 +24,8 @@ has not been arranged (EXTERNAL_REVIEW_REQUIRED, owner's decision who does it).
 | 5 | No certificate pinning in the apps | Low | Accepted: pinning a hosted provider's certificate risks locking residents out on rotation; standard platform trust is used |
 | 6 | The operator and the database provider can read all stored data; application-level access by the operator is not logged | Medium (privacy) | Accepted; mitigated by data minimization and short retention; stated in `docs/PRIVACY.md` |
 | 7 | CI actions and base images are pinned by tag, not by hash or digest | Low | Open |
-| 8 | Dependency vulnerability audit has not been run (no network at build time, repository not on GitHub) | Unknown | Open: run on first push |
-| 9 | The mobile apps have never run against the backend or on a physical phone. iOS compiles and its 97 unit tests pass. Android's main code compiles, but its unit tests, packaging, lint and release (R8) build have never run | Unknown | Open: see `docs/STATUS.md` |
+| 8 | The first dependency audit (2026-11-22) found known advisories in the pinned PyJWT and Starlette versions | High until fixed | Fixed: dependencies upgraded, audit clean, all tests pass. The pins had been chosen from memory without an audit; the weekly CI audit is what keeps this from recurring |
+| 9 | The mobile apps have never run against the backend or on a physical phone. Both compile and their unit tests pass (iOS 97, Android 90) | Unknown | Open: see `docs/STATUS.md` |
 | 10 | iOS debug builds allow cleartext to localhost only; Android debug builds allow cleartext to the emulator host only | Informational | By design; release builds are HTTPS-only |
 | 11 | Push notification text is visible on lock screens | Informational | Text contains no address or household identity |
 

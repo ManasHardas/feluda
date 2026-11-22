@@ -3,30 +3,12 @@
 Written 2026-11-21 at the end of the first build session. Read `docs/STATUS.md` next to this: it
 says exactly what was run and what was not.
 
-## First things to do
+## State on 2026-11-22
 
-The build machine lost the ability to open network connections partway through (stuck sockets;
-restart the Mac). After that:
-
-```bash
-cd ~/Projects/feluda
-curl -sS -o /dev/null -w '%{http_code}\n' https://example.com      # must print 200
-
-# 1. Backend, the normal way (was 144 passed through a workaround)
-make docker-up && make backend-lint backend-test openapi-check
-
-# 2. Android: never fully built. Expect to fix test-compile, lint or R8 errors.
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
-export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
-cd apps/android && ./gradlew --no-daemon assembleDebug testDebugUnitTest && ./gradlew --no-daemon lintDebug assembleRelease
-./gradlew --stop; cd ../..
-
-# 3. Container image and containerised tests
-make backend-test-docker
-
-# 4. iOS (passed before)
-make ios-build ios-test IOS_DESTINATION='platform=iOS Simulator,name=iPhone 17'
-```
+After the restart everything that was blocked was run: backend 144 tests pass (also inside
+containers), Android builds with 90 unit tests passing plus lint and the release build, the
+dependency audit is clean after an upgrade. Still never done: either app talking to the backend,
+anything on a phone, any deployment, any CI run.
 
 ## 1. What was built
 
@@ -36,8 +18,7 @@ explainable score, FCM and APNs senders with delivery tracking, administrator AP
 audit); a native Android app and a native iOS app (monitoring, durable queue, gap reporting,
 onboarding with consent, status, incidents, settings, transparency); a registration web page; an
 administrator command-line tool; CI, release and distribution workflows; deployment configuration;
-and the documentation set. 144 backend tests and 97 iOS tests pass. Android's main code compiles;
-its tests and packaging have not run. Nothing is deployed and nothing has run on a phone.
+and the documentation set. 144 backend tests, 97 iOS tests and 90 Android tests pass. Nothing is deployed and nothing has run on a phone.
 
 ## 2. Repository structure
 
@@ -135,13 +116,12 @@ in each app's README. GitHub secrets and variables in `docs/APP_DISTRIBUTION.md`
 
 ## 16. Automated test results
 
-`docs/STATUS.md`, "What was actually run". Backend 144 passed; iOS 97 passed; Android not run.
+`docs/STATUS.md`, "What was actually run". Backend 144 passed; iOS 97 passed; Android 90 passed.
 
 ## 17. Outstanding manual tasks
 
 In `jtbd/todo.md`, in order. The ones only the owner can do:
 
-1. Restart the Mac; run the commands at the top of this page; fix what the Android build reports.
 2. Decide whether and where to publish the repository (which GitHub account, public or private for
    now), choose a license, set the security contact, replace `@OWNER` in CODEOWNERS.
 3. Create accounts: Supabase (two projects), Fly.io or another host, Firebase, Apple Developer
@@ -174,7 +154,7 @@ verified online during the build.
 
 ## 20. Recommended next steps
 
-1. Get Android green; then run both apps against a local backend (emulator and simulator) through
+1. Run both apps against a local backend (emulator and simulator) through
    the whole onboarding flow. That is the largest unverified area.
 2. Stand up staging and send one real push to each platform.
 3. A two-household field test (switch a router off; see `docs/TESTING.md`).

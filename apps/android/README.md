@@ -12,15 +12,12 @@ Status words used below: IMPLEMENTED, AUTOMATED_TESTED (JVM unit tests), MANUAL_
 (needs a physical phone; see `TESTING.md`), EXTERNAL_CREDENTIAL_REQUIRED.
 **Nothing in this app has been run on a phone or an emulator yet.**
 
-### Verification status (2026-11-21)
+### Verification status (2026-11-22)
 
-- Seen to succeed: `./gradlew --no-daemon :app:compileDebugKotlin` (main sources, including KSP for
-  Hilt and Room, and the generated Java).
-- Not yet run, because the build machine lost all outbound and loopback TCP connectivity before the
-  remaining dependencies could be downloaded: packaging of the debug APK, the unit tests
-  (`testDebugUnitTest`; the test sources have not even been compiled), `lintDebug`, and
-  `assembleRelease` (R8). Treat the unit tests as written but NOT yet AUTOMATED_TESTED until the
-  commands under "Build" have been run and seen to pass.
+- Seen to succeed: `./gradlew --no-daemon assembleDebug testDebugUnitTest lintDebug assembleRelease`
+  (debug APK, 90 unit tests with 0 failures, lint, unsigned R8 release APK).
+- Not done: installing or launching either APK. A keep rule missing from `proguard-rules.pro` would
+  only show up when the minified app runs.
 - No SBOM task exists in this build (no CycloneDX plugin, no `cyclonedxBom` task).
 
 ## Build

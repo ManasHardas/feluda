@@ -45,7 +45,9 @@ immediately are recorded here.
 
 | Date | Component | Advisory | Decision |
 | --- | --- | --- | --- |
-| 2026-11-21 | (none recorded) | The audit has not been run: the build machine had no network access to the advisory database at the time, and the repository is not on GitHub yet | Run `make sbom` and the Security workflow on first push; record results here |
+| 2026-11-22 | PyJWT 2.10.1 | 17 advisories (PYSEC-2025-183, PYSEC-2026-120 and others, GHSA-pxh4-856f-4h89) | Upgraded to 2.15.1 |
+| 2026-11-22 | Starlette 0.41.3 (through FastAPI 0.115.6) | 7 advisories (PYSEC-2026-161, -248, -249, -1941, -1942, -2280, -2281) | Upgraded FastAPI to 0.165.0, which brings Starlette 1.10.0 |
+| 2026-11-22 | All backend dependencies, including the optional `errors` extra | pip-audit: no known vulnerabilities | None needed. Android dependencies have not been audited yet |
 
 ## Android: comparing a local build with a distributed one
 

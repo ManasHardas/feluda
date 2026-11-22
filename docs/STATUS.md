@@ -1,6 +1,6 @@
 # Status
 
-Last updated 2026-11-21 (end of the first build session). This page is the honest scoreboard:
+Last updated 2026-11-22 (after the machine restart). This page is the honest scoreboard:
 what exists, what was actually run, and what was not.
 
 | Word | Meaning |
@@ -17,7 +17,7 @@ what exists, what was actually run, and what was not.
 | What | Result | When |
 | --- | --- | --- |
 | Backend: lint and format check | clean | 2026-11-21 |
-| Backend: all tests against PostgreSQL 16 (unit, integration, security, scenarios A to J, notifications, admin) | **144 passed, 0 failed**, twice in a row | 2026-11-21 |
+| Backend: all tests against PostgreSQL 16 (unit, integration, security, scenarios A to J, notifications, admin), `make backend-test` | **144 passed, 0 failed**, again after upgrading dependencies | 2026-11-22 |
 | Backend: migrations on an empty database, re-run, pending check | applied; no-op; nothing pending | 2026-11-21 |
 | Backend: seed script, operator command | 24 households seeded; listed | 2026-11-21 |
 | Backend: real server start, health, registration page, scenario C replayed over HTTP, local sign-in code issued | worked; incident classified and explained as expected | 2026-11-21 |
@@ -26,25 +26,21 @@ what exists, what was actually run, and what was not.
 | iOS: Release build for the simulator | BUILD SUCCEEDED (reported by the app's builder) | 2026-11-21 |
 | iOS: unit tests on an iPhone 17 simulator (iOS 26.3) | 97 passed, 0 failed (reported by the app's builder) | 2026-11-21 |
 | iOS: app launched once in the simulator | first onboarding screen rendered; nothing else exercised | 2026-11-21 |
-| Android: `compileDebugKotlin` (main sources, with code generation) | BUILD SUCCESSFUL | 2026-11-21 |
-| Android: unit tests, debug APK packaging, lint, release build | **never ran** (see below) | |
-| Container image build, `make backend-test-docker` | **never ran** (needs network to pull base images) | |
+| Android: `assembleDebug testDebugUnitTest lintDebug assembleRelease` | BUILD SUCCESSFUL; **90 unit tests passed, 0 failed**; lint passed; unsigned release APK built with R8 | 2026-11-22 |
+| Backend tests inside containers (`make backend-test-docker`), which also builds the image's build stage | 143 passed, 1 skipped (the repository secret scan needs git) | 2026-11-22 |
+| Backend dependency audit (pip-audit) | First run found advisories in PyJWT 2.10.1 and Starlette 0.41.3; dependencies upgraded; **no known vulnerabilities** afterwards | 2026-11-22 |
+| Backend SBOM (`make sbom`, CycloneDX) | generated | 2026-11-22 |
 | GitHub Actions workflows | **never ran** (the repository is not on GitHub) | |
-| Dependency vulnerability audit, SBOM generation | **never ran** (need network) | |
 | Anything on a physical phone | **not done** | |
 | Any deployment | **not done** | |
 
-Why the Android and container steps did not run: partway through the session the build machine
-stopped being able to open new TCP connections (about 32,500 sockets stuck in the kernel, every
-local port held; the machine had been up 65 days). Dependency downloads became impossible. The
-backend tests were finished through a temporary local relay; Gradle and Docker could not be.
-After a restart, run the commands in "First things to do" in `docs/HANDOFF.md`.
+The production container image target (`runtime`) has not been built on its own yet; CI does that.
 
 ## Definition of done, item by item
 
 | # | Requirement | Status | Evidence or gap |
 | --- | --- | --- | --- |
-| 1 | Android application compiles | **Partly.** IMPLEMENTED; main sources compile | Test sources never compiled; APK never packaged; release (R8) build never run |
+| 1 | Android application compiles | AUTOMATED_TESTED | Debug APK, unit tests, lint and the R8 release build all pass. Never installed on a phone or emulator |
 | 2 | iOS application compiles | AUTOMATED_TESTED | Debug and Release simulator builds succeed; a signed device build needs an Apple team |
 | 3 | Backend starts locally | AUTOMATED_TESTED | Started and exercised over HTTP |
 | 4 | Database migrations execute successfully | AUTOMATED_TESTED | `test_migrations_are_complete_and_immutable`, and run by hand |
@@ -53,8 +49,8 @@ After a restart, run the commands in "First things to do" in `docs/HANDOFF.md`.
 | 7 | Household membership is enforced server-side | AUTOMATED_TESTED | API tests and direct row-level-security tests |
 | 8 | Device registration works | AUTOMATED_TESTED | Register, re-register, limit, revoke |
 | 9 | Connectivity events can be recorded | AUTOMATED_TESTED | Ingestion, idempotency, limits |
-| 10 | Events reported independently of home Wi-Fi when supported | IMPLEMENTED; MANUAL_TEST_REQUIRED | Android binds uploads to the cellular network (code compiles, never run). iOS cannot force an interface; the system decides. Needs real phones |
-| 11 | Failed event uploads are queued | iOS: AUTOMATED_TESTED. Android: IMPLEMENTED | Android queue tests are written but never run |
+| 10 | Events reported independently of home Wi-Fi when supported | IMPLEMENTED; MANUAL_TEST_REQUIRED | Android binds uploads to the cellular network (compiled and unit-tested with fakes; never run on a phone). iOS cannot force an interface; the system decides. Needs real phones |
+| 11 | Failed event uploads are queued | AUTOMATED_TESTED on both platforms | Unit tests with fake transports |
 | 12 | Neighborhood correlation works | AUTOMATED_TESTED | Scenarios A to J and 49 engine unit tests |
 | 13 | Incident classification is explainable | AUTOMATED_TESTED | Score breakdown, supporting and missing evidence stored and asserted |
 | 14 | Push notification integrations are implemented | IMPLEMENTED; AUTOMATED_TESTED against fake transports; EXTERNAL_CREDENTIAL_REQUIRED | FCM and APNs request shape, retries, tracking tested. **No real push has ever been sent** |
@@ -92,9 +88,9 @@ After a restart, run the commands in "First things to do" in `docs/HANDOFF.md`.
 
 | Feature | Status |
 | --- | --- |
-| All screens, monitoring, queue, cellular-bound upload, push handling, fingerprint | IMPLEMENTED; main code compiles |
-| Unit tests (9 files) | Written; never compiled or run |
-| Lint, release build with R8 | Never run |
+| Core logic: state machine, gaps, queue, backoff, fingerprint, contract JSON, auth networking | AUTOMATED_TESTED (90 tests) |
+| Screens, monitoring service, cellular-bound upload, push handling | IMPLEMENTED; compiled; never run on a device or emulator. No UI tests |
+| Lint, release build with R8 | Pass. The minified build has never been launched, so a missing keep rule could still show up at run time |
 | Everything on a phone (16 scenarios in `apps/android/TESTING.md`) | MANUAL_TEST_REQUIRED |
 | Firebase configuration and push | EXTERNAL_CREDENTIAL_REQUIRED |
 

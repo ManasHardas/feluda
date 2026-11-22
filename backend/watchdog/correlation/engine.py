@@ -394,8 +394,7 @@ def assess_household(onset: Onset, ctx: ClusterContext, cfg: DetectionConfig) ->
             lead = "One phone in this household lost its home Wi-Fi connection."
             if onset.last_rssi_dbm is None:
                 missing.append(
-                    "Signal strength before the loss is not available, so a phone simply leaving the house "
-                    "cannot be ruled out."
+                    "Signal strength before the loss is not available, so a phone simply leaving the house cannot be ruled out."
                 )
         if onset.power_lost is None:
             missing.append("Whether mains power was lost is unknown (the phone was not charging).")
@@ -618,7 +617,7 @@ def assess_cluster(members: Sequence[Onset], ctx: ClusterContext, cfg: Detection
     power_lost = sum(1 for m in power_known if m.power_lost)
 
     opening = (
-        f"{_number_word(n)} participating households reported connectivity interruptions within " f"{max(spread, 1):.0f} seconds."
+        f"{_number_word(n)} participating households reported connectivity interruptions within {max(spread, 1):.0f} seconds."
     )
     common_missing: list[str] = []
     if located < n:

@@ -53,12 +53,12 @@ class AuthNetworkingTest {
                 return when {
                     path == "/auth/v1/otp" -> json(200, "{}")
                     path == "/auth/v1/verify" -> {
-                        val ok = request.body.readUtf8().contains("\"token\":\"123456\"")
+                        val ok = request.body.clone().readUtf8().contains("\"token\":\"123456\"")
                         if (ok) json(200, session("access-1", "refresh-1")) else json(403, """{"code":403,"error_code":"otp_expired","msg":"Token has expired or is invalid"}""")
                     }
                     path == "/auth/v1/token?grant_type=refresh_token" -> {
                         refreshCalls++
-                        if (request.body.readUtf8().contains("\"refresh_token\":\"$acceptedRefresh\"")) {
+                        if (request.body.clone().readUtf8().contains("\"refresh_token\":\"$acceptedRefresh\"")) {
                             acceptedAccess = "access-${refreshCalls + 1}"
                             acceptedRefresh = "refresh-${refreshCalls + 1}"
                             json(200, session(acceptedAccess, acceptedRefresh))
