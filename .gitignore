@@ -1,0 +1,49 @@
+# Secrets and local configuration: never commit
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+*service-account*.json
+secrets/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+*.egg-info/
+
+# Android
+apps/android/.gradle/
+apps/android/build/
+apps/android/app/build/
+apps/android/local.properties
+apps/android/.kotlin/
+*.apk
+*.aab
+
+# iOS
+apps/ios/build/
+apps/ios/DerivedData/
+apps/ios/.build/
+*.xcuserstate
+xcuserdata/
+*.ipa
+*.xcarchive
+
+# Misc
+.DS_Store
+.idea/
+.vscode/
+*.log
+sbom-*.json
