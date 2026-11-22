@@ -41,7 +41,8 @@ jobs:
 
   dependency-review:
     name: Dependency review (new dependencies in pull requests)
-    if: github.event_name == 'pull_request'
+    # GitHub offers dependency review on public repositories only (or with Advanced Security).
+    if: github.event_name == 'pull_request' && !github.event.repository.private
     runs-on: ubuntu-24.04
     permissions:
       contents: read

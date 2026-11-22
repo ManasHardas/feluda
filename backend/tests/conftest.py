@@ -48,8 +48,9 @@ def _database_available() -> bool:
 DB_AVAILABLE = _database_available()
 
 
+@pytest.hookimpl(trylast=True)  # after `-m` has deselected, so `-m "not db"` runs without a database
 def pytest_collection_modifyitems(config, items):
-    if DB_AVAILABLE:
+    if DB_AVAILABLE or not any("db" in item.keywords for item in items):
         return
     if os.environ.get("CI") or os.environ.get("REQUIRE_DATABASE"):
         raise pytest.UsageError("PostgreSQL is required for the test suite but is not reachable (TEST_DATABASE_URL).")
