@@ -109,7 +109,7 @@ def test_d_power_cut_is_not_labelled_interference(world):
 
 def test_e_one_malicious_device_cannot_raise_a_neighborhood_alert(world):
     _, results = play(world, "E")
-    outcomes = [o for batch in results[len(world.hood.households):] for o in batch["outcomes"]]
+    outcomes = [o for batch in results[len(world.hood.households) :] for o in batch["outcomes"]]
     assert len(outcomes) == 100
     accepted = [o for o in outcomes if o["result"] == "accepted"]
     limited = [o for o in outcomes if o.get("reason") == "rate_limited"]
@@ -119,7 +119,8 @@ def test_e_one_malicious_device_cannot_raise_a_neighborhood_alert(world):
     with world.db.service() as conn:
         kinds = {r["kind"] for r in conn.execute("SELECT kind FROM nw.security_events")}
         excluded = conn.execute(
-            "SELECT count(*) AS n FROM nw.connectivity_events WHERE excluded_reason = 'onset_rate_limit'").fetchone()["n"]
+            "SELECT count(*) AS n FROM nw.connectivity_events WHERE excluded_reason = 'onset_rate_limit'"
+        ).fetchone()["n"]
     assert {"event_rate_limited", "suspicious_reporting"} <= kinds
     assert excluded == 60 - 6  # only the hourly onset allowance may reach correlation
 
@@ -133,8 +134,10 @@ def test_f_late_events_correlate_by_occurrence_time(world):
     assert incident["time_spread_s"] == 20
     assert any("arrived late" in m for m in incident["missing_evidence"])
     with world.db.service() as conn:
-        delays = [r["report_delay_s"] for r in conn.execute(
-            "SELECT report_delay_s FROM nw.connectivity_events WHERE event_type = 'WIFI_LOST'")]
+        delays = [
+            r["report_delay_s"]
+            for r in conn.execute("SELECT report_delay_s FROM nw.connectivity_events WHERE event_type = 'WIFI_LOST'")
+        ]
     assert all(d >= 580 for d in delays)
 
 
@@ -158,7 +161,8 @@ def test_h_event_queued_without_cellular_is_accepted_later_with_original_time(wo
     with world.db.service() as conn:
         row = conn.execute(
             "SELECT occurred_at, received_at, report_delay_s, connectivity_state FROM nw.connectivity_events"
-            " WHERE event_type = 'WIFI_LOST'").fetchone()
+            " WHERE event_type = 'WIFI_LOST'"
+        ).fetchone()
     assert row["occurred_at"] == START and row["report_delay_s"] == 900
     assert row["connectivity_state"] == "INTERNET_UNAVAILABLE"
     # By the time it arrives the outage is over: recorded as history, already closed, nobody alerted now.
@@ -173,11 +177,12 @@ def test_i_ios_suspension_gap_is_recorded_and_reconciled(world):
     device = scenario.steps[-1].household.device_id
     with world.db.service() as conn:
         sessions = conn.execute(
-            "SELECT started_at, ended_at, end_reason FROM nw.device_sessions WHERE device_id = %s ORDER BY started_at",
-            [device]).fetchall()
+            "SELECT started_at, ended_at, end_reason FROM nw.device_sessions WHERE device_id = %s ORDER BY started_at", [device]
+        ).fetchall()
         reconciled = conn.execute(
             "SELECT confidence, occurred_at FROM nw.connectivity_events WHERE device_id = %s AND event_type = 'WIFI_LOST'",
-            [device]).fetchone()
+            [device],
+        ).fetchone()
     assert sessions[0]["end_reason"] == "app_suspended" and sessions[0]["ended_at"] is not None
     assert sessions[-1]["ended_at"] is None  # monitoring resumed
     # The reconciled loss carries the resume time and is not used as a correlation onset.

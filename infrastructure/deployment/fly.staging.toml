@@ -1,0 +1,46 @@
+# Fly.io configuration for the staging backend. No secrets here: set them with `fly secrets set`
+# (list in docs/DEPLOYMENT.md). Replace the app name and URLs with your own before the first deploy.
+app = "neighborhood-watchdog-staging"
+primary_region = "dfw"
+
+[build]
+  dockerfile = "Dockerfile"
+  build-target = "runtime"
+
+[env]
+  ENVIRONMENT = "staging"
+  PUBLIC_BASE_URL = "https://neighborhood-watchdog-staging.fly.dev"
+  AUTH_JWT_AUDIENCE = "authenticated"
+  ADMIN_REQUIRE_MFA = "false"
+  DEV_AUTH_ENABLED = "false"
+  BACKGROUND_WORKER_ENABLED = "true"
+  TRUST_PROXY_HEADERS = "true"
+  LOG_LEVEL = "INFO"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  # One small always-on machine. Alerts must not wait for a cold start, and the in-process worker
+  # needs a running process for escalation, expiry and notification retries.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 50
+    hard_limit = 100
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/api/v1/monitoring/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+
+[deploy]
+  strategy = "rolling"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import secrets
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -22,7 +23,7 @@ from .db import Database
 from .errors import ApiError
 from .logging_setup import configure_logging, request_id_var
 from .notifications.providers import PushSender, build_senders
-from .pipeline import BackgroundWorker, Pipeline
+from .pipeline import BackgroundWorker, Pipeline, run_tick_exclusively
 from .ratelimit import SlidingWindowLimiter
 from .settings import Settings, get_settings
 from .web import pages
@@ -47,13 +48,19 @@ SECURITY_HEADERS = {
 
 def _error(status_code: int, code: str, message: str, headers: dict[str, str] | None = None) -> JSONResponse:
     return JSONResponse(
-        status_code=status_code, headers=headers,
+        status_code=status_code,
+        headers=headers,
         content={"error": {"code": code, "message": message, "request_id": request_id_var.get()}},
     )
 
 
-def create_app(settings: Settings | None = None, *, clock: Clock | None = None,
-               senders: dict[str, PushSender] | None = None, database: Database | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    clock: Clock | None = None,
+    senders: dict[str, PushSender] | None = None,
+    database: Database | None = None,
+) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
     clock = clock or Clock()
@@ -64,8 +71,13 @@ def create_app(settings: Settings | None = None, *, clock: Clock | None = None,
         try:
             import sentry_sdk
 
-            sentry_sdk.init(dsn=settings.sentry_dsn, environment=settings.environment, send_default_pii=False,
-                            max_request_body_size="never", traces_sample_rate=0.0)
+            sentry_sdk.init(
+                dsn=settings.sentry_dsn,
+                environment=settings.environment,
+                send_default_pii=False,
+                max_request_body_size="never",
+                traces_sample_rate=0.0,
+            )
         except ImportError:
             log.warning("SENTRY_DSN is set but sentry-sdk is not installed (install the 'errors' extra)")
 
@@ -88,8 +100,13 @@ def create_app(settings: Settings | None = None, *, clock: Clock | None = None,
 
     production = settings.is_production_like
     app = FastAPI(
-        title="Neighborhood Watchdog API", version=__version__, description=DESCRIPTION, lifespan=lifespan,
-        docs_url=None if production else "/docs", redoc_url=None, openapi_url=None if production else "/openapi.json",
+        title="Neighborhood Watchdog API",
+        version=__version__,
+        description=DESCRIPTION,
+        lifespan=lifespan,
+        docs_url=None if production else "/docs",
+        redoc_url=None,
+        openapi_url=None if production else "/openapi.json",
     )
     app.state.settings = settings
     app.state.clock = clock
@@ -100,8 +117,10 @@ def create_app(settings: Settings | None = None, *, clock: Clock | None = None,
 
     if settings.cors_allowed_origins:
         app.add_middleware(
-            CORSMiddleware, allow_origins=[o.strip() for o in settings.cors_allowed_origins.split(",") if o.strip()],
-            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"], allow_headers=["Authorization", "Content-Type"],
+            CORSMiddleware,
+            allow_origins=[o.strip() for o in settings.cors_allowed_origins.split(",") if o.strip()],
+            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+            allow_headers=["Authorization", "Content-Type"],
         )
 
     @app.middleware("http")
@@ -122,9 +141,15 @@ def create_app(settings: Settings | None = None, *, clock: Clock | None = None,
         response.headers["X-Request-ID"] = request_id
         route = request.scope.get("route")
         # Log the route template, never the raw path or query string (they may hold identifiers).
-        log.info("request", extra={"method": request.method, "route": getattr(route, "path", "unmatched"),
-                                   "status": response.status_code,
-                                   "duration_ms": round((time.perf_counter() - started) * 1000, 1)})
+        log.info(
+            "request",
+            extra={
+                "method": request.method,
+                "route": getattr(route, "path", "unmatched"),
+                "status": response.status_code,
+                "duration_ms": round((time.perf_counter() - started) * 1000, 1),
+            },
+        )
         metrics.incr(f"http_{response.status_code // 100}xx")
         request_id_var.reset(token)
         return response
@@ -147,6 +172,15 @@ def create_app(settings: Settings | None = None, *, clock: Clock | None = None,
     @app.get("/health", include_in_schema=False)
     def liveness() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.post("/internal/tick", include_in_schema=False)
+    def internal_tick(request: Request) -> dict[str, bool]:
+        """Maintenance pass for hosts that put the process to sleep; called by a scheduler with a shared secret."""
+        expected = settings.internal_tick_token
+        supplied = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+        if not expected or not secrets.compare_digest(supplied.encode(), expected.encode()):
+            raise ApiError(404, "not_found", "Not found.")
+        return {"ran": run_tick_exclusively(pipeline)}
 
     app.include_router(routes.router)
     app.include_router(admin_routes.router)

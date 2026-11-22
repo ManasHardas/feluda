@@ -30,8 +30,13 @@ from ..enums import (
 
 NOT_CONFIRMED = "Deliberate interference has not been confirmed."
 ISP_NAMES = {
-    "att": "AT&T", "xfinity": "Xfinity", "spectrum": "Spectrum", "verizon": "Verizon",
-    "tmobile_home": "T-Mobile Home Internet", "google_fiber": "Google Fiber", "other": "another provider",
+    "att": "AT&T",
+    "xfinity": "Xfinity",
+    "spectrum": "Spectrum",
+    "verizon": "Verizon",
+    "tmobile_home": "T-Mobile Home Internet",
+    "google_fiber": "Google Fiber",
+    "other": "another provider",
 }
 WEAK_SIGNAL_MARGIN_DB = 10
 
@@ -52,6 +57,7 @@ class EventRecord:
     platform: str
     diagnostics: dict[str, Any]
     excluded_reason: str | None = None
+    sequence: int = 0  # per-device counter; orders events that carry the same timestamp
 
 
 @dataclass(frozen=True)
@@ -92,7 +98,9 @@ class ClusterContext:
     now: datetime
     active_household_count: int  # households with confirmed monitoring activity, including the affected ones
     past_incident_starts: Sequence[datetime] = ()  # earlier neighborhood incidents (for the recurrence check)
-    prior_onsets_by_event: dict[UUID, int] = field(default_factory=dict)  # earlier recent onsets of the same household, keyed by onset event id
+    prior_onsets_by_event: dict[UUID, int] = field(
+        default_factory=dict
+    )  # earlier recent onsets of the same household, keyed by onset event id
 
 
 @dataclass
@@ -149,7 +157,7 @@ def _extent_m(members: Sequence[Onset]) -> int | None:
     located = [m for m in members if m.latitude is not None and m.longitude is not None]
     if len(located) < 2:
         return None
-    widest = max(_distance(a, b) or 0.0 for i, a in enumerate(located) for b in located[i + 1:])
+    widest = max(_distance(a, b) or 0.0 for i, a in enumerate(located) for b in located[i + 1 :])
     return int(math.ceil(widest / 50.0) * 50)  # rounded up to 50 m so it cannot pinpoint a house
 
 
@@ -188,9 +196,7 @@ def _is_healthy_at_home(event: EventRecord) -> bool:
     )
 
 
-def extract_onsets(
-    events: Iterable[EventRecord], households: dict[UUID, HouseholdInfo], cfg: DetectionConfig
-) -> list[Onset]:
+def extract_onsets(events: Iterable[EventRecord], households: dict[UUID, HouseholdInfo], cfg: DetectionConfig) -> list[Onset]:
     """Collapse raw events into one onset per household failure episode, ordered by occurrence time.
 
     An episode starts at the first usable failure event and ends when any device of the household
@@ -205,7 +211,7 @@ def extract_onsets(
 
     onsets: list[Onset] = []
     for household_id, items in per_household.items():
-        items.sort(key=lambda e: (e.occurred_at, e.received_at, str(e.id)))
+        items.sort(key=lambda e: (e.occurred_at, e.sequence, e.received_at, str(e.id)))
         info = households[household_id]
         current: Onset | None = None
         failed_devices: set[UUID] = set()
@@ -216,9 +222,16 @@ def extract_onsets(
                 if current is None:
                     d = event.diagnostics
                     current = Onset(
-                        household_id=household_id, device_id=event.device_id, event_id=event.id,
-                        occurred_at=event.occurred_at, received_at=event.received_at, mode=mode,
-                        platform=event.platform, isp=info.isp, latitude=info.latitude, longitude=info.longitude,
+                        household_id=household_id,
+                        device_id=event.device_id,
+                        event_id=event.id,
+                        occurred_at=event.occurred_at,
+                        received_at=event.received_at,
+                        mode=mode,
+                        platform=event.platform,
+                        isp=info.isp,
+                        latitude=info.latitude,
+                        longitude=info.longitude,
                         cellular_available=d.get("cellular_available"),
                         gateway_reachable=d.get("local_gateway_reachable"),
                         last_rssi_dbm=d.get("last_wifi_rssi_dbm"),
@@ -372,13 +385,9 @@ def assess_household(onset: Onset, ctx: ClusterContext, cfg: DetectionConfig) ->
             at_home = True
             classification = Classification.POSSIBLE_WIRELESS_INTERFERENCE
             if strong:
-                supporting.append(
-                    f"The Wi-Fi signal was strong ({onset.last_rssi_dbm} dBm) just before it disappeared."
-                )
+                supporting.append(f"The Wi-Fi signal was strong ({onset.last_rssi_dbm} dBm) just before it disappeared.")
             if repeated:
-                supporting.append(
-                    f"This is interruption number {prior + 1} within {cfg.household_repeat_window_min} minutes."
-                )
+                supporting.append(f"This is interruption number {prior + 1} within {cfg.household_repeat_window_min} minutes.")
             lead = "Home Wi-Fi dropped in a way that is not explained by the phone moving away or by a power cut."
         else:
             classification = Classification.HOUSEHOLD_CONNECTIVITY_ISSUE
@@ -467,13 +476,21 @@ def interference_score(
     isps = _isp_counts(members)
     if len(isps) >= 2:
         names = " and ".join(sorted(ISP_NAMES.get(k, k) for k in isps))
-        add("isp_diversity", cfg.weight_isp_diversity, cfg.weight_isp_diversity,
-            f"Affected households use different internet providers ({names}).")
+        add(
+            "isp_diversity",
+            cfg.weight_isp_diversity,
+            cfg.weight_isp_diversity,
+            f"Affected households use different internet providers ({names}).",
+        )
         supporting.append("The affected households use different internet providers.")
     elif len(isps) == 1:
         name = ISP_NAMES.get(next(iter(isps)), "one provider")
-        add("isp_diversity", 0.0, cfg.weight_isp_diversity,
-            f"All affected households with a known provider use {name}; a provider fault cannot be ruled out.")
+        add(
+            "isp_diversity",
+            0.0,
+            cfg.weight_isp_diversity,
+            f"All affected households with a known provider use {name}; a provider fault cannot be ruled out.",
+        )
         missing.append("All affected households with a known provider use the same provider.")
     else:
         add("isp_diversity", 0.0, cfg.weight_isp_diversity, "No affected household has a known internet provider.")
@@ -483,39 +500,54 @@ def interference_score(
     cell_known = [m for m in members if m.cellular_available is not None]
     cell_up = sum(1 for m in cell_known if m.cellular_available)
     if cell_known:
-        add("cellular_available", _fraction(cell_up, len(cell_known)) * cfg.weight_cellular_available,
+        add(
+            "cellular_available",
+            _fraction(cell_up, len(cell_known)) * cfg.weight_cellular_available,
             cfg.weight_cellular_available,
-            f"Cellular connectivity stayed available on {cell_up} of {len(cell_known)} reporting devices.")
+            f"Cellular connectivity stayed available on {cell_up} of {len(cell_known)} reporting devices.",
+        )
         if cell_up:
-            supporting.append(
-                f"Cellular connectivity remained available for {cell_up} of {len(cell_known)} reporting devices."
-            )
+            supporting.append(f"Cellular connectivity remained available for {cell_up} of {len(cell_known)} reporting devices.")
     else:
         add("cellular_available", 0.0, cfg.weight_cellular_available, "No device reported cellular availability.")
         missing.append("Cellular availability during the interruption is unknown.")
 
     # 6. Wi-Fi association lost (rather than Wi-Fi up without internet)
     wifi_lost = sum(1 for m in members if m.mode == FailureMode.WIFI_LOST)
-    add("wifi_loss_signature", _fraction(wifi_lost, n) * cfg.weight_wifi_loss_signature,
+    add(
+        "wifi_loss_signature",
+        _fraction(wifi_lost, n) * cfg.weight_wifi_loss_signature,
         cfg.weight_wifi_loss_signature,
-        f"{wifi_lost} of {n} households lost the Wi-Fi connection itself, not only the internet behind it.")
+        f"{wifi_lost} of {n} households lost the Wi-Fi connection itself, not only the internet behind it.",
+    )
 
     # 7. lost at good signal (Android only)
     rssi_known = [m for m in members if m.last_rssi_dbm is not None]
     strong = sum(1 for m in rssi_known if m.last_rssi_dbm >= cfg.strong_signal_dbm)  # type: ignore[operator]
     if rssi_known:
-        add("strong_signal_before_loss", _fraction(strong, len(rssi_known)) * cfg.weight_strong_signal_loss,
+        add(
+            "strong_signal_before_loss",
+            _fraction(strong, len(rssi_known)) * cfg.weight_strong_signal_loss,
             cfg.weight_strong_signal_loss,
-            f"{strong} of {len(rssi_known)} devices that report signal strength had a strong signal just before the loss.")
+            f"{strong} of {len(rssi_known)} devices that report signal strength had a strong signal just before the loss.",
+        )
     else:
-        add("strong_signal_before_loss", 0.0, cfg.weight_strong_signal_loss,
-            "No device reported signal strength before the loss (iPhones never do).")
+        add(
+            "strong_signal_before_loss",
+            0.0,
+            cfg.weight_strong_signal_loss,
+            "No device reported signal strength before the loss (iPhones never do).",
+        )
         missing.append("Signal strength before the loss is not available for any reporting device.")
 
     # 8. persistence
     persistent = sum(1 for m in members if _persistent(m, ctx.now, cfg))
-    add("persistence", _fraction(persistent, n) * cfg.weight_persistence, cfg.weight_persistence,
-        f"{persistent} of {n} households were still without Wi-Fi after {cfg.persistence_seconds} seconds.")
+    add(
+        "persistence",
+        _fraction(persistent, n) * cfg.weight_persistence,
+        cfg.weight_persistence,
+        f"{persistent} of {n} households were still without Wi-Fi after {cfg.persistence_seconds} seconds.",
+    )
     if persistent:
         supporting.append(
             f"The interruption lasted longer than {cfg.persistence_seconds} seconds at {_plural(persistent, 'household')}."
@@ -525,10 +557,16 @@ def interference_score(
     power_known = [m for m in members if m.power_lost is not None]
     power_lost = sum(1 for m in power_known if m.power_lost)
     if power_known:
-        add("power_loss_evidence", -_fraction(power_lost, len(power_known)) * cfg.penalty_power_evidence, 0.0,
-            f"{power_lost} of {len(power_known)} charging phones lost external power at the same time.")
+        add(
+            "power_loss_evidence",
+            -_fraction(power_lost, len(power_known)) * cfg.penalty_power_evidence,
+            0.0,
+            f"{power_lost} of {len(power_known)} charging phones lost external power at the same time.",
+        )
         if power_lost == 0:
-            supporting.append(f"{_plural(len(power_known), 'charging phone')} kept external power, which argues against a power cut.")
+            supporting.append(
+                f"{_plural(len(power_known), 'charging phone')} kept external power, which argues against a power cut."
+            )
     else:
         add("power_loss_evidence", 0.0, 0.0, "No reporting phone was charging, so a power cut cannot be checked.")
         missing.append("No reporting phone was charging, so a neighborhood power cut cannot be ruled out.")
@@ -544,9 +582,13 @@ def interference_score(
         if min(diff, 1440 - diff) <= cfg.recurring_time_of_day_tolerance_min:
             similar += 1
     if similar >= cfg.recurring_incident_count:
-        add("recurring_time_of_day", -cfg.penalty_recurring_time_of_day, 0.0,
+        add(
+            "recurring_time_of_day",
+            -cfg.penalty_recurring_time_of_day,
+            0.0,
             f"{_plural(similar, 'similar incident')} happened at about this time of day in the last "
-            f"{cfg.recurring_lookback_days} days, which is typical of scheduled maintenance.")
+            f"{cfg.recurring_lookback_days} days, which is typical of scheduled maintenance.",
+        )
     else:
         add("recurring_time_of_day", 0.0, 0.0, "No pattern of earlier incidents at this time of day.")
 
@@ -576,43 +618,68 @@ def assess_cluster(members: Sequence[Onset], ctx: ClusterContext, cfg: Detection
     power_lost = sum(1 for m in power_known if m.power_lost)
 
     opening = (
-        f"{_number_word(n)} participating households reported connectivity interruptions within "
-        f"{max(spread, 1):.0f} seconds."
+        f"{_number_word(n)} participating households reported connectivity interruptions within " f"{max(spread, 1):.0f} seconds."
     )
     common_missing: list[str] = []
     if located < n:
-        common_missing.append(f"{_plural(n - located, 'affected household')} has no registered location; distance was not checked for it.")
+        common_missing.append(
+            f"{_plural(n - located, 'affected household')} has no registered location; distance was not checked for it."
+        )
     if delayed:
         common_missing.append(
             f"{_plural(delayed, 'report')} arrived late and was placed by the time it happened, not the time it arrived."
         )
-    common_missing.append("Phones cannot measure radio interference directly; this assessment is an inference from connectivity reports.")
+    common_missing.append(
+        "Phones cannot measure radio interference directly; this assessment is an inference from connectivity reports."
+    )
 
-    def build(classification: Classification, level: AlertLevel, explanation: str, supporting: list[str],
-              missing: list[str], score: float | None = None, breakdown: list[dict[str, Any]] | None = None) -> Assessment:
+    def build(
+        classification: Classification,
+        level: AlertLevel,
+        explanation: str,
+        supporting: list[str],
+        missing: list[str],
+        score: float | None = None,
+        breakdown: list[dict[str, Any]] | None = None,
+    ) -> Assessment:
         return Assessment(
-            scope=IncidentScope.NEIGHBORHOOD, classification=classification, alert_level=level,
-            members=list(members), started_at=members[0].occurred_at,
+            scope=IncidentScope.NEIGHBORHOOD,
+            classification=classification,
+            alert_level=level,
+            members=list(members),
+            started_at=members[0].occurred_at,
             last_event_at=max([m.occurred_at for m in members] + [m.restored_at for m in members if m.restored_at]),
-            affected_household_count=n, active_household_count=active, time_spread_s=spread,
-            explanation=explanation, supporting_evidence=supporting, missing_evidence=missing + common_missing,
-            score=score, score_breakdown=breakdown or [], approximate_extent_m=_extent_m(members),
-            isp_diversity=isps, failure_modes={k.value: v for k, v in modes.items()}, delayed_report_count=delayed,
+            affected_household_count=n,
+            active_household_count=active,
+            time_spread_s=spread,
+            explanation=explanation,
+            supporting_evidence=supporting,
+            missing_evidence=missing + common_missing,
+            score=score,
+            score_breakdown=breakdown or [],
+            approximate_extent_m=_extent_m(members),
+            isp_diversity=isps,
+            failure_modes={k.value: v for k, v in modes.items()},
+            delayed_report_count=delayed,
         )
 
     # --- A. Wi-Fi stayed connected, internet behind it failed: an upstream problem, not a radio problem.
     if modes[FailureMode.NO_INTERNET] * 2 > n:
-        supporting = [f"{modes[FailureMode.NO_INTERNET]} of {n} households kept their Wi-Fi connection and lost only internet access."]
+        supporting = [
+            f"{modes[FailureMode.NO_INTERNET]} of {n} households kept their Wi-Fi connection and lost only internet access."
+        ]
         missing: list[str] = []
-        top_isp, top_count = (max(isps.items(), key=lambda kv: kv[1]) if isps else (None, 0))
+        top_isp, top_count = max(isps.items(), key=lambda kv: kv[1]) if isps else (None, 0)
         if top_isp and _fraction(top_count, sum(isps.values())) >= cfg.isp_outage_same_provider_fraction:
             name = ISP_NAMES.get(top_isp, top_isp)
             supporting.append(f"{top_count} of {sum(isps.values())} affected households with a known provider use {name}.")
             cause = f"This pattern is consistent with an outage at {name} or another upstream internet problem."
         elif len(isps) >= 2:
             supporting.append("Affected households use different providers.")
-            cause = ("Because several providers are involved, a wider upstream problem such as a DNS or regional "
-                     "network failure is more likely than a single provider outage.")
+            cause = (
+                "Because several providers are involved, a wider upstream problem such as a DNS or regional "
+                "network failure is more likely than a single provider outage."
+            )
         else:
             missing.append("Internet providers of the affected households are unknown.")
             cause = "This pattern is consistent with an upstream internet problem."
@@ -621,35 +688,47 @@ def assess_cluster(members: Sequence[Onset], ctx: ClusterContext, cfg: Detection
             f"{cause} It is not the pattern expected from wireless interference. Security devices that depend "
             "on the internet may be offline until service returns."
         )
-        return ClusterResult(list(members), build(Classification.POSSIBLE_ISP_OUTAGE, AlertLevel.HOUSEHOLD_WARNING,
-                                                  explanation, supporting, missing), None, "upstream signature")
+        return ClusterResult(
+            list(members),
+            build(Classification.POSSIBLE_ISP_OUTAGE, AlertLevel.HOUSEHOLD_WARNING, explanation, supporting, missing),
+            None,
+            "upstream signature",
+        )
 
     # --- B. Several phones lost charging power at the same time: a power cut explains the Wi-Fi loss.
-    if len(power_known) >= cfg.power_evidence_min_devices and _fraction(power_lost, len(power_known)) >= cfg.power_evidence_fraction:
-        supporting = [f"{power_lost} of {len(power_known)} charging phones lost external power at the same time as the Wi-Fi loss."]
+    if (
+        len(power_known) >= cfg.power_evidence_min_devices
+        and _fraction(power_lost, len(power_known)) >= cfg.power_evidence_fraction
+    ):
+        supporting = [
+            f"{power_lost} of {len(power_known)} charging phones lost external power at the same time as the Wi-Fi loss."
+        ]
         explanation = (
             f"{opening} Several reporting phones stopped charging at the same moment, which points to a power "
             "cut or a local infrastructure failure rather than wireless interference. Security devices without "
             f"battery backup may be offline. {NOT_CONFIRMED}"
         )
         missing = [] if cell_known else ["Cellular availability during the interruption is unknown."]
-        return ClusterResult(list(members), build(Classification.POSSIBLE_ROUTER_OR_POWER_FAILURE,
-                                                  AlertLevel.HOUSEHOLD_WARNING, explanation, supporting, missing),
-                             None, "power evidence")
+        return ClusterResult(
+            list(members),
+            build(
+                Classification.POSSIBLE_ROUTER_OR_POWER_FAILURE, AlertLevel.HOUSEHOLD_WARNING, explanation, supporting, missing
+            ),
+            None,
+            "power evidence",
+        )
 
     # --- C. Wireless-loss signature: score it.
     score, breakdown, supporting, missing = interference_score(members, ctx, cfg)
     if score < cfg.correlated_score_threshold:
-        return ClusterResult(list(members), None, score, f"score {score} is below the threshold of {cfg.correlated_score_threshold:g}")
+        return ClusterResult(
+            list(members), None, score, f"score {score} is below the threshold of {cfg.correlated_score_threshold:g}"
+        )
 
     # High priority needs a high score AND an outage that is still going on in most affected homes:
     # a brief simultaneous blip, however widespread, stays a level-2 anomaly.
     persistent = sum(1 for m in members if _persistent(m, ctx.now, cfg))
-    high = (
-        score >= cfg.high_priority_score_threshold
-        and n >= cfg.high_priority_min_households
-        and persistent * 2 >= n
-    )
+    high = score >= cfg.high_priority_score_threshold and n >= cfg.high_priority_min_households and persistent * 2 >= n
     sentences = [opening.replace("connectivity interruptions", "Wi-Fi connectivity interruptions")]
     if len(isps) >= 2:
         sentences.append("The affected households use different internet providers.")
@@ -674,9 +753,7 @@ def assess_cluster(members: Sequence[Onset], ctx: ClusterContext, cfg: Detection
     return ClusterResult(list(members), assessment, score, "promoted")
 
 
-def evaluate(
-    onsets: Sequence[Onset], ctx: ClusterContext, cfg: DetectionConfig
-) -> tuple[list[Assessment], list[ClusterResult]]:
+def evaluate(onsets: Sequence[Onset], ctx: ClusterContext, cfg: DetectionConfig) -> tuple[list[Assessment], list[ClusterResult]]:
     """Cluster the onsets and assess every cluster.
 
     Returns (assessments, multi_household_cluster_results). Households in a cluster that was not
@@ -685,7 +762,11 @@ def evaluate(
     assessments: list[Assessment] = []
     cluster_results: list[ClusterResult] = []
     for members in cluster_onsets(onsets, cfg):
-        result = assess_cluster(members, ctx, cfg) if len(members) >= 2 else ClusterResult(list(members), None, None, "single household")
+        result = (
+            assess_cluster(members, ctx, cfg)
+            if len(members) >= 2
+            else ClusterResult(list(members), None, None, "single household")
+        )
         if len(members) >= 2:
             cluster_results.append(result)
         if result.promoted is not None:

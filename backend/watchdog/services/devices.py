@@ -17,8 +17,13 @@ MAX_DEVICES_PER_USER = 5
 
 def _out(row) -> DeviceOut:
     return DeviceOut(
-        device_id=row["id"], platform=row["platform"], os_version=row["os_version"], app_version=row["app_version"],
-        status=row["status"], monitoring_enabled=row["monitoring_enabled"], last_seen_at=row["last_seen_at"],
+        device_id=row["id"],
+        platform=row["platform"],
+        os_version=row["os_version"],
+        app_version=row["app_version"],
+        status=row["status"],
+        monitoring_enabled=row["monitoring_enabled"],
+        last_seen_at=row["last_seen_at"],
         created_at=row["created_at"],
     )
 
@@ -29,7 +34,9 @@ def register(db: Database, member: Member, body: RegisterDeviceRequest) -> Devic
         existing = conn.execute("SELECT * FROM nw.devices WHERE id = %s FOR UPDATE", [body.device_id]).fetchone()
         if existing is not None:
             if existing["status"] == "revoked":
-                raise ApiError(403, "device_revoked", "This device registration was revoked. Reinstall the app to register again.")
+                raise ApiError(
+                    403, "device_revoked", "This device registration was revoked. Reinstall the app to register again."
+                )
             if existing["household_id"] != member.household_id or existing["platform"] != body.platform:
                 raise ApiError(409, "device_conflict", "This device identifier cannot be registered. Reinstall the app.")
             row = conn.execute(
@@ -39,12 +46,13 @@ def register(db: Database, member: Member, body: RegisterDeviceRequest) -> Devic
             return _out(row)
         count = conn.execute("SELECT count(*) AS n FROM nw.devices WHERE status = 'active'").fetchone()["n"]
         if count >= MAX_DEVICES_PER_USER:
-            raise ApiError(409, "device_limit", f"At most {MAX_DEVICES_PER_USER} devices can be registered per person. Revoke one first.")
+            raise ApiError(
+                409, "device_limit", f"At most {MAX_DEVICES_PER_USER} devices can be registered per person. Revoke one first."
+            )
         row = conn.execute(
             "INSERT INTO nw.devices (id, user_id, household_id, platform, os_version, app_version, capabilities)"
             " VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING RETURNING *",
-            [body.device_id, member.user_id, member.household_id, body.platform, body.os_version, body.app_version,
-             capabilities],
+            [body.device_id, member.user_id, member.household_id, body.platform, body.os_version, body.app_version, capabilities],
         ).fetchone()
         if row is None:  # the identifier exists but belongs to someone else (invisible under row-level security)
             raise ApiError(409, "device_conflict", "This device identifier cannot be registered. Reinstall the app.")

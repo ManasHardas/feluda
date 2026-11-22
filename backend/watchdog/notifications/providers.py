@@ -73,7 +73,8 @@ class FcmSender:
         now = int(time.time())
         assertion = jwt.encode(
             {"iss": account["client_email"], "scope": FCM_SCOPE, "aud": account["token_uri"], "iat": now, "exp": now + 3600},
-            account["private_key"], algorithm="RS256",
+            account["private_key"],
+            algorithm="RS256",
         )
         response = self.client.post(
             account["token_uri"],
@@ -104,7 +105,8 @@ class FcmSender:
         try:
             response = self.client.post(
                 f"https://fcm.googleapis.com/v1/projects/{self.project_id}/messages:send",
-                headers={"Authorization": f"Bearer {self._token()}"}, json=body,
+                headers={"Authorization": f"Bearer {self._token()}"},
+                json=body,
             )
         except (httpx.HTTPError, KeyError, ValueError) as exc:
             return SendResult(ok=False, error=_short(f"transport: {type(exc).__name__}"), retryable=True)
@@ -115,13 +117,17 @@ class FcmSender:
             status = response.json().get("error", {}).get("status", "")
         except ValueError:
             pass
-        invalid = response.status_code == 404 or status in ("UNREGISTERED", "NOT_FOUND") or (
-            response.status_code == 400 and status == "INVALID_ARGUMENT"
+        invalid = (
+            response.status_code == 404
+            or status in ("UNREGISTERED", "NOT_FOUND")
+            or (response.status_code == 400 and status == "INVALID_ARGUMENT")
         )
         if response.status_code == 401:
             self._access_token = ""
         return SendResult(
-            ok=False, error=_short(f"fcm {response.status_code} {status}"), invalid_token=invalid,
+            ok=False,
+            error=_short(f"fcm {response.status_code} {status}"),
+            invalid_token=invalid,
             retryable=response.status_code in (401, 429) or response.status_code >= 500,
         )
 
@@ -144,8 +150,9 @@ class ApnsSender:
         if self._jwt and time.time() - self._jwt_issued < 45 * 60:  # APNs accepts a token for up to one hour
             return self._jwt
         self._jwt_issued = time.time()
-        self._jwt = jwt.encode({"iss": self.team_id, "iat": int(self._jwt_issued)}, self.private_key,
-                               algorithm="ES256", headers={"kid": self.key_id})
+        self._jwt = jwt.encode(
+            {"iss": self.team_id, "iat": int(self._jwt_issued)}, self.private_key, algorithm="ES256", headers={"kid": self.key_id}
+        )
         return self._jwt
 
     def send(self, token: str, message: PushMessage, apns_environment: str | None = None) -> SendResult:
@@ -188,7 +195,9 @@ class ApnsSender:
         if reason == "ExpiredProviderToken":
             self._jwt = ""
         return SendResult(
-            ok=False, error=_short(f"apns {response.status_code} {reason}"), invalid_token=invalid,
+            ok=False,
+            error=_short(f"apns {response.status_code} {reason}"),
+            invalid_token=invalid,
             retryable=response.status_code == 429 or response.status_code >= 500 or reason == "ExpiredProviderToken",
         )
 

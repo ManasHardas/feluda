@@ -49,10 +49,16 @@ _HOUSEHOLD_SELECT = (
 
 def _household_out(row) -> AdminHouseholdOut:
     return AdminHouseholdOut(
-        household_id=row["id"], anonymous_reference=row["anonymous_reference"],
-        house_number=row["normalized_house_number"], street_name=row["normalized_street_name"], isp=row["isp"],
-        membership_status=row["membership_status"], member_count=row["member_count"], device_count=row["device_count"],
-        has_location=row["has_location"], created_at=row["created_at"],
+        household_id=row["id"],
+        anonymous_reference=row["anonymous_reference"],
+        house_number=row["normalized_house_number"],
+        street_name=row["normalized_street_name"],
+        isp=row["isp"],
+        membership_status=row["membership_status"],
+        member_count=row["member_count"],
+        device_count=row["device_count"],
+        has_location=row["has_location"],
+        created_at=row["created_at"],
     )
 
 
@@ -70,8 +76,14 @@ def create_household(db: Database, admin: Member, body: AdminCreateHouseholdRequ
                 " normalized_street_name, isp, latitude, longitude) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
                 [admin.neighborhood_id, anonymous_reference(), number, street, body.isp.value, body.latitude, body.longitude],
             ).fetchone()
-            audit(conn, action="household_approved", neighborhood_id=admin.neighborhood_id, actor_user_id=admin.user_id,
-                  target_type="household", target_id=row["id"])
+            audit(
+                conn,
+                action="household_approved",
+                neighborhood_id=admin.neighborhood_id,
+                actor_user_id=admin.user_id,
+                target_type="household",
+                target_id=row["id"],
+            )
             return _household_out(conn.execute(_HOUSEHOLD_SELECT + " WHERE h.id = %s", [row["id"]]).fetchone())
     except UniqueViolation as exc:
         raise ApiError(409, "household_exists", "This address is already on the approved list.") from exc
@@ -87,8 +99,9 @@ def list_households(db: Database, admin: Member) -> list[AdminHouseholdOut]:
     return [_household_out(r) for r in rows]
 
 
-def _set_household_status(db: Database, admin: Member, household_id: UUID, new_status: str, action: str,
-                          reason: str | None, now: datetime) -> None:
+def _set_household_status(
+    db: Database, admin: Member, household_id: UUID, new_status: str, action: str, reason: str | None, now: datetime
+) -> None:
     with db.service() as conn:
         row = conn.execute(
             "SELECT id, membership_status FROM nw.households WHERE id = %s AND neighborhood_id = %s FOR UPDATE",
@@ -115,8 +128,15 @@ def _set_household_status(db: Database, admin: Member, household_id: UUID, new_s
                 " (SELECT id FROM nw.devices WHERE household_id = %s)",
                 [now, f"household_{new_status}", household_id],
             )
-        audit(conn, action=action, neighborhood_id=admin.neighborhood_id, actor_user_id=admin.user_id,
-              target_type="household", target_id=household_id, metadata={"reason": reason} if reason else None)
+        audit(
+            conn,
+            action=action,
+            neighborhood_id=admin.neighborhood_id,
+            actor_user_id=admin.user_id,
+            target_type="household",
+            target_id=household_id,
+            metadata={"reason": reason} if reason else None,
+        )
 
 
 def suspend_household(db, admin, household_id, reason, now):
@@ -131,8 +151,9 @@ def remove_household(db, admin, household_id, reason, now):
     _set_household_status(db, admin, household_id, "removed", "household_removed", reason, now)
 
 
-def create_invitation(db: Database, settings: Settings, admin: Member, body: AdminCreateInvitationRequest,
-                      now: datetime) -> AdminInvitationCreatedOut:
+def create_invitation(
+    db: Database, settings: Settings, admin: Member, body: AdminCreateInvitationRequest, now: datetime
+) -> AdminInvitationCreatedOut:
     token = new_token()
     expires_at = now + timedelta(hours=body.expires_in_hours)
     with db.service() as conn:
@@ -148,10 +169,19 @@ def create_invitation(db: Database, settings: Settings, admin: Member, body: Adm
             " VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
             [admin.neighborhood_id, body.household_id, hash_token(token), body.role.value, expires_at, admin.user_id],
         ).fetchone()
-        audit(conn, action="invitation_created", neighborhood_id=admin.neighborhood_id, actor_user_id=admin.user_id,
-              target_type="invitation", target_id=row["id"],
-              metadata={"role": body.role.value, "household_bound": body.household_id is not None,
-                        "expires_in_hours": body.expires_in_hours})
+        audit(
+            conn,
+            action="invitation_created",
+            neighborhood_id=admin.neighborhood_id,
+            actor_user_id=admin.user_id,
+            target_type="invitation",
+            target_id=row["id"],
+            metadata={
+                "role": body.role.value,
+                "household_bound": body.household_id is not None,
+                "expires_in_hours": body.expires_in_hours,
+            },
+        )
     # The token travels in the URL fragment, which browsers and link-preview crawlers do not send to servers.
     return AdminInvitationCreatedOut(
         invitation_id=row["id"], invitation_url=f"{settings.public_base_url.rstrip('/')}/join#t={token}", expires_at=expires_at
@@ -178,8 +208,14 @@ def revoke_invitation(db: Database, admin: Member, invitation_id: UUID) -> None:
         ).fetchone()
         if row is None:
             raise not_found("Invitation not found or no longer active.")
-        audit(conn, action="invitation_revoked", neighborhood_id=admin.neighborhood_id, actor_user_id=admin.user_id,
-              target_type="invitation", target_id=invitation_id)
+        audit(
+            conn,
+            action="invitation_revoked",
+            neighborhood_id=admin.neighborhood_id,
+            actor_user_id=admin.user_id,
+            target_type="invitation",
+            target_id=invitation_id,
+        )
 
 
 def revoke_device(db: Database, admin: Member, device_id: UUID, reason: str | None, now: datetime) -> None:
@@ -191,8 +227,15 @@ def revoke_device(db: Database, admin: Member, device_id: UUID, reason: str | No
         ).fetchone()
         if row is None:
             raise not_found("Device not found.")
-        audit(conn, action="device_revoked", neighborhood_id=admin.neighborhood_id, actor_user_id=admin.user_id,
-              target_type="device", target_id=device_id, metadata={"reason": reason} if reason else None)
+        audit(
+            conn,
+            action="device_revoked",
+            neighborhood_id=admin.neighborhood_id,
+            actor_user_id=admin.user_id,
+            target_type="device",
+            target_id=device_id,
+            metadata={"reason": reason} if reason else None,
+        )
     device_service.revoke_as_service(db, device_id, now)
 
 
@@ -228,9 +271,15 @@ def summary(db: Database, admin: Member, now: datetime) -> AdminNeighborhoodSumm
             {"n": admin.neighborhood_id, "m": now - timedelta(days=30), "w": now - timedelta(days=7)},
         ).fetchone()
     return AdminNeighborhoodSummaryOut(
-        neighborhood_id=hood["id"], name=hood["name"], status=hood["status"], households_by_status=by_status,
-        monitoring_by_status=monitoring, devices_by_platform=platforms, open_incidents=counts["open"],
-        incidents_last_30_days=counts["month"], notification_failures_last_7_days=counts["failures"],
+        neighborhood_id=hood["id"],
+        name=hood["name"],
+        status=hood["status"],
+        households_by_status=by_status,
+        monitoring_by_status=monitoring,
+        devices_by_platform=platforms,
+        open_incidents=counts["open"],
+        incidents_last_30_days=counts["month"],
+        notification_failures_last_7_days=counts["failures"],
     )
 
 
@@ -246,7 +295,9 @@ def incident_history(db: Database, admin: Member, limit: int) -> list[IncidentOu
         data = _base(row, False)
         if row["scope"] == "household":
             data["approximate_scope"] = "One household (not identified)"
-            data["summary"] = data["summary"].replace("at your household", "at one household").replace("at home", "at one household")
+            data["summary"] = (
+                data["summary"].replace("at your household", "at one household").replace("at home", "at one household")
+            )
         out.append(IncidentOut(**data))
     return out
 
@@ -261,8 +312,13 @@ def export_incidents(db: Database, admin: Member, now: datetime) -> list[dict[st
             " FROM nw.incidents WHERE neighborhood_id = %s AND status <> 'merged' ORDER BY started_at",
             [admin.neighborhood_id],
         ).fetchall()
-        audit(conn, action="incidents_exported", neighborhood_id=admin.neighborhood_id, actor_user_id=admin.user_id,
-              metadata={"rows": len(rows)})
+        audit(
+            conn,
+            action="incidents_exported",
+            neighborhood_id=admin.neighborhood_id,
+            actor_user_id=admin.user_id,
+            metadata={"rows": len(rows)},
+        )
     return [dict(r) for r in rows]
 
 
@@ -285,8 +341,13 @@ def update_configuration(db: Database, admin: Member, values: dict[str, Any]) ->
                 " DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by",
                 [admin.neighborhood_id, key, Jsonb(value), admin.user_id],
             )
-        audit(conn, action="configuration_changed", neighborhood_id=admin.neighborhood_id, actor_user_id=admin.user_id,
-              metadata={"values": clean})
+        audit(
+            conn,
+            action="configuration_changed",
+            neighborhood_id=admin.neighborhood_id,
+            actor_user_id=admin.user_id,
+            metadata={"values": clean},
+        )
     return get_configuration(db, admin)
 
 
@@ -313,8 +374,13 @@ def audit_logs(db: Database, admin: Member, limit: int) -> list[AdminAuditLogOut
         ).fetchall()
     return [
         AdminAuditLogOut(
-            id=r["id"], action=r["action"], target_type=r["target_type"], target_id=r["target_id"],
-            actor_reference=r["anonymous_reference"] or r["actor_type"], created_at=r["created_at"], metadata=r["metadata"],
+            id=r["id"],
+            action=r["action"],
+            target_type=r["target_type"],
+            target_id=r["target_id"],
+            actor_reference=r["anonymous_reference"] or r["actor_type"],
+            created_at=r["created_at"],
+            metadata=r["metadata"],
         )
         for r in rows
     ]

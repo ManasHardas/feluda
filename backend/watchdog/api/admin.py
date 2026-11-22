@@ -29,8 +29,9 @@ from ..schemas import (
 from ..services import admin as service
 from .deps import limit_by_key, now
 
-router = APIRouter(prefix="/api/v1/admin", tags=["admin"],
-                   responses={code: {"model": ErrorResponse} for code in (401, 403, 404, 409, 422, 429)})
+router = APIRouter(
+    prefix="/api/v1/admin", tags=["admin"], responses={code: {"model": ErrorResponse} for code in (401, 403, 404, 409, 422, 429)}
+)
 
 
 def _admin(request: Request, admin: Member = Depends(get_admin)) -> Member:

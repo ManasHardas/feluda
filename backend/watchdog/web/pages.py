@@ -35,8 +35,15 @@ def _page(name: str, settings: Settings) -> HTMLResponse:
         f"default-src 'none'; script-src 'nonce-{nonce}'; style-src 'nonce-{nonce}'; connect-src 'self'; "
         "img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
     )
-    return HTMLResponse(body, headers={"Content-Security-Policy": csp, "Cache-Control": "no-store",
-                                       "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow"})
+    return HTMLResponse(
+        body,
+        headers={
+            "Content-Security-Policy": csp,
+            "Cache-Control": "no-store",
+            "Referrer-Policy": "no-referrer",
+            "X-Robots-Tag": "noindex, nofollow",
+        },
+    )
 
 
 def build_router(settings: Settings) -> APIRouter:

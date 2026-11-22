@@ -3,8 +3,8 @@
     python -m watchdog.seed            # create it if missing
     python -m watchdog.seed --reset    # delete and recreate it
 
-Everything here is invented: addresses, coordinates and @example.test e-mail addresses. The seeded
-residents can sign in through the local development auth emulator (resident01@example.test ...).
+Everything here is invented: addresses, coordinates and @example.org e-mail addresses. The seeded
+residents can sign in through the local development auth emulator (resident01@example.org ...).
 Never run this against a production database; the command refuses when ENVIRONMENT is production.
 """
 
@@ -30,13 +30,23 @@ _STREETS = ["Maple Hollow Drive", "Juniper Court", "Cedar Bend Lane"]
 _ISPS = ["att", "xfinity"] * 10 + ["other", "other", "unknown", "unknown"]
 
 ANDROID_CAPABILITIES = {
-    "can_measure_rssi": True, "can_detect_band": True, "can_probe_gateway": True, "can_route_over_cellular": True,
-    "can_detect_power_source": True, "can_detect_wifi_radio_state": True, "can_identify_home_network": True,
+    "can_measure_rssi": True,
+    "can_detect_band": True,
+    "can_probe_gateway": True,
+    "can_route_over_cellular": True,
+    "can_detect_power_source": True,
+    "can_detect_wifi_radio_state": True,
+    "can_identify_home_network": True,
     "background_monitoring": "callback",
 }
 IOS_CAPABILITIES = {
-    "can_measure_rssi": False, "can_detect_band": False, "can_probe_gateway": False, "can_route_over_cellular": False,
-    "can_detect_power_source": True, "can_detect_wifi_radio_state": False, "can_identify_home_network": True,
+    "can_measure_rssi": False,
+    "can_detect_band": False,
+    "can_probe_gateway": False,
+    "can_route_over_cellular": False,
+    "can_detect_power_source": True,
+    "can_detect_wifi_radio_state": False,
+    "can_identify_home_network": True,
     "background_monitoring": "opportunistic",
 }
 
@@ -69,8 +79,9 @@ class SeededNeighborhood:
         return next(h for h in self.households if h.role == "admin")
 
 
-def seed_neighborhood(db: Database, name: str = NEIGHBORHOOD_NAME, count: int = 24, *, with_devices: bool = True,
-                      email_domain: str = "example.test") -> SeededNeighborhood:
+def seed_neighborhood(
+    db: Database, name: str = NEIGHBORHOOD_NAME, count: int = 24, *, with_devices: bool = True, email_domain: str = "example.org"
+) -> SeededNeighborhood:
     households: list[SeededHousehold] = []
     with db.service() as conn:
         neighborhood_id = conn.execute("INSERT INTO nw.neighborhoods (name) VALUES (%s) RETURNING id", [name]).fetchone()["id"]
@@ -84,15 +95,26 @@ def seed_neighborhood(db: Database, name: str = NEIGHBORHOOD_NAME, count: int = 
             if i == count - 1 and count >= 20:
                 lat += 0.0081
             isp = _ISPS[i % len(_ISPS)]
-            email = f"resident{n:02d}-{neighborhood_id.hex[:6]}@{email_domain}" if name != NEIGHBORHOOD_NAME else f"resident{n:02d}@{email_domain}"
+            email = (
+                f"resident{n:02d}-{neighborhood_id.hex[:6]}@{email_domain}"
+                if name != NEIGHBORHOOD_NAME
+                else f"resident{n:02d}@{email_domain}"
+            )
             subject = DevAuthState.subject_for(email)
             role = "admin" if i == 0 else "resident"
             household_id = conn.execute(
                 "INSERT INTO nw.households (neighborhood_id, anonymous_reference, normalized_house_number,"
                 " normalized_street_name, isp, latitude, longitude, membership_status)"
                 " VALUES (%s, %s, %s, %s, %s, %s, %s, 'active') RETURNING id",
-                [neighborhood_id, anonymous_reference(), normalize_house_number(number), normalize_street_name(street),
-                 isp, lat, lon],
+                [
+                    neighborhood_id,
+                    anonymous_reference(),
+                    normalize_house_number(number),
+                    normalize_street_name(street),
+                    isp,
+                    lat,
+                    lon,
+                ],
             ).fetchone()["id"]
             user_id = conn.execute(
                 "INSERT INTO nw.users (email, auth_subject, status) VALUES (%s, %s, 'active') RETURNING id", [email, subject]
@@ -107,11 +129,19 @@ def seed_neighborhood(db: Database, name: str = NEIGHBORHOOD_NAME, count: int = 
                 conn.execute(
                     "INSERT INTO nw.devices (id, user_id, household_id, platform, os_version, app_version, capabilities)"
                     " VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                    [device_id, user_id, household_id, platform, "15" if platform == "android" else "18.2", "0.1.0",
-                     Jsonb(ANDROID_CAPABILITIES if platform == "android" else IOS_CAPABILITIES)],
+                    [
+                        device_id,
+                        user_id,
+                        household_id,
+                        platform,
+                        "15" if platform == "android" else "18.2",
+                        "0.1.0",
+                        Jsonb(ANDROID_CAPABILITIES if platform == "android" else IOS_CAPABILITIES),
+                    ],
                 )
-            households.append(SeededHousehold(i, household_id, user_id, device_id, email, subject, isp, platform, number,
-                                              street, role))
+            households.append(
+                SeededHousehold(i, household_id, user_id, device_id, email, subject, isp, platform, number, street, role)
+            )
     return SeededNeighborhood(neighborhood_id, households)
 
 
@@ -130,7 +160,9 @@ def main() -> int:
             if existing and "--reset" in sys.argv:
                 conn.execute(
                     "DELETE FROM nw.users WHERE id IN (SELECT hm.user_id FROM nw.household_members hm"
-                    " JOIN nw.households h ON h.id = hm.household_id WHERE h.neighborhood_id = %s)", [existing["id"]])
+                    " JOIN nw.households h ON h.id = hm.household_id WHERE h.neighborhood_id = %s)",
+                    [existing["id"]],
+                )
                 conn.execute("DELETE FROM nw.neighborhoods WHERE id = %s", [existing["id"]])
                 existing = None
         if existing:
@@ -139,7 +171,7 @@ def main() -> int:
         seeded = seed_neighborhood(db)
         print(f"Seeded '{NEIGHBORHOOD_NAME}' with {len(seeded.households)} households.")
         print(f"Administrator sign-in (local auth emulator): {seeded.admin.email}")
-        print("Residents: resident01@example.test ... resident24@example.test")
+        print("Residents: resident01@example.org ... resident24@example.org")
         return 0
     finally:
         db.close()

@@ -89,20 +89,24 @@ def _database(database_urls):
     db.close()
 
 
-@pytest.fixture
-def db(_database, database_urls):
-    with psycopg.connect(database_urls["owner"], autocommit=True) as conn:
-        tables = [r[0] for r in conn.execute(
-            "SELECT tablename FROM pg_tables WHERE schemaname = 'nw' AND tablename <> 'schema_migrations'")]
-        conn.execute(sql.SQL("TRUNCATE {} CASCADE").format(sql.SQL(", ").join(sql.Identifier("nw", t) for t in tables)))
-    metrics.reset()
-    return _database
-
-
-@pytest.fixture
+@pytest.fixture(scope="session")
 def owner_conn(database_urls):
+    """One long-lived owner connection for the whole session (avoids churning through local ports)."""
     with psycopg.connect(database_urls["owner"], autocommit=True, row_factory=psycopg.rows.dict_row) as conn:
         yield conn
+
+
+@pytest.fixture
+def db(_database, owner_conn):
+    tables = [
+        r["tablename"]
+        for r in owner_conn.execute(
+            "SELECT tablename FROM pg_tables WHERE schemaname = 'nw' AND tablename <> 'schema_migrations'"
+        )
+    ]
+    owner_conn.execute(sql.SQL("TRUNCATE {} CASCADE").format(sql.SQL(", ").join(sql.Identifier("nw", t) for t in tables)))
+    metrics.reset()
+    return _database
 
 
 @pytest.fixture
@@ -130,9 +134,13 @@ def senders():
 
 def make_settings(**overrides: Any) -> Settings:
     values = {
-        "environment": "test", "auth_jwt_secret": JWT_SECRET, "dev_auth_enabled": True,
-        "background_worker_enabled": False, "public_base_url": "https://watchdog.example.test",
-        "android_install_url": "https://appdistribution.example.test/android", "ios_install_url": "https://testflight.example.test/join",
+        "environment": "test",
+        "auth_jwt_secret": JWT_SECRET,
+        "dev_auth_enabled": True,
+        "background_worker_enabled": False,
+        "public_base_url": "https://watchdog.example.test",
+        "android_install_url": "https://appdistribution.example.test/android",
+        "ios_install_url": "https://testflight.example.test/join",
         "ip_hash_salt": "test-salt",
     }
     values.update(overrides)
@@ -155,8 +163,16 @@ def client(app):
         yield test_client
 
 
-def token_for(subject: str, email: str | None, *, now: datetime = START, ttl: int = 3600, secret: str = JWT_SECRET,
-              aal: str = "aal1", audience: str = "authenticated") -> str:
+def token_for(
+    subject: str,
+    email: str | None,
+    *,
+    now: datetime = START,
+    ttl: int = 3600,
+    secret: str = JWT_SECRET,
+    aal: str = "aal1",
+    audience: str = "authenticated",
+) -> str:
     claims = {"sub": subject, "aud": audience, "aal": aal, "iat": int(now.timestamp()), "exp": int(now.timestamp()) + ttl}
     if email:
         claims["email"] = email
@@ -184,24 +200,41 @@ class Actor:
         return self.client.post(path, headers=self.headers, json=json)
 
     def submit(self, events: list[dict[str, Any]], reported_via: str = "cellular", device_id=None):
-        return self.post("/api/v1/connectivity/events", {
-            "device_id": str(device_id or self.household.device_id), "reported_via": reported_via,
-            "sent_at": self.clock.now().isoformat(), "events": events,
-        })
+        return self.post(
+            "/api/v1/connectivity/events",
+            {
+                "device_id": str(device_id or self.household.device_id),
+                "reported_via": reported_via,
+                "sent_at": self.clock.now().isoformat(),
+                "events": events,
+            },
+        )
 
     def event(self, event_type: str, state: str, *, at: datetime | None = None, **diagnostics: Any) -> dict[str, Any]:
         self._seq += 1
         confidence = diagnostics.pop("confidence", "OBSERVED")
         return {
-            "event_id": str(uuid.uuid4()), "sequence": self._seq, "event_type": event_type, "connectivity_state": state,
-            "occurred_at": (at or self.clock.now()).isoformat(), "os_version": "15", "app_version": "0.1.0",
+            "event_id": str(uuid.uuid4()),
+            "sequence": self._seq,
+            "event_type": event_type,
+            "connectivity_state": state,
+            "occurred_at": (at or self.clock.now()).isoformat(),
+            "os_version": "15",
+            "app_version": "0.1.0",
             "confidence": confidence,
             "diagnostics": {k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in diagnostics.items()},
         }
 
     def heartbeat(self, at: datetime | None = None):
-        return self.event("HEARTBEAT", "HEALTHY", at=at, wifi_associated=True, home_network_match=True,
-                          internet_reachable=True, cellular_available=True)
+        return self.event(
+            "HEARTBEAT",
+            "HEALTHY",
+            at=at,
+            wifi_associated=True,
+            home_network_match=True,
+            internet_reachable=True,
+            cellular_available=True,
+        )
 
     def wifi_lost(self, at: datetime | None = None, **extra: Any):
         diagnostics = {"wifi_associated": False, "home_network_match": True, "cellular_available": True}
@@ -210,8 +243,15 @@ class Actor:
         return self.event("WIFI_LOST", state, at=at, **diagnostics)
 
     def wifi_restored(self, at: datetime | None = None):
-        return self.event("WIFI_RESTORED", "HEALTHY", at=at, wifi_associated=True, home_network_match=True,
-                          internet_reachable=True, cellular_available=True)
+        return self.event(
+            "WIFI_RESTORED",
+            "HEALTHY",
+            at=at,
+            wifi_associated=True,
+            home_network_match=True,
+            internet_reachable=True,
+            cellular_available=True,
+        )
 
 
 @dataclass
@@ -220,11 +260,15 @@ class World:
     client: TestClient
     clock: FixedClock
     hood: SeededNeighborhood
+    _actors: dict = field(default_factory=dict)
 
     def actor(self, household: SeededHousehold | int) -> Actor:
         if isinstance(household, int):
             household = self.hood.households[household]
-        return Actor(self.client, self.clock, household)
+        # One Actor per household, so its per-device sequence counter keeps increasing like a real phone's.
+        if household.device_id not in self._actors:
+            self._actors[household.device_id] = Actor(self.client, self.clock, household)
+        return self._actors[household.device_id]
 
     @property
     def admin(self) -> Actor:
@@ -244,7 +288,8 @@ class World:
         with self.db.service() as conn:
             rows = conn.execute(
                 "SELECT * FROM nw.incidents WHERE neighborhood_id = %s AND status <> 'merged' ORDER BY started_at",
-                [self.hood.neighborhood_id]).fetchall()
+                [self.hood.neighborhood_id],
+            ).fetchall()
         return [r for r in rows if scope is None or r["scope"] == scope]
 
     def add_push_tokens(self) -> None:
@@ -253,8 +298,14 @@ class World:
                 conn.execute(
                     "INSERT INTO nw.notification_tokens (user_id, device_id, provider, token, apns_environment)"
                     " VALUES (%s, %s, %s, %s, %s)",
-                    [h.user_id, h.device_id, "fcm" if h.platform == "android" else "apns", f"token-{h.index:02d}-{'x' * 20}",
-                     None if h.platform == "android" else "sandbox"])
+                    [
+                        h.user_id,
+                        h.device_id,
+                        "fcm" if h.platform == "android" else "apns",
+                        f"token-{h.index:02d}-{'x' * 20}",
+                        None if h.platform == "android" else "sandbox",
+                    ],
+                )
 
     def deliveries(self) -> list[dict[str, Any]]:
         with self.db.service() as conn:

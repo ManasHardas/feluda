@@ -7,7 +7,16 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PROJECT_ENVIRONMENT=/app/.venv
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
-FROM python:3.12.8-slim-bookworm
+# Test image: `docker compose run --rm test` runs the suite next to the database container.
+FROM build AS test
+RUN uv sync --frozen
+COPY watchdog ./watchdog
+COPY migrations ./migrations
+COPY tests ./tests
+ENV PATH="/app/.venv/bin:$PATH" PYTHONDONTWRITEBYTECODE=1
+CMD ["pytest", "-p", "no:cacheprovider"]
+
+FROM python:3.12.8-slim-bookworm AS runtime
 RUN useradd --system --uid 10001 --home /app watchdog
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv

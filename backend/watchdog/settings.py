@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     # --- operations
     background_worker_enabled: bool = True
     tick_interval_seconds: int = 20
+    internal_tick_token: str = ""  # enables POST /internal/tick for an external scheduler; empty = endpoint disabled
     trust_proxy_headers: bool = False  # set true only behind a proxy that overwrites X-Forwarded-For
     ip_hash_salt: str = "change-me"  # salt for hashing client IPs in security events
     sentry_dsn: str = ""
@@ -66,6 +67,8 @@ class Settings(BaseSettings):
                 raise ValueError("AUTH_JWT_SECRET must be at least 32 characters")
             if self.ip_hash_salt == "change-me":
                 raise ValueError("IP_HASH_SALT must be set in staging and production")
+            if self.internal_tick_token and len(self.internal_tick_token) < 32:
+                raise ValueError("INTERNAL_TICK_TOKEN must be at least 32 characters")
             if not self.public_base_url.startswith("https://"):
                 raise ValueError("PUBLIC_BASE_URL must use https in staging and production")
         if self.dev_auth_enabled and not self.auth_jwt_secret:

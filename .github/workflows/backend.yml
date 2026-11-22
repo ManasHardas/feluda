@@ -1,0 +1,119 @@
+name: Backend
+
+on:
+  pull_request:
+    paths: ["backend/**", "shared/**", ".github/workflows/backend.yml"]
+  push:
+    branches: [main]
+    paths: ["backend/**", "shared/**", ".github/workflows/backend.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  lint-and-unit:
+    name: Lint and unit tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.14"
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - name: Unit tests (no database)
+        run: uv run pytest -m "not db"
+
+  api-contract:
+    name: API schema validation
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.14"
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Committed OpenAPI contract matches the code
+        run: uv run python -m watchdog.export_openapi --check
+      - name: Contract is a valid OpenAPI document
+        run: uvx --from openapi-spec-validator==0.7.1 openapi-spec-validator ../shared/api-contracts/openapi.json
+
+  integration:
+    name: Integration, security and scenario tests
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: watchdog
+          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_DB: watchdog
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U watchdog" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://watchdog:ci_only_password@localhost:5432/postgres
+      REQUIRE_DATABASE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.14"
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: All tests (a missing database is an error here, never a skip)
+        run: uv run pytest
+
+  migrations:
+    name: Database migration validation
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: watchdog
+          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_DB: watchdog
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U watchdog" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://watchdog:ci_only_password@localhost:5432/watchdog
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.14"
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Apply all migrations to an empty database
+        run: uv run python -m watchdog.migrate
+      - name: Nothing is pending and a second run is a no-op
+        run: uv run python -m watchdog.migrate --check && uv run python -m watchdog.migrate
+      - name: Seed script works on the migrated schema
+        run: ENVIRONMENT=test uv run python -m watchdog.seed
+      - name: Migration files already on main were not edited
+        if: github.event_name == 'pull_request'
+        working-directory: .
+        run: |
+          git fetch --depth=1 origin "${{ github.base_ref }}"
+          changed=$(git diff --name-only --diff-filter=MD "origin/${{ github.base_ref }}" -- backend/migrations || true)
+          if [ -n "$changed" ]; then echo "Applied migrations are immutable; add a new file instead:"; echo "$changed"; exit 1; fi
+
+  container:
+    name: Container image builds
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --target runtime -t neighborhood-watchdog-backend:ci .

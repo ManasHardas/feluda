@@ -15,8 +15,20 @@ from datetime import UTC, datetime
 request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")
 
 _RESERVED = set(logging.LogRecord("", 0, "", 0, "", (), None).__dict__) | {"message", "asctime"}
-_FORBIDDEN_KEYS = {"token", "access_token", "refresh_token", "authorization", "email", "address", "ip",
-                   "house_number", "street_name", "invitation_token", "password", "secret"}
+_FORBIDDEN_KEYS = {
+    "token",
+    "access_token",
+    "refresh_token",
+    "authorization",
+    "email",
+    "address",
+    "ip",
+    "house_number",
+    "street_name",
+    "invitation_token",
+    "password",
+    "secret",
+}
 
 
 class JsonFormatter(logging.Formatter):

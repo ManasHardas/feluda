@@ -48,8 +48,15 @@ def correlate_neighborhood(db: Database, neighborhood_id: UUID, now: datetime) -
         changes = _run(conn, neighborhood_id, now, cfg)
     for change in changes:
         metrics.incr(f"incidents_{change.change}")
-        log.info("incident change", extra={"incident_id": str(change.incident_id), "change": change.change,
-                                           "scope": change.scope, "alert_level": change.alert_level})
+        log.info(
+            "incident change",
+            extra={
+                "incident_id": str(change.incident_id),
+                "change": change.change,
+                "scope": change.scope,
+                "alert_level": change.alert_level,
+            },
+        )
     metrics.incr("correlation_runs")
     return changes
 
@@ -78,8 +85,7 @@ def _run(conn: Conn, neighborhood_id: UUID, now: datetime, cfg: DetectionConfig)
     if not pending["n"] and not open_incidents:
         return []
 
-    margin = timedelta(seconds=cfg.max_cluster_span_s + cfg.contradiction_window_s,
-                       minutes=cfg.household_repeat_window_min)
+    margin = timedelta(seconds=cfg.max_cluster_span_s + cfg.contradiction_window_s, minutes=cfg.household_repeat_window_min)
     anchors = [i["started_at"] for i in open_incidents]
     if pending["first"] is not None:
         anchors.append(pending["first"])
@@ -95,14 +101,22 @@ def _run(conn: Conn, neighborhood_id: UUID, now: datetime, cfg: DetectionConfig)
     }
     events = [
         EventRecord(
-            id=r["id"], device_id=r["device_id"], household_id=r["household_id"], event_type=r["event_type"],
-            connectivity_state=r["connectivity_state"], occurred_at=r["occurred_at"], received_at=r["received_at"],
-            confidence=r["confidence"], platform=r["platform"], diagnostics=r["diagnostics"],
+            id=r["id"],
+            device_id=r["device_id"],
+            household_id=r["household_id"],
+            event_type=r["event_type"],
+            connectivity_state=r["connectivity_state"],
+            occurred_at=r["occurred_at"],
+            received_at=r["received_at"],
+            confidence=r["confidence"],
+            platform=r["platform"],
+            diagnostics=r["diagnostics"],
             excluded_reason=r["excluded_reason"],
+            sequence=r["sequence"],
         )
         for r in conn.execute(
             "SELECT id, device_id, household_id, event_type, connectivity_state, occurred_at, received_at,"
-            " confidence, platform, diagnostics, excluded_reason FROM nw.connectivity_events"
+            " confidence, platform, diagnostics, excluded_reason, sequence FROM nw.connectivity_events"
             " WHERE neighborhood_id = %s AND occurred_at >= %s AND received_at <= %s ORDER BY occurred_at",
             [neighborhood_id, since, now],
         )
@@ -142,8 +156,15 @@ def _run(conn: Conn, neighborhood_id: UUID, now: datetime, cfg: DetectionConfig)
             " ON CONFLICT (neighborhood_id, window_start) DO UPDATE SET window_end = EXCLUDED.window_end,"
             " household_count = EXCLUDED.household_count, score = EXCLUDED.score, status = EXCLUDED.status,"
             " detail = EXCLUDED.detail",
-            [neighborhood_id, result.members[0].occurred_at, result.members[-1].occurred_at, len(result.members),
-             result.score, "promoted" if result.promoted else "below_threshold", Jsonb({"reason": result.reason})],
+            [
+                neighborhood_id,
+                result.members[0].occurred_at,
+                result.members[-1].occurred_at,
+                len(result.members),
+                result.score,
+                "promoted" if result.promoted else "below_threshold",
+                Jsonb({"reason": result.reason}),
+            ],
         )
 
     changes: list[IncidentChange] = []
@@ -170,8 +191,9 @@ def _prior_onsets(onsets: list[Onset], cfg: DetectionConfig) -> dict[UUID, int]:
     return result
 
 
-def _store(conn: Conn, neighborhood_id: UUID, a: Assessment, cfg: DetectionConfig, now: datetime,
-           touched: set[UUID]) -> IncidentChange | None:
+def _store(
+    conn: Conn, neighborhood_id: UUID, a: Assessment, cfg: DetectionConfig, now: datetime, touched: set[UUID]
+) -> IncidentChange | None:
     member_ids = [m.household_id for m in a.members]
     span = timedelta(seconds=cfg.max_cluster_span_s)
     existing = conn.execute(
@@ -255,8 +277,9 @@ def _store(conn: Conn, neighborhood_id: UUID, a: Assessment, cfg: DetectionConfi
     return IncidentChange(incident_id, change, a.scope.value, int(a.alert_level))
 
 
-def _lifecycle(conn: Conn, neighborhood_id: UUID, now: datetime, cfg: DetectionConfig, touched: set[UUID],
-               since: datetime) -> list[IncidentChange]:
+def _lifecycle(
+    conn: Conn, neighborhood_id: UUID, now: datetime, cfg: DetectionConfig, touched: set[UUID], since: datetime
+) -> list[IncidentChange]:
     changes: list[IncidentChange] = []
     rows = conn.execute(
         "SELECT i.id, i.scope, i.alert_level, i.started_at, i.last_event_at,"
@@ -278,8 +301,6 @@ def _lifecycle(conn: Conn, neighborhood_id: UUID, now: datetime, cfg: DetectionC
         elif now - max(row["last_event_at"], row["started_at"]) >= timedelta(minutes=cfg.incident_expiry_min):
             status, resolved_at = "expired", now
         if status:
-            conn.execute(
-                "UPDATE nw.incidents SET status = %s, resolved_at = %s WHERE id = %s", [status, resolved_at, row["id"]]
-            )
+            conn.execute("UPDATE nw.incidents SET status = %s, resolved_at = %s WHERE id = %s", [status, resolved_at, row["id"]])
             changes.append(IncidentChange(row["id"], status, row["scope"], row["alert_level"]))
     return changes

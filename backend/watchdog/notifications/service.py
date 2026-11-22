@@ -72,11 +72,29 @@ def _create(conn: Conn, *, incident, recipient, kind: str, level: int, now: date
         "INSERT INTO nw.notification_deliveries (neighborhood_id, incident_id, token_id, user_id, provider, kind,"
         " alert_level, dedupe_key, title, body, data, status, next_attempt_at, expires_at)"
         " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (dedupe_key) DO NOTHING RETURNING id",
-        [incident["neighborhood_id"], incident["id"], recipient["token_id"], recipient["user_id"], recipient["provider"],
-         kind, level, f"{incident['id']}:{kind}:{level}:{recipient['token_id']}", title, body,
-         Jsonb({"incident_id": str(incident["id"]), "alert_level": str(level), "kind": kind,
-                "classification": incident["classification"]}),
-         status.value, now if status == DeliveryStatus.PENDING else None, expires_at],
+        [
+            incident["neighborhood_id"],
+            incident["id"],
+            recipient["token_id"],
+            recipient["user_id"],
+            recipient["provider"],
+            kind,
+            level,
+            f"{incident['id']}:{kind}:{level}:{recipient['token_id']}",
+            title,
+            body,
+            Jsonb(
+                {
+                    "incident_id": str(incident["id"]),
+                    "alert_level": str(level),
+                    "kind": kind,
+                    "classification": incident["classification"],
+                }
+            ),
+            status.value,
+            now if status == DeliveryStatus.PENDING else None,
+            expires_at,
+        ],
     ).fetchone()
     return row is not None
 
@@ -115,8 +133,9 @@ def plan(db: Database, neighborhood_id: UUID, now: datetime) -> int:
                 kind = NotificationKind.ESCALATION if previous is not None else NotificationKind.ALERT
                 # Incidents built from very late reports are closed by the incident expiry rule before they get
                 # here, so anything still open is recent enough to be worth an alert.
-                created += _create(conn, incident=incident, recipient=recipient, kind=kind.value, level=level, now=now,
-                                   expires_at=now + ttl)
+                created += _create(
+                    conn, incident=incident, recipient=recipient, kind=kind.value, level=level, now=now, expires_at=now + ttl
+                )
 
         resolved = conn.execute(
             "SELECT * FROM nw.incidents WHERE neighborhood_id = %s AND status = 'resolved' AND resolved_at >= %s",
@@ -132,9 +151,15 @@ def plan(db: Database, neighborhood_id: UUID, now: datetime) -> int:
             ).fetchall()
             for row in alerted:
                 recipient = {**row, "household_alerts": True, "neighborhood_alerts": True, "quiet_hours_enabled": False}
-                created += _create(conn, incident=incident, recipient=recipient, kind=NotificationKind.RESOLUTION.value,
-                                   level=min(incident["peak_alert_level"], 2) if incident["peak_alert_level"] >= 2 else 1,
-                                   now=now, expires_at=now + ttl)
+                created += _create(
+                    conn,
+                    incident=incident,
+                    recipient=recipient,
+                    kind=NotificationKind.RESOLUTION.value,
+                    level=min(incident["peak_alert_level"], 2) if incident["peak_alert_level"] >= 2 else 1,
+                    now=now,
+                    expires_at=now + ttl,
+                )
     if created:
         metrics.incr("notifications_planned", created)
     return created
@@ -177,15 +202,18 @@ def dispatch(db: Database, senders: dict[str, PushSender], now: datetime, batch:
             attempts = delivery["attempts"]
             if delivery["expires_at"] <= now:
                 status = DeliveryStatus.EXPIRED
-            elif delivery["token"] is None or delivery["token_status"] != "active":
+            elif delivery["token"] is None or delivery["token_status"] != "active":  # noqa: S105 - a status value, not a credential
                 status, error = DeliveryStatus.FAILED, "push token no longer registered"
             elif sender is None or not sender.configured:
                 status, error = DeliveryStatus.SKIPPED_NOT_CONFIGURED, f"{delivery['provider']} credentials are not configured"
             else:
                 attempts += 1
                 message = PushMessage(
-                    title=delivery["title"], body=delivery["body"], data=delivery["data"],
-                    alert_level=delivery["alert_level"], expires_at_epoch=int(delivery["expires_at"].timestamp()),
+                    title=delivery["title"],
+                    body=delivery["body"],
+                    data=delivery["data"],
+                    alert_level=delivery["alert_level"],
+                    expires_at_epoch=int(delivery["expires_at"].timestamp()),
                     collapse_key=str(delivery["incident_id"] or delivery["id"]),
                 )
                 result = sender.send(delivery["token"], message, delivery["apns_environment"])

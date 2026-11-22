@@ -80,6 +80,7 @@ class DetectionConfig:
 
     # --- retention (days)
     retention_raw_events_days: int = 30
+    retention_heartbeat_days: int = 3  # routine "still monitoring" heartbeats are bulky and only useful briefly
     retention_incidents_days: int = 90
     retention_audit_days: int = 90
     retention_notification_deliveries_days: int = 30
@@ -145,6 +146,7 @@ BOUNDS: dict[str, tuple[float, float]] = {
     "notification_max_attempts": (1, 10),
     "notification_retry_base_s": (5, 600),
     "retention_raw_events_days": (1, 365),
+    "retention_heartbeat_days": (1, 365),
     "retention_incidents_days": (7, 730),
     "retention_audit_days": (30, 730),
     "retention_notification_deliveries_days": (1, 365),

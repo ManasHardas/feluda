@@ -1,0 +1,16 @@
+# Review is required from an owner for security-sensitive paths.
+# Replace @OWNER with the maintainer's GitHub handle (or a team) when the repository is published.
+/backend/migrations/                 @OWNER
+/backend/watchdog/authentication/    @OWNER
+/backend/watchdog/services/          @OWNER
+/backend/watchdog/correlation/       @OWNER
+/backend/watchdog/notifications/     @OWNER
+/backend/watchdog/db.py              @OWNER
+/backend/watchdog/settings.py        @OWNER
+/apps/android/app/src/main/AndroidManifest.xml  @OWNER
+/apps/ios/NeighborhoodWatchdog/Info.plist       @OWNER
+/apps/ios/NeighborhoodWatchdog/*.entitlements   @OWNER
+/.github/                            @OWNER
+/infrastructure/                     @OWNER
+/docs/SECURITY.md /docs/PRIVACY.md /docs/THREAT_MODEL.md  @OWNER
+/SECURITY.md                         @OWNER

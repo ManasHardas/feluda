@@ -46,13 +46,23 @@ def _base(row, mine: bool) -> dict:
     elif row["status"] == IncidentStatus.RESOLVED:
         summary += " (connectivity reported restored)"
     return {
-        "incident_id": row["id"], "scope": row["scope"], "classification": classification,
-        "alert_level": row["alert_level"], "status": row["status"], "status_color": _color(row),
-        "started_at": row["started_at"], "last_event_at": row["last_event_at"], "resolved_at": row["resolved_at"],
+        "incident_id": row["id"],
+        "scope": row["scope"],
+        "classification": classification,
+        "alert_level": row["alert_level"],
+        "status": row["status"],
+        "status_color": _color(row),
+        "started_at": row["started_at"],
+        "last_event_at": row["last_event_at"],
+        "resolved_at": row["resolved_at"],
         "affected_household_count": row["affected_household_count"],
-        "active_household_count": row["active_household_count"], "approximate_scope": approximate_scope(row),
-        "correlation_window_s": row["correlation_window_s"], "time_spread_s": row["time_spread_s"],
-        "isp_diversity": row["isp_diversity"], "my_household_affected": mine, "summary": summary,
+        "active_household_count": row["active_household_count"],
+        "approximate_scope": approximate_scope(row),
+        "correlation_window_s": row["correlation_window_s"],
+        "time_spread_s": row["time_spread_s"],
+        "isp_diversity": row["isp_diversity"],
+        "my_household_affected": mine,
+        "summary": summary,
     }
 
 
@@ -77,9 +87,13 @@ def get_incident(db: Database, member: Member, incident_id: UUID) -> IncidentDet
     if row is None:
         raise not_found("Incident not found.")  # same answer for "does not exist" and "not yours to see"
     return IncidentDetailOut(
-        **_base(row, row["mine"]), score=row["score"], score_breakdown=row["score_breakdown"],
-        explanation=row["explanation"], supporting_evidence=row["supporting_evidence"],
+        **_base(row, row["mine"]),
+        score=row["score"],
+        score_breakdown=row["score_breakdown"],
+        explanation=row["explanation"],
+        supporting_evidence=row["supporting_evidence"],
         missing_evidence=row["missing_evidence"],
         recommended_actions=RECOMMENDED_ACTIONS.get(Classification(row["classification"]), []),
-        delayed_report_count=row["delayed_report_count"], failure_modes=row["failure_modes"],
+        delayed_report_count=row["delayed_report_count"],
+        failure_modes=row["failure_modes"],
     )

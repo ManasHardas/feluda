@@ -54,8 +54,13 @@ def health(request: Request, response: Response) -> HealthOut:
     database_ok = request.app.state.db.ping()
     if not database_ok:
         response.status_code = 503
-    return HealthOut(status="ok" if database_ok else "degraded", api="ok", database="ok" if database_ok else "unavailable",
-                     version=__version__, server_time=now(request))
+    return HealthOut(
+        status="ok" if database_ok else "degraded",
+        api="ok",
+        database="ok" if database_ok else "unavailable",
+        version=__version__,
+        server_time=now(request),
+    )
 
 
 @router.get("/monitoring/metrics", tags=["monitoring"], include_in_schema=False)
@@ -79,13 +84,19 @@ def register(request: Request, body: RegisterRequest) -> RegisterResponse:
     limit_by_client(request, "register", 10, 600)
     _privacy_ack(body.privacy_acknowledged)
     membership.register(
-        request.app.state.db, token=body.invitation_token, email=body.email, house_number=body.house_number,
-        street_name=body.street_name, display_label=body.display_label, isp=body.isp.value if body.isp else None,
+        request.app.state.db,
+        token=body.invitation_token,
+        email=body.email,
+        house_number=body.house_number,
+        street_name=body.street_name,
+        display_label=body.display_label,
+        isp=body.isp.value if body.isp else None,
         now=now(request),
     )
     settings = request.app.state.settings
-    return RegisterResponse(android_install_url=settings.android_install_url or None,
-                            ios_install_url=settings.ios_install_url or None)
+    return RegisterResponse(
+        android_install_url=settings.android_install_url or None, ios_install_url=settings.ios_install_url or None
+    )
 
 
 # ---------------------------------------------------------------- household
@@ -96,8 +107,13 @@ def join_household(request: Request, body: JoinHouseholdRequest, principal: Prin
     limit_by_client(request, "join", 10, 600)
     _privacy_ack(body.privacy_acknowledged)
     user_id = membership.join(
-        request.app.state.db, principal, token=body.invitation_token, house_number=body.house_number,
-        street_name=body.street_name, display_label=body.display_label, isp=body.isp.value if body.isp else None,
+        request.app.state.db,
+        principal,
+        token=body.invitation_token,
+        house_number=body.house_number,
+        street_name=body.street_name,
+        display_label=body.display_label,
+        isp=body.isp.value if body.isp else None,
         now=now(request),
     )
     return membership.household_me(request.app.state.db, user_id)
@@ -166,13 +182,20 @@ def register_push_token(request: Request, body: RegisterPushTokenRequest, member
         raise ApiError(422, "validation_error", f"Devices on {device['platform']} register {expected} tokens.")
     with db.service() as conn:
         # A token identifies one app install. If it shows up again (reinstall, new sign-in) it moves here.
-        conn.execute("DELETE FROM nw.notification_tokens WHERE (provider = %s AND token = %s) OR device_id = %s",
-                     [body.provider.value, body.token, body.device_id])
+        conn.execute(
+            "DELETE FROM nw.notification_tokens WHERE (provider = %s AND token = %s) OR device_id = %s",
+            [body.provider.value, body.token, body.device_id],
+        )
         conn.execute(
             "INSERT INTO nw.notification_tokens (user_id, device_id, provider, token, apns_environment)"
             " VALUES (%s, %s, %s, %s, %s)",
-            [member.user_id, body.device_id, body.provider.value, body.token,
-             (body.apns_environment.value if body.apns_environment else "production") if expected == "apns" else None],
+            [
+                member.user_id,
+                body.device_id,
+                body.provider.value,
+                body.token,
+                (body.apns_environment.value if body.apns_environment else "production") if expected == "apns" else None,
+            ],
         )
     return OkResponse()
 
@@ -187,7 +210,9 @@ def get_preferences(request: Request, member: Member = Depends(get_member)) -> N
 
 
 @router.put("/notifications/preferences", response_model=NotificationPreferences, tags=["notifications"])
-def put_preferences(request: Request, body: NotificationPreferences, member: Member = Depends(get_member)) -> NotificationPreferences:
+def put_preferences(
+    request: Request, body: NotificationPreferences, member: Member = Depends(get_member)
+) -> NotificationPreferences:
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
     try:
@@ -202,8 +227,15 @@ def put_preferences(request: Request, body: NotificationPreferences, member: Mem
             " neighborhood_alerts = EXCLUDED.neighborhood_alerts, quiet_hours_enabled = EXCLUDED.quiet_hours_enabled,"
             " quiet_hours_start = EXCLUDED.quiet_hours_start, quiet_hours_end = EXCLUDED.quiet_hours_end,"
             " timezone = EXCLUDED.timezone",
-            [member.user_id, body.household_alerts, body.neighborhood_alerts, body.quiet_hours_enabled,
-             body.quiet_hours_start, body.quiet_hours_end, body.timezone],
+            [
+                member.user_id,
+                body.household_alerts,
+                body.neighborhood_alerts,
+                body.quiet_hours_enabled,
+                body.quiet_hours_start,
+                body.quiet_hours_end,
+                body.timezone,
+            ],
         )
     return body
 
@@ -212,8 +244,9 @@ def put_preferences(request: Request, body: NotificationPreferences, member: Mem
 
 
 @router.post("/connectivity/events", response_model=SubmitEventsResponse, tags=["connectivity"])
-def submit_events(request: Request, body: SubmitEventsRequest, background: BackgroundTasks,
-                  member: Member = Depends(get_member)) -> SubmitEventsResponse:
+def submit_events(
+    request: Request, body: SubmitEventsRequest, background: BackgroundTasks, member: Member = Depends(get_member)
+) -> SubmitEventsResponse:
     limit_by_key(request, "event-requests", str(body.device_id), 60, 60)
     response, stored = events.ingest(request.app.state.db, member, body, now(request))
     if stored:
@@ -233,9 +266,12 @@ def connectivity_status(request: Request, member: Member = Depends(get_member)) 
 
 
 @router.get("/incidents", response_model=IncidentListOut, tags=["incidents"])
-def list_incidents(request: Request, member: Member = Depends(get_member),
-                   status_filter: Literal["open", "all"] = Query("open", alias="status"),
-                   limit: int = Query(50, ge=1, le=200)) -> IncidentListOut:
+def list_incidents(
+    request: Request,
+    member: Member = Depends(get_member),
+    status_filter: Literal["open", "all"] = Query("open", alias="status"),
+    limit: int = Query(50, ge=1, le=200),
+) -> IncidentListOut:
     return IncidentListOut(incidents=incidents.list_incidents(request.app.state.db, member, status_filter, limit))
 
 

@@ -21,28 +21,35 @@ from .audit import audit, security_event
 
 log = logging.getLogger(__name__)
 
-INVITATION_ATTEMPTS_PER_HOUR = 10
+INVITATION_ATTEMPTS_PER_HOUR = 5  # wrong-address attempts allowed per invitation per hour
 
 
 def _address_not_recognized() -> ApiError:
-    return ApiError(422, "address_not_recognized",
-                    "This address is not on the list approved for this invitation. Check the house number and "
-                    "street name, or contact your neighborhood organizer.")
+    return ApiError(
+        422,
+        "address_not_recognized",
+        "This address is not on the list approved for this invitation. Check the house number and "
+        "street name, or contact your neighborhood organizer.",
+    )
 
 
 def _already_registered() -> ApiError:
-    return ApiError(409, "household_already_registered",
-                    "This household or e-mail address is already registered. Ask your neighborhood organizer for "
-                    "an invitation issued for your household.")
+    return ApiError(
+        409,
+        "household_already_registered",
+        "This household or e-mail address is already registered. Ask your neighborhood organizer for "
+        "an invitation issued for your household.",
+    )
 
 
 def _usable_invitation(conn: Conn, token: str, now: datetime, lock: bool):
-    row = conn.execute(
+    query = (
         "SELECT i.id, i.neighborhood_id, i.household_id, i.role, i.status, i.expires_at, n.name, n.status AS n_status"
         " FROM nw.invitations i JOIN nw.neighborhoods n ON n.id = i.neighborhood_id WHERE i.token_hash = %s"
-        + (" FOR UPDATE OF i" if lock else ""),
-        [hash_token(token)],
-    ).fetchone()
+    )
+    if lock:
+        query += " FOR UPDATE OF i"
+    row = conn.execute(query, [hash_token(token)]).fetchone()
     if row is None or row["status"] != "active" or row["expires_at"] <= now or row["n_status"] != "active":
         raise invitation_invalid()
     return row
@@ -56,8 +63,18 @@ def verify_invitation(db: Database, token: str, now: datetime) -> VerifyInvitati
     )
 
 
-def _redeem(conn: Conn, *, token: str, now: datetime, house_number: str, street_name: str, display_label: str | None,
-            isp: str | None, email: str | None, auth_subject: str | None) -> UUID:
+def _redeem(
+    conn: Conn,
+    *,
+    token: str,
+    now: datetime,
+    house_number: str,
+    street_name: str,
+    display_label: str | None,
+    isp: str | None,
+    email: str | None,
+    auth_subject: str | None,
+) -> UUID:
     """Consume an invitation and attach a user to the matching approved household. Returns the user id."""
     invitation = _usable_invitation(conn, token, now, lock=True)
     neighborhood_id = invitation["neighborhood_id"]
@@ -126,8 +143,15 @@ def _redeem(conn: Conn, *, token: str, now: datetime, house_number: str, street_
         "UPDATE nw.invitations SET status = 'used', used_at = %s, used_by_user_id = %s WHERE id = %s",
         [now, user_id, invitation["id"]],
     )
-    audit(conn, action="invitation_used", neighborhood_id=neighborhood_id, actor_user_id=user_id, actor_type="system",
-          target_type="invitation", target_id=invitation["id"])
+    audit(
+        conn,
+        action="invitation_used",
+        neighborhood_id=neighborhood_id,
+        actor_user_id=user_id,
+        actor_type="system",
+        target_type="invitation",
+        target_id=invitation["id"],
+    )
     return user_id
 
 
@@ -143,25 +167,66 @@ def _redeem_logged(db: Database, **kwargs) -> UUID:
                 ).fetchone()
                 if invitation:
                     # Count the failed attempt against the invitation so addresses cannot be guessed at speed.
-                    ratelimit.consume(conn, f"invite-attempt:{invitation['id']}", INVITATION_ATTEMPTS_PER_HOUR, 3600,
-                                      kwargs["now"])
-                    security_event(conn, kind="invitation_redeem_failed", neighborhood_id=invitation["neighborhood_id"],
-                                   detail={"reason": error.code, "invitation_id": str(invitation["id"])})
+                    ratelimit.consume(
+                        conn, f"invite-attempt:{invitation['id']}", INVITATION_ATTEMPTS_PER_HOUR, 3600, kwargs["now"]
+                    )
+                    security_event(
+                        conn,
+                        kind="invitation_redeem_failed",
+                        neighborhood_id=invitation["neighborhood_id"],
+                        detail={"reason": error.code, "invitation_id": str(invitation["id"])},
+                    )
         raise
 
 
-def register(db: Database, *, token: str, email: str, house_number: str, street_name: str,
-             display_label: str | None, isp: str | None, now: datetime) -> None:
-    _redeem_logged(db, token=token, now=now, house_number=house_number, street_name=street_name,
-                   display_label=display_label, isp=isp, email=email.strip().lower(), auth_subject=None)
+def register(
+    db: Database,
+    *,
+    token: str,
+    email: str,
+    house_number: str,
+    street_name: str,
+    display_label: str | None,
+    isp: str | None,
+    now: datetime,
+) -> None:
+    _redeem_logged(
+        db,
+        token=token,
+        now=now,
+        house_number=house_number,
+        street_name=street_name,
+        display_label=display_label,
+        isp=isp,
+        email=email.strip().lower(),
+        auth_subject=None,
+    )
 
 
-def join(db: Database, principal: Principal, *, token: str, house_number: str, street_name: str,
-         display_label: str | None, isp: str | None, now: datetime) -> UUID:
+def join(
+    db: Database,
+    principal: Principal,
+    *,
+    token: str,
+    house_number: str,
+    street_name: str,
+    display_label: str | None,
+    isp: str | None,
+    now: datetime,
+) -> UUID:
     if principal.email is None:
         raise forbidden("The sign-in does not include a verified e-mail address.")
-    return _redeem_logged(db, token=token, now=now, house_number=house_number, street_name=street_name,
-                          display_label=display_label, isp=isp, email=principal.email, auth_subject=principal.subject)
+    return _redeem_logged(
+        db,
+        token=token,
+        now=now,
+        house_number=house_number,
+        street_name=street_name,
+        display_label=display_label,
+        isp=isp,
+        email=principal.email,
+        auth_subject=principal.subject,
+    )
 
 
 def household_me(db: Database, user_id: UUID) -> HouseholdOut:
@@ -181,10 +246,17 @@ def household_me(db: Database, user_id: UUID) -> HouseholdOut:
             "SELECT count(*) AS n FROM nw.household_members WHERE household_id = %s AND status = 'active'", [row["id"]]
         ).fetchone()["n"]
     return HouseholdOut(
-        household_id=row["id"], neighborhood_id=row["neighborhood_id"], anonymous_reference=row["anonymous_reference"],
-        display_label=row["display_label"], house_number=row["normalized_house_number"],
-        street_name=row["normalized_street_name"], isp=row["isp"], membership_status=row["membership_status"],
-        role=row["role"], member_count=members, device_count=devices,
+        household_id=row["id"],
+        neighborhood_id=row["neighborhood_id"],
+        anonymous_reference=row["anonymous_reference"],
+        display_label=row["display_label"],
+        house_number=row["normalized_house_number"],
+        street_name=row["normalized_street_name"],
+        isp=row["isp"],
+        membership_status=row["membership_status"],
+        role=row["role"],
+        member_count=members,
+        device_count=devices,
     )
 
 
@@ -198,9 +270,7 @@ def update_household(db: Database, member: Member, display_label: str | None, is
 
 def _detach(conn: Conn, member: Member, now: datetime, delete_account: bool) -> str | None:
     """Remove a user's membership, devices and telemetry. Returns the identity subject when the account is deleted."""
-    conn.execute(
-        "UPDATE nw.household_members SET status = 'removed' WHERE user_id = %s AND status = 'active'", [member.user_id]
-    )
+    conn.execute("UPDATE nw.household_members SET status = 'removed' WHERE user_id = %s AND status = 'active'", [member.user_id])
     # Deleting the devices cascades to their raw events, sessions and push tokens.
     conn.execute("DELETE FROM nw.devices WHERE user_id = %s", [member.user_id])
     conn.execute("DELETE FROM nw.notification_preferences WHERE user_id = %s", [member.user_id])
@@ -223,8 +293,15 @@ def _detach(conn: Conn, member: Member, now: datetime, delete_account: bool) -> 
             [member.user_id],
         ).fetchone()
         subject = row["auth_subject"] if row else None
-    audit(conn, action="account_deleted" if delete_account else "member_left", neighborhood_id=member.neighborhood_id,
-          actor_user_id=member.user_id, actor_type="system", target_type="household", target_id=member.household_id)
+    audit(
+        conn,
+        action="account_deleted" if delete_account else "member_left",
+        neighborhood_id=member.neighborhood_id,
+        actor_user_id=member.user_id,
+        actor_type="system",
+        target_type="household",
+        target_id=member.household_id,
+    )
     return subject
 
 
@@ -250,6 +327,7 @@ def delete_account(db: Database, settings: Settings, member: Member, now: dateti
     if subject and not deleted_at_provider:
         # The operator must remove the sign-in record at the identity provider by hand (see docs/OPERATIONS.md).
         with db.service() as conn:
-            security_event(conn, kind="identity_deletion_pending", neighborhood_id=member.neighborhood_id,
-                           detail={"auth_subject": subject})
+            security_event(
+                conn, kind="identity_deletion_pending", neighborhood_id=member.neighborhood_id, detail={"auth_subject": subject}
+            )
         log.warning("identity record not deleted at provider; manual action needed", extra={"user_id": str(member.user_id)})

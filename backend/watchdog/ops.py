@@ -24,8 +24,16 @@ from .services.audit import audit
 from .settings import get_settings
 
 
-def create_neighborhood(db: Database, name: str, admin_email: str, house_number: str, street: str,
-                        latitude: float | None = None, longitude: float | None = None, isp: str = "unknown") -> UUID:
+def create_neighborhood(
+    db: Database,
+    name: str,
+    admin_email: str,
+    house_number: str,
+    street: str,
+    latitude: float | None = None,
+    longitude: float | None = None,
+    isp: str = "unknown",
+) -> UUID:
     email = admin_email.strip().lower()
     with db.service() as conn:
         neighborhood_id = conn.execute("INSERT INTO nw.neighborhoods (name) VALUES (%s) RETURNING id", [name]).fetchone()["id"]
@@ -33,8 +41,15 @@ def create_neighborhood(db: Database, name: str, admin_email: str, house_number:
             "INSERT INTO nw.households (neighborhood_id, anonymous_reference, normalized_house_number,"
             " normalized_street_name, isp, latitude, longitude, membership_status)"
             " VALUES (%s, %s, %s, %s, %s, %s, %s, 'active') RETURNING id",
-            [neighborhood_id, anonymous_reference(), normalize_house_number(house_number), normalize_street_name(street),
-             isp, latitude, longitude],
+            [
+                neighborhood_id,
+                anonymous_reference(),
+                normalize_house_number(house_number),
+                normalize_street_name(street),
+                isp,
+                latitude,
+                longitude,
+            ],
         ).fetchone()["id"]
         user = conn.execute("SELECT id FROM nw.users WHERE email = %s AND status <> 'deleted'", [email]).fetchone()
         if user is None:
@@ -42,8 +57,14 @@ def create_neighborhood(db: Database, name: str, admin_email: str, house_number:
         conn.execute(
             "INSERT INTO nw.household_members (household_id, user_id, role) VALUES (%s, %s, 'admin')", [household_id, user["id"]]
         )
-        audit(conn, action="neighborhood_created", neighborhood_id=neighborhood_id, actor_type="operator",
-              target_type="neighborhood", target_id=neighborhood_id)
+        audit(
+            conn,
+            action="neighborhood_created",
+            neighborhood_id=neighborhood_id,
+            actor_type="operator",
+            target_type="neighborhood",
+            target_id=neighborhood_id,
+        )
     return neighborhood_id
 
 
@@ -53,8 +74,14 @@ def set_neighborhood_status(db: Database, neighborhood_id: UUID, status: str) ->
             "UPDATE nw.neighborhoods SET status = %s WHERE id = %s RETURNING id", [status, neighborhood_id]
         ).fetchone()
         if row:
-            audit(conn, action=f"neighborhood_{status}", neighborhood_id=neighborhood_id, actor_type="operator",
-                  target_type="neighborhood", target_id=neighborhood_id)
+            audit(
+                conn,
+                action=f"neighborhood_{status}",
+                neighborhood_id=neighborhood_id,
+                actor_type="operator",
+                target_type="neighborhood",
+                target_id=neighborhood_id,
+            )
     return row is not None
 
 
@@ -82,8 +109,9 @@ def main() -> int:
     db.open()
     try:
         if args.command == "create-neighborhood":
-            neighborhood_id = create_neighborhood(db, args.name, args.admin_email, args.house_number, args.street,
-                                                  args.latitude, args.longitude, args.isp)
+            neighborhood_id = create_neighborhood(
+                db, args.name, args.admin_email, args.house_number, args.street, args.latitude, args.longitude, args.isp
+            )
             print(f"Created neighborhood {neighborhood_id}. The administrator signs in with the e-mail address given.")
         elif args.command == "set-neighborhood-status":
             ok = set_neighborhood_status(db, args.neighborhood_id, args.status)

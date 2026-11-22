@@ -6,32 +6,77 @@ import re
 import unicodedata
 
 _SUFFIXES = {
-    "street": "st", "str": "st", "st": "st",
-    "avenue": "ave", "av": "ave", "ave": "ave",
-    "road": "rd", "rd": "rd",
-    "drive": "dr", "drv": "dr", "dr": "dr",
-    "lane": "ln", "ln": "ln",
-    "court": "ct", "crt": "ct", "ct": "ct",
-    "circle": "cir", "circ": "cir", "cir": "cir",
-    "boulevard": "blvd", "boul": "blvd", "blvd": "blvd",
-    "place": "pl", "pl": "pl",
-    "terrace": "ter", "terr": "ter", "ter": "ter",
-    "trail": "trl", "trl": "trl",
-    "parkway": "pkwy", "pky": "pkwy", "pkwy": "pkwy",
+    "street": "st",
+    "str": "st",
+    "st": "st",
+    "avenue": "ave",
+    "av": "ave",
+    "ave": "ave",
+    "road": "rd",
+    "rd": "rd",
+    "drive": "dr",
+    "drv": "dr",
+    "dr": "dr",
+    "lane": "ln",
+    "ln": "ln",
+    "court": "ct",
+    "crt": "ct",
+    "ct": "ct",
+    "circle": "cir",
+    "circ": "cir",
+    "cir": "cir",
+    "boulevard": "blvd",
+    "boul": "blvd",
+    "blvd": "blvd",
+    "place": "pl",
+    "pl": "pl",
+    "terrace": "ter",
+    "terr": "ter",
+    "ter": "ter",
+    "trail": "trl",
+    "trl": "trl",
+    "parkway": "pkwy",
+    "pky": "pkwy",
+    "pkwy": "pkwy",
     "way": "way",
-    "highway": "hwy", "hwy": "hwy",
-    "square": "sq", "sq": "sq",
-    "crossing": "xing", "xing": "xing",
-    "cove": "cv", "cv": "cv",
-    "point": "pt", "pt": "pt",
-    "bend": "bnd", "bnd": "bnd",
-    "ridge": "rdg", "rdg": "rdg",
-    "run": "run", "pass": "pass", "loop": "loop", "path": "path", "row": "row", "walk": "walk",
+    "highway": "hwy",
+    "hwy": "hwy",
+    "square": "sq",
+    "sq": "sq",
+    "crossing": "xing",
+    "xing": "xing",
+    "cove": "cv",
+    "cv": "cv",
+    "point": "pt",
+    "pt": "pt",
+    "bend": "bnd",
+    "bnd": "bnd",
+    "ridge": "rdg",
+    "rdg": "rdg",
+    "run": "run",
+    "pass": "pass",
+    "loop": "loop",
+    "path": "path",
+    "row": "row",
+    "walk": "walk",
 }
 _DIRECTIONS = {
-    "north": "n", "south": "s", "east": "e", "west": "w",
-    "northeast": "ne", "northwest": "nw", "southeast": "se", "southwest": "sw",
-    "n": "n", "s": "s", "e": "e", "w": "w", "ne": "ne", "nw": "nw", "se": "se", "sw": "sw",
+    "north": "n",
+    "south": "s",
+    "east": "e",
+    "west": "w",
+    "northeast": "ne",
+    "northwest": "nw",
+    "southeast": "se",
+    "southwest": "sw",
+    "n": "n",
+    "s": "s",
+    "e": "e",
+    "w": "w",
+    "ne": "ne",
+    "nw": "nw",
+    "se": "se",
+    "sw": "sw",
 }
 
 
@@ -59,9 +104,15 @@ def normalize_street_name(value: str) -> str:
     for index, word in enumerate(words):
         if word in _DIRECTIONS and (index == 0 or index == last) and len(words) > 1:
             out.append(_DIRECTIONS[word])
-        elif index == last and word in _SUFFIXES and len(words) > 1:
-            out.append(_SUFFIXES[word])
-        elif index == last - 1 and words[last] in _DIRECTIONS and word in _SUFFIXES and len(words) > 2:
+        elif (
+            index == last
+            and word in _SUFFIXES
+            and len(words) > 1
+            or index == last - 1
+            and words[last] in _DIRECTIONS
+            and word in _SUFFIXES
+            and len(words) > 2
+        ):
             out.append(_SUFFIXES[word])
         else:
             out.append(word)

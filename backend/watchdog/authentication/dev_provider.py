@@ -13,7 +13,7 @@ import logging
 import secrets
 import threading
 import uuid
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 import jwt
 from fastapi import APIRouter, Query, Request
@@ -63,18 +63,30 @@ def build_router(settings: Settings, clock) -> APIRouter:
     router.state = state  # type: ignore[attr-defined]
 
     def issue(email: str) -> dict:
-        now = clock.now()
+        now = datetime.now(UTC)  # real time: token expiry is checked against the real clock
         subject = state.subject_for(email)
         access = jwt.encode(
-            {"sub": subject, "email": email, "aud": settings.auth_jwt_audience or "authenticated", "aal": "aal1",
-             "iat": int(now.timestamp()), "exp": int((now + timedelta(seconds=ACCESS_TOKEN_SECONDS)).timestamp())},
-            settings.auth_jwt_secret, algorithm="HS256",
+            {
+                "sub": subject,
+                "email": email,
+                "aud": settings.auth_jwt_audience or "authenticated",
+                "aal": "aal1",
+                "iat": int(now.timestamp()),
+                "exp": int((now + timedelta(seconds=ACCESS_TOKEN_SECONDS)).timestamp()),
+            },
+            settings.auth_jwt_secret,
+            algorithm="HS256",
         )
         refresh = secrets.token_urlsafe(32)
         with state.lock:
             state.refresh_tokens[hashlib.sha256(refresh.encode()).hexdigest()] = email
-        return {"access_token": access, "refresh_token": refresh, "expires_in": ACCESS_TOKEN_SECONDS,
-                "token_type": "bearer", "user": {"id": subject, "email": email}}
+        return {
+            "access_token": access,
+            "refresh_token": refresh,
+            "expires_in": ACCESS_TOKEN_SECONDS,
+            "token_type": "bearer",
+            "user": {"id": subject, "email": email},
+        }
 
     @router.post("/otp")
     def request_code(body: OtpRequest) -> dict:

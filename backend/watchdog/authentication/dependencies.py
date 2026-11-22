@@ -81,8 +81,12 @@ def get_member_any(request: Request, principal: Principal = Depends(get_principa
     if row is None or row["membership_status"] == "removed":
         raise not_a_member()
     return Member(
-        user_id=user_id, household_id=row["household_id"], neighborhood_id=row["neighborhood_id"], role=row["role"],
-        household_status=row["membership_status"], neighborhood_status=row["neighborhood_status"],
+        user_id=user_id,
+        household_id=row["household_id"],
+        neighborhood_id=row["neighborhood_id"],
+        role=row["role"],
+        household_status=row["membership_status"],
+        neighborhood_status=row["neighborhood_status"],
         assurance_level=principal.assurance_level,
     )
 

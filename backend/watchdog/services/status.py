@@ -15,7 +15,8 @@ from ..enums import AlertLevel, ConnectivityState, MonitoringStatus, StatusColor
 from ..schemas import ConnectivityStatusOut, DeviceMonitoringOut, NeighborhoodOut
 
 _FAILURE_STATES = {
-    ConnectivityState.WIFI_DISCONNECTED, ConnectivityState.WIFI_CONNECTED_NO_INTERNET,
+    ConnectivityState.WIFI_DISCONNECTED,
+    ConnectivityState.WIFI_CONNECTED_NO_INTERNET,
     ConnectivityState.INTERNET_UNAVAILABLE,
 }
 
@@ -31,7 +32,7 @@ EXPLANATIONS = {
     StatusColor.YELLOW: "Yellow: a connectivity interruption was reported for a household.",
     StatusColor.ORANGE: "Orange: multiple nearby households reported connectivity disruptions at about the same time.",
     StatusColor.RED: "Red: a high-priority suspicious neighborhood disruption is in progress. Deliberate interference "
-                     "has not been confirmed.",
+    "has not been confirmed.",
     StatusColor.GREY: "Grey: monitoring is not active or has not reported recently. This does not mean everything is fine.",
 }
 
@@ -52,8 +53,12 @@ def device_monitoring_status(device, now: datetime, cfg: DetectionConfig) -> Mon
 
 
 _PRIORITY = [
-    MonitoringStatus.CONFIRMED_ACTIVE, MonitoringStatus.FAILURE_REPORTED, MonitoringStatus.KNOWN_GAP,
-    MonitoringStatus.PAUSED, MonitoringStatus.NO_RECENT_TELEMETRY, MonitoringStatus.NEVER_REPORTED,
+    MonitoringStatus.CONFIRMED_ACTIVE,
+    MonitoringStatus.FAILURE_REPORTED,
+    MonitoringStatus.KNOWN_GAP,
+    MonitoringStatus.PAUSED,
+    MonitoringStatus.NO_RECENT_TELEMETRY,
+    MonitoringStatus.NEVER_REPORTED,
 ]
 
 
@@ -85,16 +90,24 @@ def connectivity_status(db: Database, member: Member, now: datetime) -> Connecti
         color = StatusColor.GREY
     devices = [
         DeviceMonitoringOut(
-            device_id=d["id"], platform=d["platform"], monitoring_status=s,
+            device_id=d["id"],
+            platform=d["platform"],
+            monitoring_status=s,
             connectivity_state=d["last_state"] if s not in (MonitoringStatus.PAUSED,) else ConnectivityState.MONITORING_PAUSED,
-            last_event_at=d["last_event_at"], last_received_at=d["last_seen_at"],
+            last_event_at=d["last_event_at"],
+            last_received_at=d["last_seen_at"],
         )
         for d, s in zip(household_devices, statuses, strict=True)
         if d["user_id"] == member.user_id
     ]
     return ConnectivityStatusOut(
-        household_monitoring_status=household_status, status_color=color, status_explanation=EXPLANATIONS[color],
-        highest_alert_level=level, open_incident_ids=[i["id"] for i in incidents], devices=devices, server_time=now,
+        household_monitoring_status=household_status,
+        status_color=color,
+        status_explanation=EXPLANATIONS[color],
+        highest_alert_level=level,
+        open_incident_ids=[i["id"] for i in incidents],
+        devices=devices,
+        server_time=now,
     )
 
 
@@ -128,8 +141,14 @@ def neighborhood_overview(db: Database, member: Member, now: datetime) -> Neighb
             "the others are unknown, not confirmed safe."
         )
     return NeighborhoodOut(
-        neighborhood_id=row["id"], name=row["name"], participating_households=row["participating"],
-        confirmed_active_households=row["active"], open_incident_count=len(incidents), highest_alert_level=level,
-        status_color=color, status_explanation=explanation, correlation_radius_m=cfg.correlation_radius_m,
+        neighborhood_id=row["id"],
+        name=row["name"],
+        participating_households=row["participating"],
+        confirmed_active_households=row["active"],
+        open_incident_count=len(incidents),
+        highest_alert_level=level,
+        status_color=color,
+        status_explanation=explanation,
+        correlation_radius_m=cfg.correlation_radius_m,
         correlation_window_s=cfg.correlation_window_s,
     )

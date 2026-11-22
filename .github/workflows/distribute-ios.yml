@@ -1,0 +1,71 @@
+name: Distribute iOS (TestFlight)
+
+# Manual upload of a signed build to App Store Connect for TestFlight. Needs an Apple Developer
+# Program membership and the secrets and variables listed in docs/APP_DISTRIBUTION.md.
+# The first build offered to external testers must pass Apple's beta review; that takes as long as it takes.
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: Build number (must be higher than the last upload)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  testflight:
+    runs-on: macos-15
+    environment: beta
+    defaults:
+      run:
+        working-directory: apps/ios
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+      DEVELOPMENT_TEAM: ${{ vars.APPLE_TEAM_ID }}
+      IOS_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID }}
+      API_BASE_URL: ${{ vars.API_BASE_URL }}
+      AUTH_BASE_URL: ${{ vars.AUTH_BASE_URL }}
+      AUTH_PUBLIC_KEY: ${{ vars.AUTH_PUBLIC_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refuse to run without credentials
+        run: |
+          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_PRIVATE_KEY DEVELOPMENT_TEAM IOS_BUNDLE_ID API_BASE_URL; do
+            [ -n "${!name}" ] || { echo "::error::$name is not configured"; exit 1; }
+          done
+      - name: App Store Connect API key
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          printf '%s' "$ASC_PRIVATE_KEY" > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+      - name: Archive (automatic signing through the App Store Connect API key)
+        run: |
+          xcodebuild -version
+          xcodebuild -project NeighborhoodWatchdog.xcodeproj -scheme NeighborhoodWatchdog -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/NeighborhoodWatchdog.xcarchive" \
+            -allowProvisioningUpdates -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
+            -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" PRODUCT_BUNDLE_IDENTIFIER="$IOS_BUNDLE_ID" \
+            CURRENT_PROJECT_VERSION="${{ inputs.build_number }}" \
+            WATCHDOG_API_BASE_URL="$API_BASE_URL" WATCHDOG_AUTH_BASE_URL="$AUTH_BASE_URL" WATCHDOG_AUTH_PUBLIC_KEY="$AUTH_PUBLIC_KEY" \
+            archive
+      - name: Export and upload to App Store Connect
+        run: |
+          cat > "$RUNNER_TEMP/export.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${DEVELOPMENT_TEAM}</string>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/NeighborhoodWatchdog.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/export.plist" -exportPath "$RUNNER_TEMP/export" -allowProvisioningUpdates \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
+            -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+      - name: Remove the key from the runner
+        if: always()
+        run: rm -rf ~/.appstoreconnect

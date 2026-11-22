@@ -43,9 +43,7 @@ def ingest(db: Database, member: Member, body: SubmitEventsRequest, now: datetim
             raise ApiError(403, "device_revoked", "This device belongs to a previous membership. Register it again.")
         known = {
             r["id"]
-            for r in conn.execute(
-                "SELECT id FROM nw.connectivity_events WHERE id = ANY(%s)", [[e.event_id for e in body.events]]
-            )
+            for r in conn.execute("SELECT id FROM nw.connectivity_events WHERE id = ANY(%s)", [[e.event_id for e in body.events]])
         }
 
     outcomes: dict = {}
@@ -62,11 +60,11 @@ def ingest(db: Database, member: Member, body: SubmitEventsRequest, now: datetim
                 continue
             seen.add(event.event_id)
             if event.occurred_at > newest:
-                outcomes[event.event_id] = EventOutcome(event_id=event.event_id, result=EventResult.REJECTED,
-                                                        reason="timestamp_in_future")
+                outcomes[event.event_id] = EventOutcome(
+                    event_id=event.event_id, result=EventResult.REJECTED, reason="timestamp_in_future"
+                )
             elif event.occurred_at < oldest:
-                outcomes[event.event_id] = EventOutcome(event_id=event.event_id, result=EventResult.REJECTED,
-                                                        reason="too_old")
+                outcomes[event.event_id] = EventOutcome(event_id=event.event_id, result=EventResult.REJECTED, reason="too_old")
             else:
                 candidates.append(event)
 
@@ -87,22 +85,35 @@ def ingest(db: Database, member: Member, body: SubmitEventsRequest, now: datetim
             outcomes[event.event_id] = EventOutcome(event_id=event.event_id, result=EventResult.REJECTED, reason="rate_limited")
         if limited:
             metrics.incr("events_rate_limited", len(limited))
-            security_event(conn, kind="event_rate_limited", neighborhood_id=member.neighborhood_id,
-                           user_id=member.user_id, device_id=body.device_id, household_id=member.household_id,
-                           detail={"rejected": len(limited), "accepted": len(accepted)})
+            security_event(
+                conn,
+                kind="event_rate_limited",
+                neighborhood_id=member.neighborhood_id,
+                user_id=member.user_id,
+                device_id=body.device_id,
+                household_id=member.household_id,
+                detail={"rejected": len(limited), "accepted": len(accepted)},
+            )
 
         # Failure onsets beyond the hourly allowance are stored but kept out of correlation.
         excluded: set = set()
         onsets = [e for e in accepted if _is_onset(e)]
         if onsets:
-            allowed, _ = ratelimit.consume(conn, f"onsets:device:{body.device_id}:h", cfg.max_onsets_per_device_per_hour,
-                                           3600, now, amount=len(onsets))
+            allowed, _ = ratelimit.consume(
+                conn, f"onsets:device:{body.device_id}:h", cfg.max_onsets_per_device_per_hour, 3600, now, amount=len(onsets)
+            )
             excluded = {e.event_id for e in onsets[allowed:]}
             if excluded:
                 metrics.incr("onsets_excluded", len(excluded))
-                security_event(conn, kind="suspicious_reporting", neighborhood_id=member.neighborhood_id,
-                               user_id=member.user_id, device_id=body.device_id, household_id=member.household_id,
-                               detail={"excluded_onsets": len(excluded), "allowed_per_hour": cfg.max_onsets_per_device_per_hour})
+                security_event(
+                    conn,
+                    kind="suspicious_reporting",
+                    neighborhood_id=member.neighborhood_id,
+                    user_id=member.user_id,
+                    device_id=body.device_id,
+                    household_id=member.household_id,
+                    detail={"excluded_onsets": len(excluded), "allowed_per_hour": cfg.max_onsets_per_device_per_hour},
+                )
 
     # ---- 3. store (resident role again: the insert policy re-checks device, household and neighborhood)
     stored = 0
@@ -115,11 +126,25 @@ def ingest(db: Database, member: Member, body: SubmitEventsRequest, now: datetim
                     " confidence, diagnostics, capabilities, excluded_reason)"
                     " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
                     " ON CONFLICT (id) DO NOTHING RETURNING id",
-                    [event.event_id, body.device_id, member.household_id, member.neighborhood_id, event.sequence,
-                     event.event_type.value, event.connectivity_state.value, event.occurred_at, now,
-                     body.reported_via.value, device["platform"], event.os_version, event.app_version,
-                     event.confidence.value, Jsonb(event.diagnostics.model_dump(mode="json", exclude_none=True)),
-                     Jsonb(device["capabilities"]), "onset_rate_limit" if event.event_id in excluded else None],
+                    [
+                        event.event_id,
+                        body.device_id,
+                        member.household_id,
+                        member.neighborhood_id,
+                        event.sequence,
+                        event.event_type.value,
+                        event.connectivity_state.value,
+                        event.occurred_at,
+                        now,
+                        body.reported_via.value,
+                        device["platform"],
+                        event.os_version,
+                        event.app_version,
+                        event.confidence.value,
+                        Jsonb(event.diagnostics.model_dump(mode="json", exclude_none=True)),
+                        Jsonb(device["capabilities"]),
+                        "onset_rate_limit" if event.event_id in excluded else None,
+                    ],
                 ).fetchone()
                 if row is None:
                     outcomes[event.event_id] = EventOutcome(event_id=event.event_id, result=EventResult.DUPLICATE)
@@ -156,9 +181,17 @@ def _update_device_state(conn: Conn, device, events: list[ConnectivityEventIn], 
         "UPDATE nw.devices SET last_seen_at = %s, last_state = %s, monitoring_enabled = %s,"
         " last_event_at = GREATEST(COALESCE(last_event_at, %s), %s), last_sequence = GREATEST(COALESCE(last_sequence, 0), %s),"
         " os_version = %s, app_version = %s WHERE id = %s",
-        [now, state, monitoring, newest.occurred_at, newest.occurred_at, max(e.sequence for e in events),
-         newest.os_version if is_newer else device["os_version"],
-         newest.app_version if is_newer else device["app_version"], device["id"]],
+        [
+            now,
+            state,
+            monitoring,
+            newest.occurred_at,
+            newest.occurred_at,
+            max(e.sequence for e in events),
+            newest.os_version if is_newer else device["os_version"],
+            newest.app_version if is_newer else device["app_version"],
+            device["id"],
+        ],
     )
 
     # Monitoring sessions: an uninterrupted run of monitoring on this device.
