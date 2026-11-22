@@ -46,9 +46,9 @@ Platform specifics and file names are in `apps/android/README.md` and `apps/ios/
 
 | Control | Android | iOS |
 | --- | --- | --- |
-| Minimal permissions | `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, `CHANGE_NETWORK_STATE`, `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED` (plus what WorkManager declares). No location, phone state, camera, microphone, contacts or storage | Notifications only. Background modes: fetch and remote notifications. No location, local network, camera, microphone or contacts |
+| Minimal permissions | `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, `CHANGE_NETWORK_STATE`, `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`. WorkManager and Firebase Messaging are expected to add `WAKE_LOCK`, `FOREGROUND_SERVICE` and `c2dm.permission.RECEIVE` in the merged manifest (not inspected yet). No location, phone state, camera, microphone, contacts or storage | Notifications only. Background modes: fetch and remote notifications. No location, local network, camera, microphone or contacts |
 | Each permission is explained | In onboarding and Settings | In onboarding and Settings |
-| No exported components beyond what is needed | Launcher activity, the FCM service and the boot receiver | Not applicable |
+| No exported components beyond what is needed | Only the launcher activity is exported; the messaging service, boot receiver and startup provider are not. The merged manifest (library additions) has not been inspected | Not applicable |
 | Deep links | Invitation links are pasted into the app; no custom URL scheme handles secrets | Same |
 | WebViews | None | None |
 | Notifications | Content comes from the server and contains no address | Same |
@@ -61,7 +61,7 @@ Platform specifics and file names are in `apps/android/README.md` and `apps/ios/
 | Up-to-date platform target | Android target SDK 35, minimum 26. iOS deployment target 17.0 |
 | Dependencies are pinned and scanned | Android: version catalog, Dependabot weekly. iOS: no third-party dependencies |
 | Input from the server is validated | Typed decoding; unknown enum values handled as unknown (unit tests for the JSON contract) |
-| Release builds | Android: R8 minification and resource shrinking. iOS: release configuration, no debug settings |
+| Release builds | Android: R8 minification and resource shrinking are configured, but the release build has never been run, so the keep rules are untested. iOS: release configuration compiles for the simulator, no debug settings |
 | Update mechanism | Firebase App Distribution and TestFlight; no in-app code loading |
 
 ## MASVS-RESILIENCE
@@ -84,7 +84,8 @@ server never trusts the client: a modified app can only misreport its own househ
 ## Automated checks that back this list
 
 - App unit tests: state machine, gap detection, queue and backoff, fingerprint, contract encoding,
-  token refresh (`make android-test`, `make ios-test`).
+  token refresh (`make android-test`, `make ios-test`). The iOS tests have run and pass (97). The
+  Android tests are written but have **never been compiled or run** (`docs/STATUS.md`).
 - Backend tests that enforce the server side of these controls (`docs/SECURITY.md`).
 - CI: dependency audit, secret scanning, CodeQL for the backend.
 

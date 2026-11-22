@@ -56,6 +56,7 @@ def test_every_route_except_the_public_ones_declares_authentication(app):
         "/openapi.json",
         "/docs",
         "/docs/oauth2-redirect",
+        "/internal/tick",  # guarded by its own shared secret; see test_internal_tick_needs_its_secret
     }
     from fastapi.routing import APIRoute
 
@@ -69,6 +70,28 @@ def test_every_route_except_the_public_ones_declares_authentication(app):
             flat.add(getattr(dep.call, "__name__", type(dep.call).__name__))
             stack.extend(dep.dependencies)
         assert "get_principal" in flat, route.path  # every non-public route verifies an access token
+
+
+def test_internal_tick_needs_its_secret(db, clock, senders, world):
+    from fastapi.testclient import TestClient
+
+    from watchdog.main import create_app
+
+    # Not configured: the endpoint does not exist as far as callers can tell, whatever they send.
+    assert world.client.post("/internal/tick").status_code == 404
+    assert world.client.post("/internal/tick", headers={"Authorization": "Bearer anything"}).status_code == 404
+    secret = "s" * 40
+    app = create_app(make_settings(internal_tick_token=secret), clock=clock, senders=senders, database=db)
+    with TestClient(app) as scheduled:
+        assert scheduled.post("/internal/tick").status_code == 404
+        assert scheduled.post("/internal/tick", headers={"Authorization": "Bearer wrong"}).status_code == 404
+        resident = world.hood.households[3]
+        token = token_for(resident.auth_subject, resident.email, now=datetime.now(UTC))
+        assert scheduled.post("/internal/tick", headers={"Authorization": f"Bearer {token}"}).status_code == 404
+        ok = scheduled.post("/internal/tick", headers={"Authorization": f"Bearer {secret}"})
+        assert ok.status_code == 200 and ok.json() == {"ran": True}
+    with pytest.raises(ValueError, match="INTERNAL_TICK_TOKEN"):
+        make_settings(environment="production", dev_auth_enabled=False, internal_tick_token="short")
 
 
 def test_tokens_with_wrong_signature_audience_or_algorithm_are_rejected(client, world):

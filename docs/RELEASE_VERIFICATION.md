@@ -17,7 +17,7 @@ that commit and attaches to a draft GitHub release:
 | `backend-image-digest.txt` | The image digest |
 | `sbom-backend.cdx.json` | CycloneDX SBOM of the backend's direct and transitive Python dependencies, from `uv.lock` |
 | Android APK and AAB | Signed if signing secrets are configured, otherwise unsigned; with a build provenance attestation |
-| `sbom-android.cdx.json` | CycloneDX SBOM of the Android dependencies (if the Gradle CycloneDX task is configured; see below) |
+| `sbom-android.cdx.json` | Not produced yet: the Android build has no CycloneDX task (see below) |
 | `android-build-info.txt`, `ios-build-info.txt` | Commit, JDK, Gradle, Xcode, Swift and OS versions used |
 | `sbom-ios.cdx.json` | CycloneDX document with an empty component list: the iOS app has no third-party dependencies |
 | `SHA256SUMS.txt` | Checksums of every attached file |
@@ -74,10 +74,11 @@ with a key Google holds and may deliver device-specific split APKs generated fro
 the installed files will not match a local APK; compare the AAB instead and expect signature and
 packaging differences.
 
-Android SBOM: the release workflow calls a `cyclonedxBom` Gradle task. If the Android build does
-not apply the CycloneDX Gradle plugin, the step emits a warning and no Android SBOM is attached;
-`./gradlew :app:dependencies --configuration releaseRuntimeClasspath` lists the same information in
-text form. See `apps/android/README.md` for which is the case.
+Android SBOM: **not produced yet.** The Android build does not apply the CycloneDX Gradle plugin,
+so the release workflow's `cyclonedxBom` step only emits a warning and no Android SBOM is attached.
+Until the plugin is added (`jtbd/todo.md`),
+`./gradlew :app:dependencies --configuration releaseRuntimeClasspath` lists the direct and
+transitive dependencies in text form.
 
 ## iOS: what can and cannot be verified
 

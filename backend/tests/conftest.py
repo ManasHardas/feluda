@@ -61,7 +61,9 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.fixture(scope="session")
 def database_urls():
-    name = f"nwtest_{secrets.token_hex(4)}"
+    suffix = secrets.token_hex(4)
+    name = f"nwtest_{suffix}"
+    login = f"nw_test_login_{suffix}"  # unique per session, so a crashed earlier session cannot block this one
     password = secrets.token_hex(12)
     base = conninfo_to_dict(ADMIN_URL)
     with psycopg.connect(ADMIN_URL, autocommit=True) as conn:
@@ -70,15 +72,15 @@ def database_urls():
     migrate.run(owner_url)
     with psycopg.connect(owner_url, autocommit=True) as conn:
         # The application's login role: no privileges of its own, may only switch to the three restricted roles.
-        conn.execute("DROP ROLE IF EXISTS nw_test_login")
-        conn.execute(sql.SQL("CREATE ROLE nw_test_login LOGIN NOINHERIT PASSWORD {}").format(sql.Literal(password)))
-        conn.execute("GRANT nw_api, nw_correlation, nw_service TO nw_test_login")
-        conn.execute(sql.SQL("GRANT CONNECT ON DATABASE {} TO nw_test_login").format(sql.Identifier(name)))
-    app_url = make_conninfo(**{**base, "dbname": name, "user": "nw_test_login", "password": password})
+        role = sql.Identifier(login)
+        conn.execute(sql.SQL("CREATE ROLE {} LOGIN NOINHERIT PASSWORD {}").format(role, sql.Literal(password)))
+        conn.execute(sql.SQL("GRANT nw_api, nw_correlation, nw_service TO {}").format(role))
+        conn.execute(sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(sql.Identifier(name), role))
+    app_url = make_conninfo(**{**base, "dbname": name, "user": login, "password": password})
     yield {"owner": owner_url, "app": app_url}
     with psycopg.connect(ADMIN_URL, autocommit=True) as conn:
         conn.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(name)))
-        conn.execute("DROP ROLE IF EXISTS nw_test_login")
+        conn.execute(sql.SQL("DROP ROLE IF EXISTS {}").format(sql.Identifier(login)))
 
 
 @pytest.fixture(scope="session")

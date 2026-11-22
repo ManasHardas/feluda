@@ -6,11 +6,11 @@
 | --- | --- | --- | --- |
 | Backend unit tests (engine, scoring, normalization, tokens, configuration, limiter) | `backend/tests/test_unit_engine.py` | nothing | 49 |
 | Backend integration (onboarding, devices, leaving, deletion) | `backend/tests/test_onboarding.py`, `test_smoke.py` | PostgreSQL | 18 |
-| Backend security (authorization, isolation, row-level security, replay, malformed input, rate limits, secrets, logs) | `backend/tests/test_security.py` | PostgreSQL | 41 |
+| Backend security (authorization, isolation, row-level security, replay, malformed input, rate limits, secrets, logs) | `backend/tests/test_security.py` | PostgreSQL | 42 |
 | Scenario simulation A to J | `backend/tests/test_scenarios.py` | PostgreSQL | 11 |
 | Notifications (routing, duplicates, retries, expiry, preferences, FCM and APNs request shape) | `backend/tests/test_notifications.py` | PostgreSQL | 14 |
 | Administration, configuration, retention, migrations, schema | `backend/tests/test_admin_and_ops.py` | PostgreSQL | 10 |
-| Android unit tests | `apps/android` | JDK 17 | see `apps/android/README.md` |
+| Android unit tests | `apps/android/app/src/test` | JDK 17, network for the first dependency download | 9 test files written; **never compiled or run** |
 | iOS unit tests | `apps/ios/NeighborhoodWatchdogTests` | Xcode, a simulator | 97 |
 
 Run them:

@@ -25,13 +25,13 @@ has not been arranged (EXTERNAL_REVIEW_REQUIRED, owner's decision who does it).
 | 6 | The operator and the database provider can read all stored data; application-level access by the operator is not logged | Medium (privacy) | Accepted; mitigated by data minimization and short retention; stated in `docs/PRIVACY.md` |
 | 7 | CI actions and base images are pinned by tag, not by hash or digest | Low | Open |
 | 8 | Dependency vulnerability audit has not been run (no network at build time, repository not on GitHub) | Unknown | Open: run on first push |
-| 9 | The mobile apps have been compiled and unit-tested but never run against the backend or on a physical phone; their network behaviour is unverified in practice | Unknown | Open: MANUAL_TEST_REQUIRED |
+| 9 | The mobile apps have never run against the backend or on a physical phone. iOS compiles and its 97 unit tests pass. Android's main code compiles, but its unit tests, packaging, lint and release (R8) build have never run | Unknown | Open: see `docs/STATUS.md` |
 | 10 | iOS debug builds allow cleartext to localhost only; Android debug builds allow cleartext to the emulator host only | Informational | By design; release builds are HTTPS-only |
 | 11 | Push notification text is visible on lock screens | Informational | Text contains no address or household identity |
 
 ## What the automated tests demonstrate
 
-41 security tests in `backend/tests/test_security.py` cover: token verification failures; every
+42 security tests in `backend/tests/test_security.py` cover: token verification failures; every
 non-public route requiring a token; refusal of client-supplied household and neighborhood ids;
 cross-household and cross-neighborhood access through the API; direct database access as each
 restricted role (reads and writes that must fail); row-level security enabled on every table and

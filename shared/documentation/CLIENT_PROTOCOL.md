@@ -217,3 +217,21 @@ Codes used: `unauthorized` (401), `not_a_member` (403), `forbidden` (403), `hous
 - The second probe target is configurable (`PROBE_FALLBACK_URL`); the default is a plain HTTPS
   request to a large public site and is disclosed on the Transparency screen.
 - UUIDs may be sent in upper or lower case.
+- `band_evidence` on a `WIFI_LOST`: either the band last observed (or `BAND_UNKNOWN`), or
+  `MULTI_BAND_FAILURE_NOT_VERIFIED`. Both are accepted; the backend stores the value as evidence
+  and does not score it. Android sends the band last observed.
+- Android: `cellular_available` is null while on Wi-Fi unless a cellular network is actually up
+  (Android usually keeps mobile data down on Wi-Fi). `CELLULAR_UNAVAILABLE` is emitted only after
+  cellular was seen available.
+- Android: `external_power_lost_recently` covers 15 seconds before to about 5 seconds after the
+  event, so the report is not held back.
+- First-ever Wi-Fi association: Android sends `WIFI_RESTORED`, iOS sends
+  `WIFI_ASSOCIATION_CHANGED`. The backend treats both as a healthy report with no preceding loss.
+- Android reports any stretch of 2 minutes or more in which its process ran no code as
+  `MONITORING_GAP_DETECTED` (mostly `app_suspended`), and sends callbacks that arrive within 10
+  seconds after such a stretch as `RECONCILED`. Gaps are therefore frequent on both platforms; the
+  backend treats a gap as unknown, never as healthy.
+- `MONITORING_STOPPED` is sent on sign-out. Leaving the neighborhood or deleting the account removes
+  the device on the server, so no stop event is sent for those.
+- Token refresh uses the default network, not the cellular-bound one.
+- Rejection reason for a rate limit is exactly `rate_limited`.
