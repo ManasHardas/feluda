@@ -47,7 +47,8 @@ immediately are recorded here.
 | --- | --- | --- | --- |
 | 2026-11-22 | PyJWT 2.10.1 | 17 advisories (PYSEC-2025-183, PYSEC-2026-120 and others, GHSA-pxh4-856f-4h89) | Upgraded to 2.15.1 |
 | 2026-11-22 | Starlette 0.41.3 (through FastAPI 0.115.6) | 7 advisories (PYSEC-2026-161, -248, -249, -1941, -1942, -2280, -2281) | Upgraded FastAPI to 0.165.0, which brings Starlette 1.10.0 |
-| 2026-11-22 | All backend dependencies, including the optional `errors` extra | pip-audit: no known vulnerabilities | None needed. Android dependencies have not been audited yet |
+| 2026-11-22 | All backend dependencies, including the optional `errors` extra | pip-audit: no known vulnerabilities | None needed |
+| 2026-11-22 | Android: the 155 resolved packages of `releaseRuntimeClasspath` (direct and transitive) | OSV database (api.osv.dev, Maven ecosystem): no known advisories. The lookup was checked with a known-vulnerable control (okhttp 3.12.0), which it flagged | None needed. Build plugins and test-only dependencies were not checked; iOS has no third-party dependencies |
 
 ## Android: comparing a local build with a distributed one
 

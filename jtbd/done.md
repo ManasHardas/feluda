@@ -13,3 +13,4 @@
 - 2026-11-22: **Backend dependency audit and SBOM.** Advisories found in PyJWT and Starlette pins; upgraded; audit clean; SBOM generated.
 - 2026-11-22: **Live contract checks.** Each app's real networking code completes the resident journey against a running local backend (`make live-ios`, `make live-android`); no contract mismatches found. Added a native Swift package so the iOS core tests run without a simulator (`make ios-core-test`).
 - 2026-11-22: **License and security contact.** MIT `LICENSE` added; security contact set in `SECURITY.md`; `CODEOWNERS` names the owner. Owner confirmed decision 0012 (a few dollars a month for an always-on host).
+- 2026-11-22: **Android dependency audit.** 155 resolved release dependencies checked against the OSV database; no known advisories. Recorded in `docs/RELEASE_VERIFICATION.md`.
