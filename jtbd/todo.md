@@ -24,6 +24,7 @@ Last updated 2026-11-23. Source brief: `neighborhood_watchdog_master_build_promp
 10c. **Supabase advisor warning:** `nw.set_updated_at` and `nw.current_user_id` have no fixed `search_path`. Low risk (neither is SECURITY DEFINER, both call built-ins only); fixing `current_user_id` may stop PostgreSQL inlining it in row-level-security policies. Done when: fixed in a new migration with the policy timing checked, or accepted in a decision record.
 
 ## Not built yet
+14a. **Review the Dependabot pull requests 2 to 12.** Several are major-version jumps (Retrofit 3, Kotlin 2.4, Python 3.15 base image, GitHub Actions majors). Merge one at a time after its CI passes, with the apps rebuilt. Done when: each is merged or closed with a reason.
 15. **Per-person administrator access.** Administration uses one shared operator secret (decision 0014): no per-person audit trail, no second factor. Done when: there is more than one organizer and each has their own revocable credential, or the owner accepts the shared secret for good.
 15a. **Street suggestions when joining.** The street is free text, so two spellings that normalization does not unify count as different streets. Done when: the join screen offers the streets already in the neighborhood, or the owner decides it is not needed.
 15b. **Decide the app's display name and custom link scheme.** The link scheme is `feluda://`; the app is still called "Neighborhood Watchdog" on screen. Done when: the owner confirms or renames.
