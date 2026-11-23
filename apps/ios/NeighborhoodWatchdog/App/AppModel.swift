@@ -561,7 +561,7 @@ final class BackgroundTimeExtension {
 enum BackgroundRefresh {
     /// Must be listed in Info.plist under BGTaskSchedulerPermittedIdentifiers.
     static var identifier: String {
-        (Bundle.main.bundleIdentifier ?? "org.neighborhoodwatchdog.ios") + ".refresh"
+        (Bundle.main.bundleIdentifier ?? "com.manashardas.feluda") + ".refresh"
     }
 
     /// Asks iOS for a background refresh no earlier than 15 minutes from now. iOS decides whether

@@ -65,7 +65,7 @@ secrets belong there; the auth key is the publishable key.
 | `APNS_ENVIRONMENT` | Sent with the push token | `sandbox` | `production` |
 | `SOURCE_REPO_URL`, `PRIVACY_URL`, `SECURITY_REVIEW_URL`, `SECURITY_CONTACT` | Transparency screen | empty | empty |
 | `PROBE_FALLBACK_URL` | Second reachability target | Apple's success page | same |
-| `PRODUCT_BUNDLE_IDENTIFIER` | Bundle id | `org.neighborhoodwatchdog.ios` | same |
+| `PRODUCT_BUNDLE_IDENTIFIER` | Bundle id | `com.manashardas.feluda` | same |
 | `DEVELOPMENT_TEAM` | Apple team id | empty | empty |
 
 Empty transparency values are shown in the app as "Not configured in this build".

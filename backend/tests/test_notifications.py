@@ -332,14 +332,14 @@ def test_apns_request_shape_and_error_mapping():
         "KEYID12345",
         "TEAMID1234",
         pem,
-        "org.neighborhoodwatchdog.ios",
+        "com.manashardas.feluda",
         client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
     ok = sender.send("abcdef0123", MESSAGE, "sandbox")
     assert ok == SendResult(ok=True, message_id="ABC-123")
     request = seen[0]
     assert str(request.url) == "https://api.sandbox.push.apple.com/3/device/abcdef0123"
-    assert request.headers["apns-topic"] == "org.neighborhoodwatchdog.ios" and request.headers["apns-push-type"] == "alert"
+    assert request.headers["apns-topic"] == "com.manashardas.feluda" and request.headers["apns-push-type"] == "alert"
     assert request.headers["apns-priority"] == "10" and request.headers["apns-expiration"] == "4102444800"
     provider_token = request.headers["authorization"].split()[1]
     assert jwt.get_unverified_header(provider_token) == {"alg": "ES256", "kid": "KEYID12345", "typ": "JWT"}

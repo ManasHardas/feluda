@@ -19,7 +19,7 @@ struct Services: Sendable {
     }
 
     static func make(config: AppConfig, settings: AppSettings) -> Services {
-        let keychain = KeychainStore(service: Bundle.main.bundleIdentifier ?? "org.neighborhoodwatchdog.ios")
+        let keychain = KeychainStore(service: Bundle.main.bundleIdentifier ?? "com.manashardas.feluda")
         let interactive = URLSessionTransport(session: URLSession(configuration: WatchdogSessions.interactiveConfiguration()))
         let reporting = URLSessionTransport(session: URLSession(configuration: WatchdogSessions.reportingConfiguration()))
         let auth = AuthService(baseURL: config.authBaseURL, publicKey: config.authPublicKey, transport: interactive,
@@ -73,7 +73,7 @@ struct Services: Sendable {
     }
 
     static func clearKeychain() {
-        let keychain = KeychainStore(service: Bundle.main.bundleIdentifier ?? "org.neighborhoodwatchdog.ios")
+        let keychain = KeychainStore(service: Bundle.main.bundleIdentifier ?? "com.manashardas.feluda")
         KeychainTokenStore(keychain: keychain).clear()
         KeychainFingerprintStore(keychain: keychain).clear()
     }

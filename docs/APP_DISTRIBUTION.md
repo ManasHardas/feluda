@@ -82,7 +82,7 @@ https://developer.apple.com/help/app-store-connect/test-a-beta-version/invite-ex
 1. Enrol in the Apple Developer Program ($99 per year). An individual enrolment shows the owner's
    legal name as the seller.
 2. Certificates, Identifiers & Profiles → Identifiers: register the bundle id
-   `org.neighborhoodwatchdog.ios` (or your own) with the capabilities **Push Notifications** and
+   `com.manashardas.feluda` (or your own) with the capabilities **Push Notifications** and
    **Time Sensitive Notifications**. Background modes (fetch, remote notifications) are in the app's
    Info.plist.
 3. Keys: create an **APNs key** (.p8). Give the backend `APNS_KEY_ID`, `APNS_TEAM_ID`,
