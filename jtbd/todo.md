@@ -16,6 +16,7 @@ Last updated 2026-11-22. Source brief: `neighborhood_watchdog_master_build_promp
 14. **Legal check of the privacy text** for where the pilot runs. Done when: the operator is named in the notice and the owner is satisfied.
 
 ## Staging set-up in progress (Supabase project `feluda`)
+10d. **Still missing for staging** (owner): Fly.io login (`fly auth login`); Firebase service-account key file in `secrets/firebase-service-account.json` (needed for Android push); SMTP sender for sign-in codes. Done when: all three are in place.
 10a. **Backend database login.** Create `nw_app_login` with `infrastructure/scripts/create_app_login.sql` and store its password only in the host's secret store. Waiting for the host account (the password has nowhere safe to go yet). Done when: the deployed backend connects with it.
 10b. **Sign-in settings in the Supabase dashboard** (owner): e-mail template showing the 6-digit code, own SMTP sender, session lifetimes, as in `infrastructure/supabase/README.md`. Done when: a real sign-in code arrives by e-mail.
 10c. **Supabase advisor warning:** `nw.set_updated_at` and `nw.current_user_id` have no fixed `search_path`. Low risk (neither is SECURITY DEFINER, both call built-ins only); fixing `current_user_id` may stop PostgreSQL inlining it in row-level-security policies. Done when: fixed in a new migration with the policy timing checked, or accepted in a decision record.
