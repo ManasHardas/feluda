@@ -1,15 +1,17 @@
 # Fly.io configuration for the staging backend. No secrets here: set them with `fly secrets set`
-# (list in docs/DEPLOYMENT.md). Replace the app name and URLs with your own before the first deploy.
-app = "neighborhood-watchdog-staging"
-primary_region = "dfw"
+# (list in docs/DEPLOYMENT.md).
+app = "feluda-staging"
+# Virginia, next to the Supabase database (us-east-1).
+primary_region = "iad"
 
 [build]
-  dockerfile = "Dockerfile"
+  # Relative to this file; the build context is backend/ (see infrastructure/scripts/deploy.sh).
+  dockerfile = "../../backend/Dockerfile"
   build-target = "runtime"
 
 [env]
   ENVIRONMENT = "staging"
-  PUBLIC_BASE_URL = "https://neighborhood-watchdog-staging.fly.dev"
+  PUBLIC_BASE_URL = "https://feluda-staging.fly.dev"
   BACKGROUND_WORKER_ENABLED = "true"
   TRUST_PROXY_HEADERS = "true"
   LOG_LEVEL = "INFO"

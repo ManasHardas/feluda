@@ -9,7 +9,8 @@ Last updated 2026-11-23. Source brief: `neighborhood_watchdog_master_build_promp
 6. **Publishing, remaining part.** The repository is private at `ManasHardas/feluda`; pull request 1 is merged. Still open: the owner says whether to make it public (dependency review and CodeQL result upload only work when public), and branch protection is set as in `CONTRIBUTING.md`. Done when: both are settled.
 8. **Security contact in deployments.** `SECURITY.md` has the address; the `SECURITY_CONTACT` setting of the backend and the app builds is set when staging is created (item 10). Done when: the registration page and both apps show it.
 9. **Confirm decision 0010** (a lone phone losing Wi-Fi is shown in the app but not pushed). 0012 (paid always-on host) was confirmed 2026-11-22. Done when: 0010 is confirmed or changed.
-10. **Accounts and credentials:** a host (Fly.io, chosen by the owner 2026-11-22) and the Firebase service-account key. Supabase (database only), the Firebase project and the Apple keys are in place. Values go in `.env.staging` and `secrets/` (both ignored by git). Done when: staging answers the smoke test and one real push reaches each platform.
+10. **First real push to each platform.** Staging is deployed and both push keys work on the server (Firebase token obtained, APNs key signs). Needs the apps on a phone (item 12 and 12a). Done when: one real notification reaches an Android phone and an iPhone.
+12a. **Build the apps against staging and distribute them.** Android: release keystore (owner keeps it), Firebase App Distribution enabled, signed APK uploaded. iOS: App ID `app.feluda` with Push Notifications, App Store Connect app record, signed build uploaded to TestFlight with the ASC key. Both with `API_BASE_URL=https://feluda-staging.fly.dev`. Done when: the owner installs both on his phones.
 11. **Physical-device tests:** `apps/android/TESTING.md` (17 scenarios) and `apps/ios/TESTING.md` (12 scenarios). Done when: each scenario has a recorded result.
 12. **TestFlight first-build review** by Apple. Done when: an external tester can install.
 13. **Independent security review** before going beyond a small pilot (`docs/SECURITY_REVIEW.md`). Done when: a summary with scope, date, findings and remediation is published.
@@ -19,8 +20,6 @@ Last updated 2026-11-23. Source brief: `neighborhood_watchdog_master_build_promp
 0. **Tap through the new join flow on screen** (iOS simulator and Android emulator) against the local backend: open a `feluda://` link, type a street, join, see the main screen; and the 401 path back to the join screen. Sign-in itself is removed and verified by tests (see done.md). Done when: both apps were seen completing it.
 
 ## Staging set-up in progress (Supabase project `feluda`)
-10d. **Still missing for staging** (owner): Fly.io login (`fly auth login`); Firebase service-account key file in `secrets/firebase-service-account.json` (needed for Android push). Done when: both are in place.
-10a. **Backend database login and operator secret.** Create `nw_app_login` with `infrastructure/scripts/create_app_login.sql` and generate `ADMIN_API_TOKEN`; store both only in the host's secret store. Waiting for the host account. Done when: the deployed backend connects and `nwadmin.py` can create an invitation.
 10c. **Supabase advisor warning:** `nw.set_updated_at` and `nw.current_user_id` have no fixed `search_path`. Low risk (neither is SECURITY DEFINER, both call built-ins only); fixing `current_user_id` may stop PostgreSQL inlining it in row-level-security policies. Done when: fixed in a new migration with the policy timing checked, or accepted in a decision record.
 
 ## Not built yet
