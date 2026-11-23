@@ -49,7 +49,6 @@ android {
         versionName = appVersionName
 
         // Public, non-secret build configuration. Blank means "not configured" and the app says so.
-        buildConfigField("String", "AUTH_PUBLIC_KEY", quoted(setting("AUTH_PUBLIC_KEY") ?: ""))
         buildConfigField("String", "SOURCE_REPO_URL", quoted(setting("SOURCE_REPO_URL") ?: ""))
         buildConfigField("String", "PRIVACY_URL", quoted(setting("PRIVACY_URL") ?: ""))
         buildConfigField("String", "SECURITY_CONTACT", quoted(setting("SECURITY_CONTACT") ?: ""))
@@ -79,11 +78,6 @@ android {
     buildTypes {
         debug {
             buildConfigField("String", "API_BASE_URL", quoted(setting("API_BASE_URL") ?: "http://10.0.2.2:8000"))
-            buildConfigField(
-                "String",
-                "AUTH_BASE_URL",
-                quoted(setting("AUTH_BASE_URL") ?: "http://10.0.2.2:8000/auth/v1"),
-            )
         }
         release {
             isMinifyEnabled = true
@@ -93,11 +87,6 @@ android {
                 "String",
                 "API_BASE_URL",
                 quoted(releaseUrl("API_BASE_URL", "https://api-not-configured.invalid")),
-            )
-            buildConfigField(
-                "String",
-                "AUTH_BASE_URL",
-                quoted(releaseUrl("AUTH_BASE_URL", "https://auth-not-configured.invalid/auth/v1")),
             )
             // Unsigned when the signing settings are absent, so `assembleRelease` always works.
             signingConfig = if (hasReleaseSigning) signingConfigs.getByName("release") else null

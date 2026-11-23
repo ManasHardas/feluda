@@ -22,6 +22,19 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER).join</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>feluda</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
@@ -54,10 +67,6 @@
 	<string>$(API_BASE_URL)</string>
 	<key>WatchdogAPNsEnvironment</key>
 	<string>$(APNS_ENVIRONMENT)</string>
-	<key>WatchdogAuthBaseURL</key>
-	<string>$(AUTH_BASE_URL)</string>
-	<key>WatchdogAuthPublicKey</key>
-	<string>$(AUTH_PUBLIC_KEY)</string>
 	<key>WatchdogPrivacyURL</key>
 	<string>$(PRIVACY_URL)</string>
 	<key>WatchdogProbeFallbackURL</key>

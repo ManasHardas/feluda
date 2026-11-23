@@ -42,13 +42,11 @@ import org.neighborhoodwatchdog.android.data.api.ApiResult
 import org.neighborhoodwatchdog.android.data.api.DeviceOut
 import org.neighborhoodwatchdog.android.data.api.HouseholdOut
 import org.neighborhoodwatchdog.android.data.api.NotificationPreferences
-import org.neighborhoodwatchdog.android.data.auth.AuthRepository
 import org.neighborhoodwatchdog.android.data.local.LocalState
 import org.neighborhoodwatchdog.android.data.repository.DeviceRepository
 import org.neighborhoodwatchdog.android.data.repository.WatchdogRepository
 import org.neighborhoodwatchdog.android.domain.model.DeviceStatus
 import org.neighborhoodwatchdog.android.domain.model.Isp
-import org.neighborhoodwatchdog.android.domain.model.MemberRole
 import org.neighborhoodwatchdog.android.monitoring.HomeNetworkManager
 import org.neighborhoodwatchdog.android.monitoring.MonitoringController
 import org.neighborhoodwatchdog.android.monitoring.PermissionStatus
@@ -79,8 +77,6 @@ data class SettingsState(
     val homeNetworkMessage: Int? = null,
 )
 
-enum class ConfirmAction { LEAVE, DELETE, SIGN_OUT }
-
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val repository: WatchdogRepository,
@@ -90,14 +86,12 @@ class SettingsViewModel @Inject constructor(
     private val permissions: PermissionStatus,
     private val home: HomeNetworkManager,
     private val localState: LocalState,
-    auth: AuthRepository,
     pushManager: PushManager,
     val config: AppConfig,
 ) : ViewModel() {
     val monitoringEnabled: StateFlow<Boolean> = localState.monitoringEnabledFlow
     val lastReportAtMs: StateFlow<Long?> = localState.lastReportAtMs
     val installId: String = localState.installId()
-    val email: String? = auth.email
     val pushConfigured: Boolean = pushManager.configured
 
     private val _state = MutableStateFlow(
@@ -115,11 +109,8 @@ class SettingsViewModel @Inject constructor(
             val household = repository.household()
             val deviceList = devices.devices()
             val preferences = repository.preferences()
+            // A 401 `unauthorized` (this phone was removed) is handled centrally: the app returns to the join screen.
             val failure = listOf(household, deviceList, preferences).filterIsInstance<ApiResult.Failure>().firstOrNull()
-            if (failure?.error?.code == "not_a_member") {
-                session.membershipLost()
-                return@launch
-            }
             _state.update {
                 it.copy(
                     loading = false,
@@ -185,15 +176,9 @@ class SettingsViewModel @Inject constructor(
         _state.update { it.copy(homeNetworkSet = false, homeNetworkMessage = R.string.settings_home_forgotten) }
     }
 
-    fun confirm(action: ConfirmAction) = action {
-        when (action) {
-            ConfirmAction.SIGN_OUT -> {
-                session.signOut()
-                null
-            }
-            ConfirmAction.LEAVE -> (session.leaveNeighborhood() as? ApiResult.Failure)?.let { errorMessage(it.error) }
-            ConfirmAction.DELETE -> (session.deleteAccount() as? ApiResult.Failure)?.let { errorMessage(it.error) }
-        }
+    /** The server deletes this phone and what it reported; then the app forgets its own data. */
+    fun leave() = action {
+        (session.leaveNeighborhood() as? ApiResult.Failure)?.let { errorMessage(it.error) }
     }
 
     private fun action(block: suspend () -> Int?) {
@@ -211,7 +196,7 @@ fun SettingsScreen(onBack: () -> Unit, onOpenTransparency: () -> Unit, viewModel
     val monitoringEnabled by viewModel.monitoringEnabled.collectAsStateWithLifecycle()
     val lastReport by viewModel.lastReportAtMs.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var confirm by remember { mutableStateOf<ConfirmAction?>(null) }
+    var confirmLeave by remember { mutableStateOf(false) }
     var revoke by remember { mutableStateOf<String?>(null) }
     var editingTime by remember { mutableStateOf<Boolean?>(null) } // true = start, false = end
 
@@ -297,13 +282,12 @@ fun SettingsScreen(onBack: () -> Unit, onOpenTransparency: () -> Unit, viewModel
                 var label by rememberSaveable(household.displayLabel) { mutableStateOf(household.displayLabel.orEmpty()) }
                 var isp by remember(household.isp) { mutableStateOf<Isp?>(household.isp) }
                 InfoRow(stringResource(R.string.settings_household_reference), household.anonymousReference)
-                InfoRow(stringResource(R.string.settings_household_address), "${household.houseNumber} ${household.streetName}")
-                Text(stringResource(R.string.settings_household_address_note), style = MaterialTheme.typography.bodySmall)
                 InfoRow(
-                    stringResource(R.string.settings_household_role),
-                    stringResource(if (household.role == MemberRole.ADMIN) R.string.role_admin else R.string.role_resident),
+                    stringResource(R.string.settings_household_address),
+                    listOfNotNull(household.houseNumber?.takeIf { it.isNotBlank() }, household.streetName).joinToString(" "),
                 )
-                InfoRow(stringResource(R.string.settings_household_members), household.memberCount.toString())
+                Text(stringResource(R.string.settings_household_address_note), style = MaterialTheme.typography.bodySmall)
+                InfoRow(stringResource(R.string.settings_household_phones), household.deviceCount.toString())
                 InfoRow(stringResource(R.string.settings_household_provider), stringResource(ispLabel(household.isp)))
                 OutlinedTextField(
                     value = label,
@@ -317,7 +301,6 @@ fun SettingsScreen(onBack: () -> Unit, onOpenTransparency: () -> Unit, viewModel
                     Text(stringResource(R.string.action_save))
                 }
             }
-            viewModel.email?.let { InfoRow(stringResource(R.string.settings_signed_in_as), it) }
         }
 
         SectionCard(stringResource(R.string.settings_devices_title)) {
@@ -355,27 +338,20 @@ fun SettingsScreen(onBack: () -> Unit, onOpenTransparency: () -> Unit, viewModel
 
         SectionCard(stringResource(R.string.settings_leave_title)) {
             Text(stringResource(R.string.settings_leave_body))
-            OutlinedButton(onClick = { confirm = ConfirmAction.SIGN_OUT }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.settings_sign_out))
-            }
-            OutlinedButton(onClick = { confirm = ConfirmAction.LEAVE }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = { confirmLeave = true }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.settings_leave))
-            }
-            Button(onClick = { confirm = ConfirmAction.DELETE }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.settings_delete))
             }
         }
     }
 
-    confirm?.let { action ->
-        val (title, body) = when (action) {
-            ConfirmAction.SIGN_OUT -> R.string.settings_sign_out to R.string.settings_sign_out_confirm
-            ConfirmAction.LEAVE -> R.string.settings_leave to R.string.settings_leave_confirm
-            ConfirmAction.DELETE -> R.string.settings_delete to R.string.settings_delete_confirm
-        }
-        ConfirmDialog(stringResource(title), stringResource(body), onDismiss = { confirm = null }) {
-            confirm = null
-            viewModel.confirm(action)
+    if (confirmLeave) {
+        ConfirmDialog(
+            stringResource(R.string.settings_leave),
+            stringResource(R.string.settings_leave_confirm),
+            onDismiss = { confirmLeave = false },
+        ) {
+            confirmLeave = false
+            viewModel.leave()
         }
     }
     revoke?.let { deviceId ->

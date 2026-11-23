@@ -16,7 +16,7 @@ h2 { font-size: 1.1rem; margin: 1.6rem 0 .4rem; }
 p, li { color: var(--ink); } .muted { color: var(--muted); font-size:.95rem; }
 .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:1.1rem 1.1rem 1.25rem; margin-top:1rem; }
 label { display:block; font-weight:600; margin:.9rem 0 .3rem; }
-input[type=text], input[type=email], select { width:100%; padding:.7rem .75rem; font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:10px; }
+input[type=text], select { width:100%; padding:.7rem .75rem; font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:10px; }
 input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
 .row { display:grid; grid-template-columns: 7rem 1fr; gap:.75rem; }
 .check { display:flex; gap:.6rem; align-items:flex-start; margin-top:1rem; font-weight:400; }
@@ -47,52 +47,31 @@ a { color: var(--accent); }
     <p>The app on your phone notices when your home Wi-Fi drops. If several nearby homes report the same thing at about the same time, everyone taking part gets an alert so they can check their cameras and alarms.</p>
     <p class="notice">This is an anomaly detector. A phone app cannot prove that someone is deliberately blocking radio signals, and it does not replace your alarm system.</p>
 
+    <h2>How to join</h2>
+    <ol>
+      <li><strong>Install the app</strong> on your phone.
+        <a id="android" class="button hidden" rel="noopener">Install on Android</a>
+        <a id="ios" class="button hidden" rel="noopener">Install on iPhone (TestFlight)</a>
+        <p id="no-links" class="muted hidden">Your neighborhood organizer will send you the install link for your phone.</p>
+      </li>
+      <li><strong>Come back to this page and tap the button below.</strong> The app opens and asks for your street. That is all: there is no account, no e-mail address and no password.
+        <a id="open" class="button" rel="noopener">Open in the app</a>
+        <p class="muted">If the button does nothing, open the app and paste your invitation link there. <a id="copy" href="#">Copy the invitation link</a> <span id="copied" class="hidden">Copied.</span></p>
+      </li>
+    </ol>
+    <ul>
+      <li><strong>Android:</strong> open the install link, accept the tester invitation, and install. You may be asked to allow installs from the testing app.</li>
+      <li><strong>iPhone:</strong> install Apple&rsquo;s TestFlight app first, then open the install link and tap Install.</li>
+    </ul>
+
     <h2>What is and is not collected</h2>
     <ul>
-      <li><strong>Collected:</strong> your house number and street (to confirm you live in this neighborhood), an e-mail address for sign-in, and connectivity events from your phone: when Wi-Fi, internet or cellular service was lost or restored.</li>
-      <li><strong>Never collected:</strong> browsing history, Wi-Fi or router passwords, GPS location, camera footage, microphone audio, messages, or logins for your camera, alarm or internet provider.</li>
+      <li><strong>Collected:</strong> your street, a house number only if you choose to give one, and connectivity events from your phone: when Wi-Fi, internet or cellular service was lost or restored.</li>
+      <li><strong>Never collected:</strong> your name, e-mail address or phone number, browsing history, Wi-Fi or router passwords, GPS location, camera footage, microphone audio, messages, or logins for your camera, alarm or internet provider.</li>
       <li>Other residents never see your address. They see only counts such as &ldquo;4 households affected&rdquo;.</li>
-      <li>You can switch monitoring off, leave, or delete your account at any time in the app.</li>
+      <li>You can switch monitoring off or leave at any time in the app. Leaving deletes what your phone reported.</li>
     </ul>
     <p><a href="/privacy">Read the full privacy summary</a></p>
-
-    <form id="form" novalidate>
-      <div class="row">
-        <div><label for="house">House number</label><input id="house" type="text" inputmode="text" autocomplete="off" maxlength="16" required></div>
-        <div><label for="street">Street name</label><input id="street" type="text" autocomplete="off" maxlength="80" required></div>
-      </div>
-      <label for="email">E-mail address</label>
-      <input id="email" type="email" autocomplete="email" maxlength="254" required>
-      <p class="muted">Used only to sign in with a one-time code. No password, no full name needed.</p>
-      <label for="label">Household label <span class="muted">(optional, only you see it)</span></label>
-      <input id="label" type="text" maxlength="40" autocomplete="off">
-      <label for="isp">Home internet provider <span class="muted">(optional)</span></label>
-      <select id="isp">
-        <option value="">Prefer not to say</option>
-        <option value="att">AT&amp;T</option><option value="xfinity">Xfinity (Comcast)</option>
-        <option value="spectrum">Spectrum</option><option value="verizon">Verizon</option>
-        <option value="tmobile_home">T-Mobile Home Internet</option><option value="google_fiber">Google Fiber</option>
-        <option value="other">Other</option>
-      </select>
-      <p class="muted">Knowing providers helps tell an internet outage apart from something unusual.</p>
-      <label class="check"><input id="ack" type="checkbox" required><span>I have read what is collected and agree to take part. Monitoring starts only after I also agree inside the app.</span></label>
-      <p id="error" class="error hidden" role="alert"></p>
-      <button id="submit" type="submit">Register this household</button>
-    </form>
-  </section>
-
-  <section id="done" class="card hidden" aria-live="polite">
-    <h2>You are registered</h2>
-    <p>Next, install the app and sign in with the same e-mail address. You will get a one-time code by e-mail.</p>
-    <a id="android" class="button hidden" rel="noopener">Install on Android</a>
-    <a id="ios" class="button hidden" rel="noopener">Install on iPhone (TestFlight)</a>
-    <p id="no-links" class="muted hidden">Your neighborhood organizer will send you the install link for your phone.</p>
-    <h2>Installing</h2>
-    <ul>
-      <li><strong>Android:</strong> open the link, accept the tester invitation, and install. You may be asked to allow installs from the testing app.</li>
-      <li><strong>iPhone:</strong> install Apple&rsquo;s TestFlight app first, then open the link and tap Install.</li>
-      <li>Open Neighborhood Watchdog, read the short introduction, and sign in with your e-mail address.</li>
-    </ul>
     <p class="muted hidden" id="support-line">Need help? <a id="support" rel="noopener">Support information</a></p>
   </section>
 
@@ -103,53 +82,32 @@ a { color: var(--accent); }
   "use strict";
   var links = { android: "{{ANDROID_URL}}", ios: "{{IOS_URL}}", source: "{{SOURCE_URL}}", support: "{{SUPPORT_URL}}" };
   function $(id) { return document.getElementById(id); }
-  function show(id) { ["checking", "invalid", "form-card", "done"].forEach(function (s) { $(s).classList.toggle("hidden", s !== id); }); }
+  function show(id) { ["checking", "invalid", "form-card"].forEach(function (s) { $(s).classList.toggle("hidden", s !== id); }); }
   function link(id, url, wrap) { if (/^https:\/\//.test(url)) { $(id).href = url; $(wrap || id).classList.remove("hidden"); return true; } return false; }
   link("source", links.source, "source-wrap"); link("support", links.support, "support-line");
 
-  // The token is in the URL fragment, which is never sent to a server. Remove it from the address bar at once.
+  // The token is in the URL fragment, which is never sent to a server by the browser.
   var match = /(?:^|[#&])t=([A-Za-z0-9_-]{20,128})/.exec(window.location.hash || "");
   var token = match ? match[1] : "";
-  if (window.history && history.replaceState) { history.replaceState(null, "", window.location.pathname); }
   if (!token) { show("invalid"); return; }
+  var invitation = window.location.origin + "/join#t=" + token;
 
-  function post(path, body) {
-    return fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), credentials: "omit", cache: "no-store", referrerPolicy: "no-referrer" })
-      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j }; }); });
-  }
-
-  post("/api/v1/auth/verify-invitation", { invitation_token: token }).then(function (r) {
-    if (!r.ok) { show("invalid"); return; }
-    $("hood").textContent = r.body.neighborhood_name;
-    show("form-card"); $("house").focus();
-  }).catch(function () { show("invalid"); });
-
-  $("form").addEventListener("submit", function (event) {
-    event.preventDefault();
-    var error = $("error"); error.classList.add("hidden");
-    function fail(message) { error.textContent = message; error.classList.remove("hidden"); $("submit").disabled = false; }
-    var house = $("house").value.trim(), street = $("street").value.trim(), email = $("email").value.trim();
-    if (!house || !street) { return fail("Enter your house number and street name."); }
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { return fail("Enter a valid e-mail address."); }
-    if (!$("ack").checked) { return fail("Please confirm that you have read what is collected."); }
-    $("submit").disabled = true;
-    var body = { invitation_token: token, email: email, house_number: house, street_name: street, privacy_acknowledged: true };
-    if ($("label").value.trim()) { body.display_label = $("label").value.trim(); }
-    if ($("isp").value) { body.isp = $("isp").value; }
-    post("/api/v1/auth/register", body).then(function (r) {
-      if (r.ok) {
-        token = "";
-        var any = link("android", r.body.android_install_url || links.android);
-        any = link("ios", r.body.ios_install_url || links.ios) || any;
-        if (!any) { $("no-links").classList.remove("hidden"); }
-        show("done"); return;
-      }
-      var code = r.body && r.body.error ? r.body.error.code : "";
-      if (code === "invitation_invalid") { show("invalid"); }
-      else if (r.body && r.body.error && r.body.error.message) { fail(r.body.error.message); }
-      else { fail("Something went wrong. Please try again in a minute."); }
-    }).catch(function () { fail("Could not reach the server. Check your connection and try again."); });
-  });
+  fetch("/api/v1/auth/verify-invitation", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ invitation_token: token }), credentials: "omit", cache: "no-store", referrerPolicy: "no-referrer" })
+    .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, body: j }; }); })
+    .then(function (r) {
+      if (!r.ok) { show("invalid"); return; }
+      $("hood").textContent = r.body.neighborhood_name;
+      var any = link("android", links.android);
+      any = link("ios", links.ios) || any;
+      if (!any) { $("no-links").classList.remove("hidden"); }
+      // The app registers the feluda:// scheme and enrols this phone with the link.
+      $("open").href = "feluda://join#t=" + token;
+      $("copy").addEventListener("click", function (event) {
+        event.preventDefault();
+        if (navigator.clipboard) { navigator.clipboard.writeText(invitation).then(function () { $("copied").classList.remove("hidden"); }); }
+      });
+      show("form-card");
+    }).catch(function () { show("invalid"); });
 })();
 </script>
 </body>

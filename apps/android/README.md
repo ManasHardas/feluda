@@ -12,13 +12,45 @@ Status words used below: IMPLEMENTED, AUTOMATED_TESTED (JVM unit tests), MANUAL_
 (needs a physical phone; see `TESTING.md`), EXTERNAL_CREDENTIAL_REQUIRED.
 **Nothing in this app has been run on a phone or an emulator yet.**
 
-### Verification status (2026-11-22)
+### Verification status (2026-11-23, after sign-in was removed)
 
 - Seen to succeed: `./gradlew --no-daemon assembleDebug testDebugUnitTest lintDebug assembleRelease`
-  (debug APK, 90 unit tests with 0 failures, lint, unsigned R8 release APK).
+  (debug APK; 87 unit tests, 0 failures, 1 skipped, which is the live test below; lint without
+  errors; unsigned R8 release APK).
+- Seen to succeed: `make live-android` (from the repository root, against a local development
+  backend): `LiveBackendTest` ran the whole journey with the app's real OkHttp / Retrofit stack:
+  verify the invitation, enrol, authenticated calls, device update, push token, preferences, event
+  upload with duplicates, status, neighborhood, incidents, leave, and a 401 after leaving.
 - Not done: installing or launching either APK. A keep rule missing from `proguard-rules.pro` would
   only show up when the minified app runs.
 - No SBOM task exists in this build (no CycloneDX plugin, no `cyclonedxBom` task).
+
+## Joining: no sign-in
+
+There are no accounts, e-mail addresses, passwords or one-time codes (decision
+`ai/docs/decisions/0014-no-sign-in-device-enrolment.md`).
+
+1. Introduction: what the app monitors, sends and does not collect.
+2. Join screen. The invitation link reaches the app in one of two ways:
+   - the web join page opens `feluda://join#t=<token>` (intent filter on `MainActivity`, handled on a
+     cold start and in `onNewIntent`);
+   - the resident pastes the link (`https://<host>/join#t=<token>`) or the bare token into the field.
+   The app asks the server whether the invitation is valid and shows the neighborhood name. Then it
+   asks only for the **street** (required) and the **house number** (optional). A short privacy
+   summary with a link to the full text is shown; tapping "Join" is the acknowledgement.
+3. `POST /api/v1/enroll` returns one device secret. It is stored in a file encrypted with an
+   AES-256-GCM key held in the Android Keystore and sent as `Authorization: Bearer <secret>` on every
+   later request. It does not expire and is never refreshed.
+4. Notification permission, then the optional home Wi-Fi step, then monitoring starts.
+
+A 401 with the error code `unauthorized` means the server no longer knows this phone (it left or was
+removed). The app then removes the secret, the queue, the home-network fingerprint and the install
+id, and shows the join screen with a note; a new invitation link is needed. A 401 in any other shape
+(for example from a captive portal) changes nothing.
+
+"Leave neighborhood" in Settings deletes the phone and everything it reported on the server, then
+the same local data. There is no account, so there is nothing else to delete. The household label
+and internet provider are not asked when joining; they can be set in Settings.
 
 ## Build
 
@@ -57,9 +89,7 @@ None of these is a secret. Each is read from a Gradle property (`-PKEY=value` or
 | Key | Meaning | Default |
 | --- | --- | --- |
 | `API_BASE_URL` | Backend origin. Paths start with `/api/v1`. | debug `http://10.0.2.2:8000`; release: must be set |
-| `AUTH_BASE_URL` | Auth (GoTrue) origin plus `/auth/v1`. | debug `http://10.0.2.2:8000/auth/v1`; release: must be set |
-| `AUTH_PUBLIC_KEY` | Publishable (anon) key sent as the `apikey` header. Never the service-role key. | blank |
-| `SOURCE_REPO_URL`, `PRIVACY_URL`, `SECURITY_CONTACT`, `SECURITY_REVIEW_URL` | Shown on the Transparency screen. | blank ("Not configured in this build") |
+| `SOURCE_REPO_URL`, `PRIVACY_URL`, `SECURITY_CONTACT`, `SECURITY_REVIEW_URL` | Shown on the Transparency screen. `PRIVACY_URL` is also the "full privacy information" link on the join screen (without it that link opens the Transparency screen). | blank ("Not configured in this build") |
 | `INTERNET_PROBE_URL` | Second, independent HTTPS reachability target. | `https://connectivitycheck.gstatic.com/generate_204` |
 | `FIREBASE_PROJECT_ID`, `FIREBASE_APPLICATION_ID`, `FIREBASE_API_KEY`, `FIREBASE_SENDER_ID` | Firebase Cloud Messaging. | blank (push off) |
 | `APPLICATION_ID` | Android application id. | `app.feluda` (the code package stays `org.neighborhoodwatchdog.android`) |
@@ -68,9 +98,9 @@ None of these is a secret. Each is read from a Gradle property (`-PKEY=value` or
 
 Rules enforced by the build:
 
-- Release: `API_BASE_URL` and `AUTH_BASE_URL` must start with `https://` or the build fails. If they
-  are not set, the release build still succeeds but points at `https://api-not-configured.invalid`,
-  which cannot work; set them for a real release.
+- Release: `API_BASE_URL` must start with `https://` or the build fails. If it is not set, the
+  release build still succeeds but points at `https://api-not-configured.invalid`, which cannot
+  work; set it for a real release.
 - Release disallows cleartext traffic (`res/xml/network_security_config.xml`). Debug allows cleartext
   only for `10.0.2.2`, `localhost` and `127.0.0.1` (`src/debug/res/xml/network_security_config.xml`).
 - The second probe target defaults to the address Android itself already contacts for its own
@@ -103,17 +133,17 @@ org.neighborhoodwatchdog.android
     model/         contract enums, event models, JSON configuration
     monitoring/    ConnectivityStateMachine, NetworkSnapshot, GapDetector, Reconciler, DiagnosticsBuilder
     reporting/     EventUploader, BackoffPolicy, QueuePolicy, EventFactory, queue/transport interfaces
-    home/          HomeNetworkFingerprint, InvitationToken
-    auth/          TokenManager (refresh under a mutex, rotation)
+    home/          HomeNetworkFingerprint, InvitationToken (pasted link, bare token, feluda://join link)
+    auth/          DeviceCredentials (the one device secret; removed when the server refuses it)
   data/
     api/           Retrofit interfaces, request/response models, error parsing
-    auth/          KeystoreCipher (AES-GCM, AndroidKeyStore), encrypted token store, OkHttp interceptor + authenticator
+    auth/          KeystoreCipher (AES-GCM, AndroidKeyStore), encrypted secret store, DeviceTokenInterceptor
     local/         Room database (event queue, last 50 sent events), LocalState, FingerprintStore
     repository/    WatchdogRepository, DeviceRepository
   monitoring/    Android side: ConnectivityMonitor (NetworkCallbacks), ProbeRunner, NetworkEventTransport
                  (cellular-bound upload), MonitoringController, WorkManager workers, BootReceiver
   push/          Firebase init, FCM service, notification channels
-  session/       onboarding stage, sign-out / leave / delete
+  session/       onboarding stage, invitation link inbox, leave
   ui/            Compose screens and view models (onboarding, main, incidents, settings, transparency)
   di/            Hilt module
 ```
@@ -252,29 +282,37 @@ more of active devices. Supporting older versions would need separate code paths
   the report. Unplug events are only seen while the process is alive.
 - The home-network fingerprint is weak on networks without an IPv6 link-local router address: two
   networks with the same IPv4 gateway and prefix (for example `192.168.1.1/24`) then match each other.
-- A token refresh is sent over the default network, not the bound cellular network. If Wi-Fi is
-  associated without internet and Android has not switched the default network, a report that
-  needs a refresh first waits for the next retry.
+- Reinstalling the app, clearing its data or losing the Keystore key loses the device secret; the
+  phone then needs a new invitation link. The secret has no second factor: anyone who extracts it
+  from the phone can report as that phone until it is removed.
+- After the server refused the secret, events still in the queue are dropped: the server deleted or
+  blocked the phone, so they could not be delivered.
 - No permission that monitoring needs can be revoked by the user on Android (they are install-time
   permissions), so `MONITORING_PERMISSION_REQUIRED` is implemented but not expected in practice.
   `PERMISSION_CHANGED` is emitted when the notification permission changes.
 - RSSI is read when Android delivers a capabilities change, at each probe and at each heartbeat; the
   app does not poll, so `SIGNAL_STRENGTH_CHANGED` can lag.
-- Invitation links are pasted into the app; the app does not register itself as a handler for the
-  `https://<host>/join` link because the host is deployment-specific.
+- The app handles `feluda://join#t=<token>` (opened by the web join page) and pasted links. It does
+  not register itself as a handler for the `https://<host>/join` link because the host is
+  deployment-specific. The `feluda` scheme is not verified by Android: another installed app could
+  claim it too, in which case Android asks which app to open. The link flow has not been tried on
+  a phone or an emulator (MANUAL_TEST_REQUIRED).
 - Firebase App Distribution / Play internal testing are not set up here (no credentials).
 
 ## Tests
 
 `./gradlew --no-daemon testDebugUnitTest` runs JVM tests only. They use fakes and a `MockWebServer`
-on localhost and never contact a real server.
+on localhost and never contact a real server, except `LiveBackendTest`, which is skipped unless
+`make live-android` (repository root) provides `WATCHDOG_LIVE_API`, `WATCHDOG_LIVE_INVITATION`,
+`WATCHDOG_LIVE_HOUSE_NUMBER` and `WATCHDOG_LIVE_STREET` for a development backend on localhost.
 
 | Test class | Covers |
 | --- | --- |
 | `ConnectivityStateMachineTest` | Wi-Fi loss, reconnection, Wi-Fi without internet, cellular available / unavailable, airplane mode, debounce and transitions, signal strength rule, paused is never HEALTHY |
 | `GapDetectorTest` | reboot, process termination, suspension, clock changes, reconciliation |
 | `EventUploaderTest` | durable queue, backoff, delayed upload keeps `occurred_at`, duplicates, rate limits, batch size, queue cap |
-| `HomeNetworkFingerprintTest` | hashing and matching, invitation parsing |
+| `HomeNetworkFingerprintTest` | hashing and matching, invitation parsing (pasted link, bare token, `feluda://join` link) |
 | `DiagnosticsTest` | null-when-unmeasured, band mapping, power rule |
 | `ContractJsonTest` | field names and enum spellings against the contract, round trip |
-| `TokenManagerTest`, `AuthNetworkingTest` | refresh serialisation and rotation, single retry on 401, sign-in calls |
+| `DeviceCredentialsTest`, `AuthNetworkingTest` | enrolment request, device secret as bearer token, 401 `unauthorized` removes the secret without a retry, any other 401 keeps it |
+| `LiveBackendTest` | the whole journey against a real local backend (only with `make live-android`) |

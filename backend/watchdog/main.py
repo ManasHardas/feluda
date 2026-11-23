@@ -17,7 +17,6 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from . import __version__, metrics
 from .api import admin as admin_routes
 from .api import routes
-from .authentication.tokens import TokenVerifier
 from .clock import Clock
 from .db import Database
 from .errors import ApiError
@@ -112,7 +111,6 @@ def create_app(
     app.state.clock = clock
     app.state.db = db
     app.state.pipeline = pipeline
-    app.state.verifier = TokenVerifier(settings)
     app.state.limiter = SlidingWindowLimiter()
 
     if settings.cors_allowed_origins:
@@ -185,11 +183,4 @@ def create_app(
     app.include_router(routes.router)
     app.include_router(admin_routes.router)
     app.include_router(pages.build_router(settings))
-    if settings.dev_auth_enabled:
-        from .authentication.dev_provider import build_router as build_dev_auth
-
-        dev_router = build_dev_auth(settings, clock)
-        app.state.dev_auth = dev_router.state  # type: ignore[attr-defined]
-        app.include_router(dev_router)
-        log.warning("development auth emulator is enabled; never use this configuration with real residents")
     return app

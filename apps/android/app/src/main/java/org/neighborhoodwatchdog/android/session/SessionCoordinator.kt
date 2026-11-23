@@ -3,13 +3,14 @@ package org.neighborhoodwatchdog.android.session
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.neighborhoodwatchdog.android.data.api.ApiResult
-import org.neighborhoodwatchdog.android.data.auth.AuthRepository
 import org.neighborhoodwatchdog.android.data.local.LocalState
 import org.neighborhoodwatchdog.android.data.repository.WatchdogRepository
+import org.neighborhoodwatchdog.android.domain.auth.DeviceCredentials
 import org.neighborhoodwatchdog.android.monitoring.ClearMode
 import org.neighborhoodwatchdog.android.monitoring.MonitoringController
 
-enum class OnboardingStage { CONSENT, SIGN_IN, MEMBERSHIP, DEVICE_SETUP, HOME_NETWORK, READY }
+/** INTRO: what the app does and the privacy summary. JOIN: invitation link, street, optional house number. */
+enum class OnboardingStage { INTRO, JOIN, NOTIFICATIONS, HOME_NETWORK, READY }
 
 /** Bumped whenever something changed that decides which screen the app must show. */
 class SessionSignal {
@@ -21,46 +22,50 @@ class SessionSignal {
     }
 }
 
+/**
+ * The invitation token from a `feluda://join#t=<token>` link that opened the app, kept until the
+ * join screen takes it. Only held in memory.
+ */
+class InvitationInbox {
+    private val _pending = MutableStateFlow<String?>(null)
+    val pending: StateFlow<String?> = _pending
+
+    fun offer(token: String) {
+        _pending.value = token
+    }
+
+    fun take(): String? = _pending.value.also { _pending.value = null }
+}
+
 class SessionCoordinator(
-    private val auth: AuthRepository,
+    private val credentials: DeviceCredentials,
     private val repository: WatchdogRepository,
     private val controller: MonitoringController,
     private val localState: LocalState,
     val signal: SessionSignal,
 ) {
-    /** Onboarding order from the client protocol. Monitoring never starts before the last step. */
+    /**
+     * Onboarding order. There is no sign-in: a phone is enrolled when it holds a device secret.
+     * Monitoring never starts before the last step.
+     */
     fun stage(): OnboardingStage = when {
-        !localState.consentGiven -> OnboardingStage.CONSENT
-        !auth.isSignedIn -> OnboardingStage.SIGN_IN
-        !localState.memberConfirmed -> OnboardingStage.MEMBERSHIP
-        !localState.deviceRegistered || !localState.notificationStepDone -> OnboardingStage.DEVICE_SETUP
+        !localState.consentGiven -> OnboardingStage.INTRO
+        !credentials.isEnrolled -> OnboardingStage.JOIN
+        !localState.notificationStepDone -> OnboardingStage.NOTIFICATIONS
         !localState.homeStepDone -> OnboardingStage.HOME_NETWORK
         else -> OnboardingStage.READY
     }
 
-    /** The server said this account is not a household member (any more). */
-    fun membershipLost() {
-        localState.memberConfirmed = false
-        signal.bump()
-    }
-
-    suspend fun signOut() {
-        controller.stopAndClear(ClearMode.SIGN_OUT)
-        auth.signOut()
-        signal.bump()
-    }
-
-    /** After the server confirmed: stop monitoring and clear tokens, queue, fingerprint and install id. */
-    suspend fun leaveNeighborhood(): ApiResult<Unit> = forget { repository.leave() }
-
-    suspend fun deleteAccount(): ApiResult<Unit> = forget { repository.deleteAccount() }
-
-    private suspend fun forget(call: suspend () -> ApiResult<*>): ApiResult<Unit> =
-        when (val result = call()) {
+    /**
+     * Leave: the server deletes this phone and everything it reported. Only after it confirmed,
+     * monitoring stops and the secret, queue, fingerprint and install id are removed from the phone.
+     */
+    suspend fun leaveNeighborhood(): ApiResult<Unit> =
+        when (val result = repository.leave()) {
             is ApiResult.Failure -> result
             is ApiResult.Success -> {
                 controller.stopAndClear(ClearMode.FORGET_EVERYTHING)
-                auth.signOut()
+                credentials.clear()
                 signal.bump()
                 ApiResult.Success(Unit)
             }

@@ -8,25 +8,23 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response
 
 from .. import __version__, metrics
-from ..authentication.dependencies import Member, get_member, get_member_any, get_principal
-from ..authentication.tokens import Principal
+from ..authentication.dependencies import Member, Operator, get_member, get_member_any, get_operator
 from ..errors import ApiError
 from ..schemas import (
     ConnectivityStatusOut,
     DeviceOut,
+    EnrollRequest,
+    EnrollResponse,
     ErrorResponse,
     HealthOut,
     HouseholdOut,
     IncidentDetailOut,
     IncidentListOut,
-    JoinHouseholdRequest,
     NeighborhoodOut,
     NotificationPreferences,
     OkResponse,
     RegisterDeviceRequest,
     RegisterPushTokenRequest,
-    RegisterRequest,
-    RegisterResponse,
     RevokeDeviceRequest,
     SubmitEventsRequest,
     SubmitEventsResponse,
@@ -43,7 +41,7 @@ router = APIRouter(prefix="/api/v1", responses=ERRORS)
 
 def _privacy_ack(acknowledged: bool) -> None:
     if not acknowledged:
-        raise ApiError(422, "validation_error", "The privacy summary must be acknowledged before registering.")
+        raise ApiError(422, "validation_error", "The privacy summary must be acknowledged before joining.")
 
 
 # ---------------------------------------------------------------- health
@@ -64,13 +62,11 @@ def health(request: Request, response: Response) -> HealthOut:
 
 
 @router.get("/monitoring/metrics", tags=["monitoring"], include_in_schema=False)
-def metrics_snapshot(member: Member = Depends(get_member)) -> dict[str, int]:
-    if member.role != "admin":
-        raise ApiError(403, "forbidden", "Administrator access is required.")
+def metrics_snapshot(operator: Operator = Depends(get_operator)) -> dict[str, int]:
     return metrics.snapshot()
 
 
-# ---------------------------------------------------------------- invitations and registration (no sign-in yet)
+# ---------------------------------------------------------------- invitations and enrolment (no credential yet)
 
 
 @router.post("/auth/verify-invitation", response_model=VerifyInvitationResponse, tags=["onboarding"])
@@ -79,44 +75,15 @@ def verify_invitation(request: Request, body: VerifyInvitationRequest) -> Verify
     return membership.verify_invitation(request.app.state.db, body.invitation_token, now(request))
 
 
-@router.post("/auth/register", response_model=RegisterResponse, status_code=201, tags=["onboarding"])
-def register(request: Request, body: RegisterRequest) -> RegisterResponse:
-    limit_by_client(request, "register", 10, 600)
+@router.post("/enroll", response_model=EnrollResponse, status_code=201, tags=["onboarding"])
+def enroll(request: Request, body: EnrollRequest) -> EnrollResponse:
+    """Enrol this phone with an invitation link. No account, e-mail address or password is involved."""
+    limit_by_client(request, "enroll", 10, 600)
     _privacy_ack(body.privacy_acknowledged)
-    membership.register(
-        request.app.state.db,
-        token=body.invitation_token,
-        email=body.email,
-        house_number=body.house_number,
-        street_name=body.street_name,
-        display_label=body.display_label,
-        isp=body.isp.value if body.isp else None,
-        now=now(request),
-    )
-    settings = request.app.state.settings
-    return RegisterResponse(
-        android_install_url=settings.android_install_url or None, ios_install_url=settings.ios_install_url or None
-    )
+    return membership.enroll(request.app.state.db, body, now(request))
 
 
 # ---------------------------------------------------------------- household
-
-
-@router.post("/households/join", response_model=HouseholdOut, tags=["household"])
-def join_household(request: Request, body: JoinHouseholdRequest, principal: Principal = Depends(get_principal)) -> HouseholdOut:
-    limit_by_client(request, "join", 10, 600)
-    _privacy_ack(body.privacy_acknowledged)
-    user_id = membership.join(
-        request.app.state.db,
-        principal,
-        token=body.invitation_token,
-        house_number=body.house_number,
-        street_name=body.street_name,
-        display_label=body.display_label,
-        isp=body.isp.value if body.isp else None,
-        now=now(request),
-    )
-    return membership.household_me(request.app.state.db, user_id)
 
 
 @router.get("/households/me", response_model=HouseholdOut, tags=["household"])
@@ -136,12 +103,6 @@ def leave_neighborhood(request: Request, member: Member = Depends(get_member_any
     return OkResponse()
 
 
-@router.delete("/account", response_model=OkResponse, tags=["household"])
-def delete_account(request: Request, member: Member = Depends(get_member_any)) -> OkResponse:
-    membership.delete_account(request.app.state.db, request.app.state.settings, member, now(request))
-    return OkResponse()
-
-
 @router.get("/neighborhoods/me", response_model=NeighborhoodOut, tags=["neighborhood"])
 def my_neighborhood(request: Request, member: Member = Depends(get_member)) -> NeighborhoodOut:
     return status.neighborhood_overview(request.app.state.db, member, now(request))
@@ -152,7 +113,7 @@ def my_neighborhood(request: Request, member: Member = Depends(get_member)) -> N
 
 @router.post("/devices/register", response_model=DeviceOut, tags=["devices"])
 def register_device(request: Request, body: RegisterDeviceRequest, member: Member = Depends(get_member)) -> DeviceOut:
-    limit_by_key(request, "device-register", str(member.user_id), 20, 3600)
+    limit_by_key(request, "device-register", str(member.device_id), 20, 3600)
     return devices.register(request.app.state.db, member, body)
 
 
@@ -163,7 +124,7 @@ def list_devices(request: Request, member: Member = Depends(get_member)) -> list
 
 @router.post("/devices/revoke", response_model=OkResponse, tags=["devices"])
 def revoke_device(request: Request, body: RevokeDeviceRequest, member: Member = Depends(get_member_any)) -> OkResponse:
-    devices.revoke(request.app.state.db, member.user_id, body.device_id, now(request))
+    devices.revoke(request.app.state.db, member, body.device_id, now(request))
     return OkResponse()
 
 
@@ -172,6 +133,8 @@ def revoke_device(request: Request, body: RevokeDeviceRequest, member: Member = 
 
 @router.post("/notifications/register", response_model=OkResponse, tags=["notifications"])
 def register_push_token(request: Request, body: RegisterPushTokenRequest, member: Member = Depends(get_member)) -> OkResponse:
+    if body.device_id != member.device_id:
+        raise ApiError(404, "device_not_registered", "This device is not registered.")
     db = request.app.state.db
     with db.api(member.user_id) as conn:
         device = conn.execute("SELECT id, platform, status FROM nw.devices WHERE id = %s", [body.device_id]).fetchone()
@@ -247,6 +210,8 @@ def put_preferences(
 def submit_events(
     request: Request, body: SubmitEventsRequest, background: BackgroundTasks, member: Member = Depends(get_member)
 ) -> SubmitEventsResponse:
+    if body.device_id != member.device_id:
+        raise ApiError(404, "device_not_registered", "This device is not registered. Enrol it first.")
     limit_by_key(request, "event-requests", str(body.device_id), 60, 60)
     response, stored = events.ingest(request.app.state.db, member, body, now(request))
     if stored:

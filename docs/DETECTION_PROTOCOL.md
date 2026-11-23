@@ -32,6 +32,13 @@ seconds of the onset, the onset is discarded: one phone had a problem (or left),
 Onsets are grouped when each is within 60 seconds of the previous one, within 300 seconds of the
 first, and within 500 metres of the first household. A household counts once per cluster. A
 household without a registered location is treated as inside the radius and the incident says so.
+
+Residents are never asked for a location (decision 0014), so a household has coordinates only if
+the organizer added it by hand with them. In a neighborhood where nobody did, the distance check
+does nothing: any households that fail within the time window can form one cluster, the incident
+lists the missing locations as missing evidence, and no extent is shown. That is acceptable for a
+neighborhood of a few streets and too coarse for a large one; add coordinates if the 500-metre
+rule matters.
 Clusters in different places at the same time become separate incidents.
 
 Correlation uses the time the event **happened** on the phone, not the time it arrived. A report

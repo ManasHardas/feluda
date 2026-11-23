@@ -44,22 +44,24 @@ struct KeychainStore: Sendable {
     }
 }
 
-/// Access and refresh tokens live only in the Keychain.
-struct KeychainTokenStore: TokenStore {
+/// The device secret issued at enrolment lives only in the Keychain.
+struct KeychainDeviceTokenStore: DeviceTokenStore {
     let keychain: KeychainStore
-    private let account = "auth-session"
+    private let account = "device-secret"
 
-    func load() -> AuthTokens? {
-        guard let data = keychain.read(account: account) else { return nil }
-        return try? WatchdogJSON.decoder().decode(AuthTokens.self, from: data)
+    func load() -> String? {
+        guard let data = keychain.read(account: account), let token = String(data: data, encoding: .utf8), !token.isEmpty else { return nil }
+        return token
     }
 
-    func save(_ tokens: AuthTokens) throws {
-        try keychain.write(try WatchdogJSON.encoder().encode(tokens), account: account)
+    func save(_ token: String) throws {
+        try keychain.write(Data(token.utf8), account: account)
     }
 
     func clear() {
         keychain.delete(account: account)
+        // Left behind by versions that had a sign-in.
+        keychain.delete(account: "auth-session")
     }
 }
 

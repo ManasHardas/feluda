@@ -15,6 +15,20 @@ They are deliberately not reachable through the API, and each writes an audit re
 | Monthly | Run a backup and a test restore into staging |
 | After each release | Compare artifact checksums (`docs/RELEASE_VERIFICATION.md`) |
 
+Administrator commands (`nwadmin.py`) need `NWADMIN_API` and `NWADMIN_TOKEN` (the deployment's
+`ADMIN_API_TOKEN`); see `apps/admin/README.md`. There is no sign-in for residents or for the
+organizer (decision 0014).
+
+## Create a neighborhood
+
+```bash
+python -m watchdog.ops create-neighborhood --name "Oak Ridge"
+```
+
+It starts empty. Phones join through invitation links (`docs/ONBOARDING.md`). With more than one
+neighborhood on a deployment, every `nwadmin.py` call must name one (`--neighborhood <uuid>` or
+`NWADMIN_NEIGHBORHOOD`).
+
 ## Disable a neighborhood
 
 ```bash
@@ -22,23 +36,30 @@ python -m watchdog.ops list-neighborhoods
 python -m watchdog.ops set-neighborhood-status --neighborhood-id <uuid> --status disabled
 ```
 
-Effect, immediately: members cannot read neighborhood data or upload events (403), no incidents are
+Effect, immediately: phones cannot read neighborhood data or upload events (403), no incidents are
 created, no notifications are planned. Data is kept. `--status active` reverses it.
 
 ## Revoke a compromised device
 
-- The resident: Settings → Device registration → revoke, or sign in on another device and revoke.
+- The household: on another phone of the same home, Settings → the list of the home's phones →
+  remove. A phone can also remove itself. (The apps are being updated for this screen; the call
+  behind it is `POST /api/v1/devices/revoke`.)
 - The organizer: `nwadmin.py device-revoke <device id> --reason "lost phone"`. The id comes from the
-  security events query below or from the resident's Settings screen.
-- Effect: uploads from that install are refused with `device_revoked`, its push token is deleted,
-  its monitoring session is closed. If the phone was stolen while unlocked, also sign the account
-  out everywhere in the identity provider's dashboard (Authentication → Users → the user → sign out),
-  because the refresh token on the phone stays valid until then.
+  security events query below or from the Settings screen of a phone in that home.
+- Effect: the phone's device secret and push token are deleted and its monitoring session is
+  closed. Every request from it answers 401 from then on, and the app shows the invitation screen.
+  Its record and the events it already reported stay until retention removes the events or the
+  household is removed.
+- A device secret does not expire and there is no second factor. Until the phone is removed, a
+  lost or stolen phone (or a copy of its secret) keeps full access to that household's view. There
+  is nothing else to sign out of.
+- To let the home use the phone again, or a replacement: `nwadmin.py invite --household <id> --phones 1`.
 
 ## Revoke an invitation
 
 `nwadmin.py invitations`, then `nwadmin.py invite-revoke <invitation id>`. A revoked invitation
-answers exactly like an unknown one.
+answers exactly like an unknown one. Phones it already enrolled stay enrolled; remove them or their
+household separately if the link went to the wrong person.
 
 ## Disable notifications
 
@@ -52,7 +73,7 @@ answers exactly like an unknown one.
 ## Investigate a suspected false positive
 
 1. `nwadmin.py incidents` to find it; the resident app's incident screen (or
-   `GET /api/v1/incidents/{id}` as a member) shows the score breakdown, supporting and missing
+   `GET /api/v1/incidents/{id}` from an enrolled phone) shows the score breakdown, supporting and missing
    evidence.
 2. Look at the raw pattern (**owner**):
 
@@ -81,7 +102,9 @@ WHERE created_at > now() - interval '7 days' ORDER BY created_at DESC;
 ```
 
 `suspicious_reporting` on one device repeatedly means a faulty or dishonest reporter: talk to the
-household, or revoke the device.
+household, or revoke the device. `enrolment_refused` means a link was used with an address that
+already takes part, or with a phone id that is already enrolled: usually a second phone of a home
+that was given the wrong link, occasionally someone probing.
 
 ## Restore a database backup
 
@@ -101,34 +124,50 @@ Table of secrets and steps: `docs/SECURITY.md`, "Key rotation". Order for a rout
 the new credential, set it in the secret store, restart, verify with the smoke test and one test
 notification, then revoke the old credential. For a suspected leak, revoke first.
 
+## Rotate the operator secret
+
+Do this when someone who knew it should no longer administer, and at once if it may have leaked.
+It is one shared secret with no second factor and no per-person audit trail.
+
+```bash
+openssl rand -hex 32                                   # put the output in a password manager
+read -rs NEW_TOKEN                                     # paste it; keeps it out of shell history
+fly secrets set --app <app> ADMIN_API_TOKEN="$NEW_TOKEN"   # restarts the app
+```
+
+The old value stops working at the restart. Give the new one to the organizer through a private
+channel and update `NWADMIN_TOKEN` wherever the admin tool is used.
+Afterwards check `nwadmin.py audit` and `nwadmin.py invitations` for anything you did not do.
+
 ## Suspected data breach
 
-1. **Contain.** Rotate the database password and every credential that may be exposed. If the
+1. **Contain.** Rotate the database password, the operator secret and every credential that may be exposed. If the
    backend itself is suspect, stop it (`fly scale count 0`). Disable affected neighborhoods.
 2. **Preserve.** Export host logs for the period, and copy `nw.admin_audit_logs` and
    `nw.security_events` before retention removes them.
-3. **Assess.** What could have been read: addresses, e-mail addresses, up to 30 days of
-   connectivity history, push tokens. There are no passwords, payment data, location tracks or
-   camera data in the system. Which neighborhoods, which period.
-4. **Invalidate.** Sign all users out at the identity provider; revoke outstanding invitations;
-   rotate signing keys if tokens could have been forged.
+3. **Assess.** What could have been read: streets, house numbers where given, up to 30 days of
+   connectivity history, push tokens. Device secrets and invitation tokens are stored only as
+   hashes of long random values, so a copy of the database does not let someone act as a phone.
+   There are no names, e-mail addresses, passwords, payment data, location tracks or camera data in
+   the system. Which neighborhoods, which period.
+4. **Invalidate.** Revoke outstanding invitations. If device secrets themselves could have been
+   taken (from phones, or from the backend's memory or traffic rather than from the database),
+   there is no bulk reset: remove the affected phones or households and invite them again.
 5. **Notify.** Tell the organizer and affected residents plainly what happened, what was exposed
    and what they should do. Check whether a legal notification duty applies where you are; this
    document is not legal advice.
 6. **Fix and record.** Patch the cause, add a test, write up the incident and update
    `docs/THREAT_MODEL.md`.
 
-## Finish an account deletion by hand
+## Deletion requests
 
-If the backend has no identity-provider admin key, deleting an account leaves the sign-in record
-behind and records a `identity_deletion_pending` event.
-
-```bash
-python -m watchdog.ops pending-identity-deletions     # lists the provider user ids
-```
-
-Delete each in the Supabase dashboard (Authentication → Users), then remove the rows:
-`DELETE FROM nw.security_events WHERE kind = 'identity_deletion_pending' AND detail->>'auth_subject' = '<id>';`
+A resident who leaves in the app deletes their phone's record and everything it reported; there is
+no account and nothing at a third party to clean up. If someone deleted the app without leaving,
+or asks for the household's street and house number to be erased as well, remove the household
+(`nwadmin.py remove <id>`), which deletes its phones and events, and then delete the row (**owner**):
+`DELETE FROM nw.households WHERE id = '<household id>';`
+The foreign keys cascade to what still refers to the household. This statement has not been tried
+against a real deployment; try it on staging first.
 
 ## App crash reporting
 

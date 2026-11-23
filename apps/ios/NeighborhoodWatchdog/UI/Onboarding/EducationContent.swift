@@ -1,6 +1,6 @@
 import Foundation
 
-/// The plain-language explanation shown before consent and again under Settings > Privacy.
+/// The plain-language explanation shown before joining and again under Settings > Privacy.
 struct EducationTopic: Identifiable {
     let id: String
     let title: String
@@ -32,7 +32,7 @@ enum EducationContent {
             id: "transmitted", title: "What is sent", symbol: "arrow.up.circle",
             paragraphs: [
                 "Each change is sent as a small event: the kind of change, the time, the connection state, the diagnostic values listed above, the app and iOS version, and a random id for this installation.",
-                "Your email address is used to sign in. Your house number and street are used once, to match you to a household your neighborhood administrator approved. Other residents never see your address.",
+                "There is no account: the app never asks for an email address, a name or a password. When you join you give your street and, only if you wish, a house number. They are used to group the phones of one home. Other residents never see them.",
                 "You can read every event the app has queued or sent under Settings > Transparency.",
             ]),
         EducationTopic(
@@ -68,7 +68,14 @@ enum EducationContent {
             id: "off", title: "Turning it off and leaving", symbol: "power",
             paragraphs: [
                 "You can switch monitoring off at any time under Settings. The app then reports that monitoring is paused and stops watching.",
-                "You can leave the neighborhood or delete your account under Settings. The app then stops, and removes its sign-in, its stored events, the home-network fingerprint and its installation id from this phone.",
+                "You can leave the neighborhood under Settings. The service then deletes this phone and everything it reported. The app stops, and removes its enrolment, its stored events, the home-network fingerprint and its installation id from this phone.",
             ]),
+    ]
+
+    /// The short version shown on the join screen, next to a link to everything above.
+    static let privacySummary = [
+        "This phone reports changes in its Wi-Fi and internet connection to your private neighborhood group, so that several homes losing their connection at the same time can be noticed.",
+        "Your street, and your house number if you give one, are only used to group the phones of one home. Other residents never see them. No email address, name, location or Wi-Fi name is collected.",
+        "You can leave at any time under Settings. Leaving deletes what this phone reported.",
     ]
 }

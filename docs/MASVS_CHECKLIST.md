@@ -7,15 +7,19 @@ on a real device or by an independent reviewer. This is a self-assessment, not a
 
 Platform specifics and file names are in `apps/android/README.md` and `apps/ios/README.md`.
 
+Revised 2026-11-23: sign-in was removed (decision 0014) and both apps are being updated for
+enrolment by invitation link. Rows that changed describe the intended design; they have not been
+re-checked against the finished app code, and the earlier unit-test results do not cover them.
+
 ## MASVS-STORAGE
 
 | Control | Android | iOS | Checked by |
 | --- | --- | --- | --- |
-| Sensitive data is stored securely | Access and refresh tokens encrypted with an AES-GCM key held in the Android Keystore, in app-private storage | Tokens in the Keychain, accessible after first unlock, this device only | Code; not verified on a device |
+| Sensitive data is stored securely | The device secret (the phone's only credential) encrypted with an AES-GCM key held in the Android Keystore, in app-private storage | The device secret in the Keychain, accessible after first unlock, this device only | Intended design; app code being updated; not verified on a device |
 | No sensitive data leaks through backups | `allowBackup="false"`, data-extraction rules exclude everything | Keychain items are device-only; queue file excluded from sensitive content | Build |
-| No sensitive data in logs | No tokens, codes or e-mail addresses are logged | Same | Code review by the builders |
+| No sensitive data in logs | The device secret and invitation tokens are not logged | Same | To be re-checked after the app update |
 | Event queue | Room database in app-private storage; holds only what will be uploaded | File with protection "complete until first user authentication" so background flushes work | Unit tests for queue behaviour |
-| Home-network fingerprint | Salted hash, local only, deleted on sign-out | Same | Unit tests |
+| Home-network fingerprint | Salted hash, local only, deleted when the phone leaves | Same | Unit tests (from before the change) |
 
 ## MASVS-CRYPTO
 
@@ -30,8 +34,8 @@ Platform specifics and file names are in `apps/android/README.md` and `apps/ios/
 | Control | Both platforms |
 | --- | --- |
 | Authentication is enforced by the remote endpoint | Yes: every protected API call is verified server-side; the apps hold no authorization logic the server trusts |
-| Session handling | Short-lived access token, rotating refresh token, refresh serialised so two refreshes cannot race, one retry after a 401, sign-out clears everything (unit tests) |
-| No passwords | Sign-in is by e-mail one-time code |
+| Session handling | There are no sessions. The phone sends its device secret on every call; it does not expire and is not refreshed. A 401 means the phone is no longer enrolled: the app deletes the secret and asks for an invitation. Leaving clears everything. This is weaker than a short-lived token: a copied secret works until the phone is removed (`docs/SECURITY.md`) |
+| No passwords, no second factor | Nobody signs in. Possession of the device secret is the only proof |
 
 ## MASVS-NETWORK
 
@@ -40,7 +44,7 @@ Platform specifics and file names are in `apps/android/README.md` and `apps/ios/
 | All traffic uses TLS | Network security config forbids cleartext in release; debug allows only the emulator host | App Transport Security with no exceptions in release; debug allows only localhost |
 | Certificate validation | Platform default trust store | Platform default |
 | Certificate pinning | Not used (decision: a hosted provider rotating its certificate would lock residents out of a safety tool; revisit with a self-managed domain) | Same |
-| Destinations | The configured API, the identity provider, FCM, and one disclosed fallback probe target | The configured API, the identity provider, APNs, and one disclosed fallback probe target |
+| Destinations | The configured API, FCM, and one disclosed fallback probe target | The configured API, APNs, and one disclosed fallback probe target |
 
 ## MASVS-PLATFORM
 
@@ -49,7 +53,7 @@ Platform specifics and file names are in `apps/android/README.md` and `apps/ios/
 | Minimal permissions | `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, `CHANGE_NETWORK_STATE`, `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`. WorkManager and Firebase Messaging are expected to add `WAKE_LOCK`, `FOREGROUND_SERVICE` and `c2dm.permission.RECEIVE` in the merged manifest (not inspected yet). No location, phone state, camera, microphone, contacts or storage | Notifications only. Background modes: fetch and remote notifications. No location, local network, camera, microphone or contacts |
 | Each permission is explained | In onboarding and Settings | In onboarding and Settings |
 | No exported components beyond what is needed | Only the launcher activity is exported; the messaging service, boot receiver and startup provider are not. The merged manifest (library additions) has not been inspected | Not applicable |
-| Deep links | Invitation links are pasted into the app; no custom URL scheme handles secrets | Same |
+| Deep links | The invitation page opens the app with `feluda://join#t=<token>`, so a custom URL scheme now carries the invitation token; the link can also be pasted. Another app on the phone can register the same scheme and receive the token. The token only enrols; it is limited in uses, expiring and revocable. Not verified on a device | Same scheme; iOS does not define which app wins if two claim it. Not verified on a device |
 | WebViews | None | None |
 | Notifications | Content comes from the server and contains no address | Same |
 | Screens | No sensitive data that needs screenshot protection; addresses appear only on the resident's own household screen | Same |
@@ -75,16 +79,17 @@ server never trusts the client: a modified app can only misreport its own househ
 
 | Control | Both platforms |
 | --- | --- |
-| Data minimization | Only connectivity state and the diagnostics in the protocol document; unknown values are sent as null, never guessed |
+| Data minimization | Enrolment asks for the street and, optionally, a house number: no name, e-mail address or phone number. After that only connectivity state and the diagnostics in the protocol document; unknown values are sent as null, never guessed |
 | Transparency | Onboarding education, explicit consent before monitoring, a Transparency screen with what is collected, permissions granted, last report, the queued and recently sent events, source link and security contact |
-| Control | Monitoring toggle, notification preferences, leave neighborhood, delete account |
+| Control | Monitoring toggle, notification preferences, remove a phone of the household, leave (which deletes what the phone reported; there is no account to delete) |
 | No tracking | No advertising id, no analytics SDK, no third-party crash SDK |
 | Declarations | iOS privacy manifest (`PrivacyInfo.xcprivacy`); store privacy answers listed in `docs/APP_DISTRIBUTION.md` |
 
 ## Automated checks that back this list
 
-- App unit tests: state machine, gap detection, queue and backoff, fingerprint, contract encoding,
-  token refresh (`make android-test`, `make ios-test`). Both have run and pass: iOS 97, Android 90.
+- App unit tests: state machine, gap detection, queue and backoff, fingerprint, contract encoding
+  (`make android-test`, `make ios-test`). They last passed before sign-in was removed (iOS 98,
+  Android 91); the suites are being updated and have not been re-run for the new flow.
 - Backend tests that enforce the server side of these controls (`docs/SECURITY.md`).
 - CI: dependency audit, secret scanning, CodeQL for the backend.
 

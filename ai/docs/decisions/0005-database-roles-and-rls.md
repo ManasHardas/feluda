@@ -1,5 +1,10 @@
 # 0005 Three database roles and row-level security as a second line of defence
 
+**Note (2026-11-23).** See 0014: there is no sign-in any more. "Signed-in resident" below now
+means one enrolled phone (a row in `nw.users`), "account" its enrolment record, and the
+"administrator" is the holder of the operator secret, who may name any neighborhood of the
+deployment. The roles and policies themselves are unchanged.
+
 **Decision.** The backend's login role has no privileges of its own. Every transaction starts with
 `SET LOCAL ROLE` to one of:
 

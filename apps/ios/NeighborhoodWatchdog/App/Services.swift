@@ -4,7 +4,7 @@ import Foundation
 struct Services: Sendable {
     let config: AppConfig
     let settings: AppSettings
-    let auth: AuthService
+    let credentials: DeviceTokenStore
     let api: APIClient
     let queue: EventQueue
     let sentLog: SentLog
@@ -22,11 +22,12 @@ struct Services: Sendable {
         let keychain = KeychainStore(service: Bundle.main.bundleIdentifier ?? "app.feluda")
         let interactive = URLSessionTransport(session: URLSession(configuration: WatchdogSessions.interactiveConfiguration()))
         let reporting = URLSessionTransport(session: URLSession(configuration: WatchdogSessions.reportingConfiguration()))
-        let auth = AuthService(baseURL: config.authBaseURL, publicKey: config.authPublicKey, transport: interactive,
-                               store: KeychainTokenStore(keychain: keychain))
-        let api = APIClient(baseURL: config.apiBaseURL, transport: interactive, auth: auth)
+        let credentials = KeychainDeviceTokenStore(keychain: keychain)
+        // The server said this phone is not enrolled (any request, also a background upload).
+        let onUnenrolled: @Sendable () async -> Void = { await AppModel.shared.deviceWasUnenrolled() }
+        let api = APIClient(baseURL: config.apiBaseURL, transport: interactive, credentials: credentials, onUnenrolled: onUnenrolled)
         // Event uploads use the session that waits for connectivity and allows every network type.
-        let reportingAPI = APIClient(baseURL: config.apiBaseURL, transport: reporting, auth: auth)
+        let reportingAPI = APIClient(baseURL: config.apiBaseURL, transport: reporting, credentials: credentials, onUnenrolled: onUnenrolled)
 
         let directory = storageDirectory
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -68,13 +69,13 @@ struct Services: Sendable {
             lowPowerMode: { ProcessInfo.processInfo.isLowPowerModeEnabled }
         ))
 
-        return Services(config: config, settings: settings, auth: auth, api: api, queue: queue, sentLog: sentLog,
+        return Services(config: config, settings: settings, credentials: credentials, api: api, queue: queue, sentLog: sentLog,
                         reporter: reporter, coordinator: coordinator, uploadPath: uploadPath)
     }
 
     static func clearKeychain() {
         let keychain = KeychainStore(service: Bundle.main.bundleIdentifier ?? "app.feluda")
-        KeychainTokenStore(keychain: keychain).clear()
+        KeychainDeviceTokenStore(keychain: keychain).clear()
         KeychainFingerprintStore(keychain: keychain).clear()
     }
 }
@@ -84,8 +85,9 @@ enum DeviceRegistration {
         "\(settings.installIDCreatingIfNeeded().uuidString)|\(SystemInfo.osVersion)|\(SystemInfo.appVersion)"
     }
 
-    /// Registers this install with the backend (random install UUID plus honest capability flags).
-    /// Returns true when the backend knows the device afterwards.
+    /// Tells the backend what this phone now reports about itself (OS and app version, honest
+    /// capability flags). The device was created by enrolment; this only updates its own record
+    /// and is skipped while nothing changed. Returns true when the backend is up to date.
     @discardableResult
     static func register(api: APIClient, settings: AppSettings, force: Bool) async -> Bool {
         (try? await registerThrowing(api: api, settings: settings, force: force)) != nil

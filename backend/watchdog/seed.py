@@ -3,13 +3,14 @@
     python -m watchdog.seed            # create it if missing
     python -m watchdog.seed --reset    # delete and recreate it
 
-Everything here is invented: addresses, coordinates and @example.org e-mail addresses. The seeded
-residents can sign in through the local development auth emulator (resident01@example.org ...).
-Never run this against a production database; the command refuses when ENVIRONMENT is production.
+Everything here is invented: addresses and coordinates. Each simulated phone gets a device secret
+that the simulator can recompute (see `simulated_secret`), so it can report as that phone.
+Never run this against real residents; the command refuses when ENVIRONMENT is staging or production.
 """
 
 from __future__ import annotations
 
+import hashlib
 import sys
 import uuid
 from dataclasses import dataclass
@@ -17,9 +18,8 @@ from uuid import UUID
 
 from psycopg.types.json import Jsonb
 
-from .authentication.dev_provider import DevAuthState
 from .db import Database
-from .invitation_tokens import anonymous_reference
+from .invitation_tokens import anonymous_reference, hash_token
 from .normalization import normalize_house_number, normalize_street_name
 
 NEIGHBORHOOD_NAME = "Maple Hollow (simulated)"
@@ -57,13 +57,11 @@ class SeededHousehold:
     household_id: UUID
     user_id: UUID
     device_id: UUID
-    email: str
-    auth_subject: str
+    device_secret: str
     isp: str
     platform: str
     house_number: str
     street_name: str
-    role: str
 
 
 @dataclass(frozen=True)
@@ -74,14 +72,13 @@ class SeededNeighborhood:
     def by_isp(self, isp: str) -> list[SeededHousehold]:
         return [h for h in self.households if h.isp == isp]
 
-    @property
-    def admin(self) -> SeededHousehold:
-        return next(h for h in self.households if h.role == "admin")
+
+def simulated_secret(device_id: UUID) -> str:
+    """Device secret of a simulated phone. Predictable on purpose: simulated data only."""
+    return "sim_" + hashlib.sha256(f"simulated-phone:{device_id}".encode()).hexdigest()
 
 
-def seed_neighborhood(
-    db: Database, name: str = NEIGHBORHOOD_NAME, count: int = 24, *, with_devices: bool = True, email_domain: str = "example.org"
-) -> SeededNeighborhood:
+def seed_neighborhood(db: Database, name: str = NEIGHBORHOOD_NAME, count: int = 24) -> SeededNeighborhood:
     households: list[SeededHousehold] = []
     with db.service() as conn:
         neighborhood_id = conn.execute("INSERT INTO nw.neighborhoods (name) VALUES (%s) RETURNING id", [name]).fetchone()["id"]
@@ -95,13 +92,6 @@ def seed_neighborhood(
             if i == count - 1 and count >= 20:
                 lat += 0.0081
             isp = _ISPS[i % len(_ISPS)]
-            email = (
-                f"resident{n:02d}-{neighborhood_id.hex[:6]}@{email_domain}"
-                if name != NEIGHBORHOOD_NAME
-                else f"resident{n:02d}@{email_domain}"
-            )
-            subject = DevAuthState.subject_for(email)
-            role = "admin" if i == 0 else "resident"
             household_id = conn.execute(
                 "INSERT INTO nw.households (neighborhood_id, anonymous_reference, normalized_house_number,"
                 " normalized_street_name, isp, latitude, longitude, membership_status)"
@@ -116,32 +106,28 @@ def seed_neighborhood(
                     lon,
                 ],
             ).fetchone()["id"]
-            user_id = conn.execute(
-                "INSERT INTO nw.users (email, auth_subject, status) VALUES (%s, %s, 'active') RETURNING id", [email, subject]
-            ).fetchone()["id"]
-            conn.execute(
-                "INSERT INTO nw.household_members (household_id, user_id, role) VALUES (%s, %s, %s)",
-                [household_id, user_id, role],
-            )
+            user_id = conn.execute("INSERT INTO nw.users (status) VALUES ('active') RETURNING id").fetchone()["id"]
+            conn.execute("INSERT INTO nw.household_members (household_id, user_id) VALUES (%s, %s)", [household_id, user_id])
             platform = "android" if i % 2 == 0 else "ios"
             device_id = uuid.uuid5(_NS, f"{neighborhood_id}:{n}")
-            if with_devices:
-                conn.execute(
-                    "INSERT INTO nw.devices (id, user_id, household_id, platform, os_version, app_version, capabilities)"
-                    " VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                    [
-                        device_id,
-                        user_id,
-                        household_id,
-                        platform,
-                        "15" if platform == "android" else "18.2",
-                        "0.1.0",
-                        Jsonb(ANDROID_CAPABILITIES if platform == "android" else IOS_CAPABILITIES),
-                    ],
-                )
-            households.append(
-                SeededHousehold(i, household_id, user_id, device_id, email, subject, isp, platform, number, street, role)
+            secret = simulated_secret(device_id)
+            conn.execute(
+                "INSERT INTO nw.devices (id, user_id, household_id, platform, os_version, app_version, capabilities)"
+                " VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                [
+                    device_id,
+                    user_id,
+                    household_id,
+                    platform,
+                    "15" if platform == "android" else "18.2",
+                    "0.1.0",
+                    Jsonb(ANDROID_CAPABILITIES if platform == "android" else IOS_CAPABILITIES),
+                ],
             )
+            conn.execute(
+                "INSERT INTO nw.device_credentials (device_id, secret_hash) VALUES (%s, %s)", [device_id, hash_token(secret)]
+            )
+            households.append(SeededHousehold(i, household_id, user_id, device_id, secret, isp, platform, number, street))
     return SeededNeighborhood(neighborhood_id, households)
 
 
@@ -149,8 +135,8 @@ def main() -> int:
     from .settings import get_settings
 
     settings = get_settings()
-    if settings.environment == "production":
-        print("Refusing to seed simulated data into a production database.")
+    if settings.is_production_like:
+        print("Refusing to seed simulated data into a staging or production database.")
         return 2
     db = Database(settings.database_url, 2)
     db.open()
@@ -170,8 +156,7 @@ def main() -> int:
             return 0
         seeded = seed_neighborhood(db)
         print(f"Seeded '{NEIGHBORHOOD_NAME}' with {len(seeded.households)} households.")
-        print(f"Administrator sign-in (local auth emulator): {seeded.admin.email}")
-        print("Residents: resident01@example.org ... resident24@example.org")
+        print("Play a scenario with `make simulate SCENARIO=C`.")
         return 0
     finally:
         db.close()

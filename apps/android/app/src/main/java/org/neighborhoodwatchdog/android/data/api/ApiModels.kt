@@ -10,7 +10,6 @@ import org.neighborhoodwatchdog.android.domain.model.HouseholdStatus
 import org.neighborhoodwatchdog.android.domain.model.IncidentScope
 import org.neighborhoodwatchdog.android.domain.model.IncidentStatus
 import org.neighborhoodwatchdog.android.domain.model.Isp
-import org.neighborhoodwatchdog.android.domain.model.MemberRole
 import org.neighborhoodwatchdog.android.domain.model.MonitoringStatus
 import org.neighborhoodwatchdog.android.domain.model.Platform
 import org.neighborhoodwatchdog.android.domain.model.PushProvider
@@ -37,17 +36,20 @@ data class VerifyInvitationResponse(
     val valid: Boolean = true,
     @SerialName("neighborhood_name") val neighborhoodName: String,
     @SerialName("expires_at") val expiresAt: Timestamp,
-    @SerialName("household_bound") val householdBound: Boolean,
 )
 
+/** Everything a phone sends to join. `house_number` is left out when the resident gave none. */
 @Serializable
-data class JoinHouseholdRequest(
+data class EnrollRequest(
     @SerialName("invitation_token") val invitationToken: String,
-    @SerialName("house_number") val houseNumber: String,
     @SerialName("street_name") val streetName: String,
-    @SerialName("display_label") val displayLabel: String? = null,
-    val isp: Isp? = null,
+    @SerialName("house_number") val houseNumber: String? = null,
     @SerialName("privacy_acknowledged") val privacyAcknowledged: Boolean,
+    @SerialName("device_id") val deviceId: String,
+    val platform: Platform,
+    @SerialName("os_version") val osVersion: String,
+    @SerialName("app_version") val appVersion: String,
+    val capabilities: DeviceCapabilities,
 )
 
 @Serializable
@@ -56,12 +58,11 @@ data class HouseholdOut(
     @SerialName("neighborhood_id") val neighborhoodId: String,
     @SerialName("anonymous_reference") val anonymousReference: String,
     @SerialName("display_label") val displayLabel: String? = null,
-    @SerialName("house_number") val houseNumber: String,
+    @SerialName("house_number") val houseNumber: String? = null,
     @SerialName("street_name") val streetName: String,
     val isp: Isp = Isp.UNKNOWN,
     @SerialName("membership_status") val membershipStatus: HouseholdStatus = HouseholdStatus.ACTIVE,
-    val role: MemberRole = MemberRole.RESIDENT,
-    @SerialName("member_count") val memberCount: Int,
+    /** Enrolled phones in this household. */
     @SerialName("device_count") val deviceCount: Int,
 )
 
@@ -116,6 +117,14 @@ data class DeviceOut(
     @SerialName("monitoring_enabled") val monitoringEnabled: Boolean,
     @SerialName("last_seen_at") val lastSeenAt: Timestamp? = null,
     @SerialName("created_at") val createdAt: Timestamp,
+)
+
+/** [deviceToken] is the phone's secret, shown once. It is stored only in the Keystore-encrypted file. */
+@Serializable
+data class EnrollResponse(
+    @SerialName("device_token") val deviceToken: String,
+    val household: HouseholdOut,
+    val device: DeviceOut,
 )
 
 @Serializable
@@ -228,27 +237,4 @@ data class HealthOut(
     val database: String = "",
     val version: String = "",
     @SerialName("server_time") val serverTime: Timestamp,
-)
-
-// ---- auth service (GoTrue style) ----
-
-@Serializable
-data class OtpRequest(val email: String, @SerialName("create_user") val createUser: Boolean = true)
-
-@Serializable
-data class VerifyOtpRequest(val type: String = "email", val email: String, val token: String)
-
-@Serializable
-data class RefreshRequest(@SerialName("refresh_token") val refreshToken: String)
-
-@Serializable
-data class AuthUser(val id: String? = null, val email: String? = null)
-
-@Serializable
-data class SessionResponse(
-    @SerialName("access_token") val accessToken: String,
-    @SerialName("refresh_token") val refreshToken: String,
-    @SerialName("expires_in") val expiresIn: Long,
-    @SerialName("token_type") val tokenType: String = "bearer",
-    val user: AuthUser? = null,
 )

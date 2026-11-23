@@ -1,8 +1,8 @@
-"""Neighborhood administration. Every action is scoped to the administrator's own neighborhood,
-taken from their membership record, and written to the audit log.
+"""Neighborhood administration by the operator. Every action is scoped to one neighborhood and
+written to the audit log.
 
-Administrators see addresses and membership (they manage the approved list) but never e-mail
-addresses, push tokens, device details or another household's raw telemetry.
+The operator sees streets, optional house numbers and enrolment counts, but never push tokens,
+device secrets or a household's raw telemetry.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from uuid import UUID
 from psycopg.errors import UniqueViolation
 from psycopg.types.json import Jsonb
 
-from ..authentication.dependencies import Member
+from ..authentication.dependencies import Operator
 from ..config import DEFAULTS, load_config, validate_overrides
 from ..db import Database
 from ..errors import ApiError, not_found
@@ -41,7 +41,6 @@ from .status import device_monitoring_status
 _HOUSEHOLD_SELECT = (
     "SELECT h.id, h.anonymous_reference, h.normalized_house_number, h.normalized_street_name, h.isp,"
     " h.membership_status, h.latitude IS NOT NULL AND h.longitude IS NOT NULL AS has_location, h.created_at,"
-    " (SELECT count(*) FROM nw.household_members hm WHERE hm.household_id = h.id AND hm.status = 'active') AS member_count,"
     " (SELECT count(*) FROM nw.devices d WHERE d.household_id = h.id AND d.status = 'active') AS device_count"
     " FROM nw.households h"
 )
@@ -55,14 +54,13 @@ def _household_out(row) -> AdminHouseholdOut:
         street_name=row["normalized_street_name"],
         isp=row["isp"],
         membership_status=row["membership_status"],
-        member_count=row["member_count"],
         device_count=row["device_count"],
         has_location=row["has_location"],
         created_at=row["created_at"],
     )
 
 
-def create_household(db: Database, admin: Member, body: AdminCreateHouseholdRequest) -> AdminHouseholdOut:
+def create_household(db: Database, admin: Operator, body: AdminCreateHouseholdRequest) -> AdminHouseholdOut:
     try:
         number, street = normalize_house_number(body.house_number), normalize_street_name(body.street_name)
     except ValueError as exc:
@@ -78,7 +76,7 @@ def create_household(db: Database, admin: Member, body: AdminCreateHouseholdRequ
             ).fetchone()
             audit(
                 conn,
-                action="household_approved",
+                action="household_added",
                 neighborhood_id=admin.neighborhood_id,
                 actor_user_id=admin.user_id,
                 target_type="household",
@@ -86,10 +84,10 @@ def create_household(db: Database, admin: Member, body: AdminCreateHouseholdRequ
             )
             return _household_out(conn.execute(_HOUSEHOLD_SELECT + " WHERE h.id = %s", [row["id"]]).fetchone())
     except UniqueViolation as exc:
-        raise ApiError(409, "household_exists", "This address is already on the approved list.") from exc
+        raise ApiError(409, "household_exists", "This address is already in the neighborhood.") from exc
 
 
-def list_households(db: Database, admin: Member) -> list[AdminHouseholdOut]:
+def list_households(db: Database, admin: Operator) -> list[AdminHouseholdOut]:
     with db.service() as conn:
         rows = conn.execute(
             _HOUSEHOLD_SELECT + " WHERE h.neighborhood_id = %s ORDER BY h.normalized_street_name, h.normalized_house_number",
@@ -100,7 +98,7 @@ def list_households(db: Database, admin: Member) -> list[AdminHouseholdOut]:
 
 
 def _set_household_status(
-    db: Database, admin: Member, household_id: UUID, new_status: str, action: str, reason: str | None, now: datetime
+    db: Database, admin: Operator, household_id: UUID, new_status: str, action: str, reason: str | None, now: datetime
 ) -> None:
     with db.service() as conn:
         row = conn.execute(
@@ -109,8 +107,6 @@ def _set_household_status(
         ).fetchone()
         if row is None:
             raise not_found("Household not found.")  # also the answer for households of other neighborhoods
-        if household_id == admin.household_id and new_status in ("suspended", "removed"):
-            raise ApiError(409, "cannot_remove_self", "Administrators cannot suspend or remove their own household.")
         if new_status == "active" and row["membership_status"] != "suspended":
             raise ApiError(409, "invalid_state", "Only a suspended household can be reinstated.")
         conn.execute("UPDATE nw.households SET membership_status = %s WHERE id = %s", [new_status, household_id])
@@ -152,7 +148,7 @@ def remove_household(db, admin, household_id, reason, now):
 
 
 def create_invitation(
-    db: Database, settings: Settings, admin: Member, body: AdminCreateInvitationRequest, now: datetime
+    db: Database, settings: Settings, admin: Operator, body: AdminCreateInvitationRequest, now: datetime
 ) -> AdminInvitationCreatedOut:
     token = new_token()
     expires_at = now + timedelta(hours=body.expires_in_hours)
@@ -165,9 +161,9 @@ def create_invitation(
             if household is None or household["membership_status"] in ("suspended", "removed"):
                 raise not_found("Household not found.")
         row = conn.execute(
-            "INSERT INTO nw.invitations (neighborhood_id, household_id, token_hash, role, expires_at, created_by)"
-            " VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
-            [admin.neighborhood_id, body.household_id, hash_token(token), body.role.value, expires_at, admin.user_id],
+            "INSERT INTO nw.invitations (neighborhood_id, household_id, token_hash, expires_at, max_uses)"
+            " VALUES (%s, %s, %s, %s, %s) RETURNING id",
+            [admin.neighborhood_id, body.household_id, hash_token(token), expires_at, body.max_uses],
         ).fetchone()
         audit(
             conn,
@@ -177,29 +173,32 @@ def create_invitation(
             target_type="invitation",
             target_id=row["id"],
             metadata={
-                "role": body.role.value,
+                "max_uses": body.max_uses,
                 "household_bound": body.household_id is not None,
                 "expires_in_hours": body.expires_in_hours,
             },
         )
     # The token travels in the URL fragment, which browsers and link-preview crawlers do not send to servers.
     return AdminInvitationCreatedOut(
-        invitation_id=row["id"], invitation_url=f"{settings.public_base_url.rstrip('/')}/join#t={token}", expires_at=expires_at
+        invitation_id=row["id"],
+        invitation_url=f"{settings.public_base_url.rstrip('/')}/join#t={token}",
+        expires_at=expires_at,
+        max_uses=body.max_uses,
     )
 
 
-def list_invitations(db: Database, admin: Member, now: datetime) -> list[AdminInvitationOut]:
+def list_invitations(db: Database, admin: Operator, now: datetime) -> list[AdminInvitationOut]:
     with db.service() as conn:
         rows = conn.execute(
             "SELECT id, CASE WHEN status = 'active' AND expires_at <= %s THEN 'revoked' ELSE status END AS status,"
-            " household_id IS NOT NULL AS household_bound, role, expires_at, used_at, created_at"
+            " household_id IS NOT NULL AS household_bound, max_uses, use_count, expires_at, used_at, created_at"
             " FROM nw.invitations WHERE neighborhood_id = %s ORDER BY created_at DESC LIMIT 500",
             [now, admin.neighborhood_id],
         ).fetchall()
     return [AdminInvitationOut(invitation_id=r["id"], **{k: r[k] for k in r if k != "id"}) for r in rows]
 
 
-def revoke_invitation(db: Database, admin: Member, invitation_id: UUID) -> None:
+def revoke_invitation(db: Database, admin: Operator, invitation_id: UUID) -> None:
     with db.service() as conn:
         row = conn.execute(
             "UPDATE nw.invitations SET status = 'revoked' WHERE id = %s AND neighborhood_id = %s AND status = 'active'"
@@ -218,7 +217,7 @@ def revoke_invitation(db: Database, admin: Member, invitation_id: UUID) -> None:
         )
 
 
-def revoke_device(db: Database, admin: Member, device_id: UUID, reason: str | None, now: datetime) -> None:
+def revoke_device(db: Database, admin: Operator, device_id: UUID, reason: str | None, now: datetime) -> None:
     with db.service() as conn:
         row = conn.execute(
             "SELECT d.id FROM nw.devices d JOIN nw.households h ON h.id = d.household_id"
@@ -239,7 +238,7 @@ def revoke_device(db: Database, admin: Member, device_id: UUID, reason: str | No
     device_service.revoke_as_service(db, device_id, now)
 
 
-def summary(db: Database, admin: Member, now: datetime) -> AdminNeighborhoodSummaryOut:
+def summary(db: Database, admin: Operator, now: datetime) -> AdminNeighborhoodSummaryOut:
     with db.service() as conn:
         cfg = load_config(conn, admin.neighborhood_id)
         hood = conn.execute("SELECT id, name, status FROM nw.neighborhoods WHERE id = %s", [admin.neighborhood_id]).fetchone()
@@ -283,7 +282,7 @@ def summary(db: Database, admin: Member, now: datetime) -> AdminNeighborhoodSumm
     )
 
 
-def incident_history(db: Database, admin: Member, limit: int) -> list[IncidentOut]:
+def incident_history(db: Database, admin: Operator, limit: int) -> list[IncidentOut]:
     """All incidents of the neighborhood, without saying which households were involved."""
     with db.service() as conn:
         rows = conn.execute(
@@ -302,7 +301,7 @@ def incident_history(db: Database, admin: Member, limit: int) -> list[IncidentOu
     return out
 
 
-def export_incidents(db: Database, admin: Member, now: datetime) -> list[dict[str, Any]]:
+def export_incidents(db: Database, admin: Operator, now: datetime) -> list[dict[str, Any]]:
     """Anonymized incident data: no household, device or user identifiers, no coordinates."""
     with db.service() as conn:
         rows = conn.execute(
@@ -322,13 +321,13 @@ def export_incidents(db: Database, admin: Member, now: datetime) -> list[dict[st
     return [dict(r) for r in rows]
 
 
-def get_configuration(db: Database, admin: Member) -> AdminConfigurationOut:
+def get_configuration(db: Database, admin: Operator) -> AdminConfigurationOut:
     with db.service() as conn:
         cfg = load_config(conn, admin.neighborhood_id)
     return AdminConfigurationOut(values=cfg.as_dict(), defaults=DEFAULTS.as_dict())
 
 
-def update_configuration(db: Database, admin: Member, values: dict[str, Any]) -> AdminConfigurationOut:
+def update_configuration(db: Database, admin: Operator, values: dict[str, Any]) -> AdminConfigurationOut:
     try:
         clean = validate_overrides(values)
     except ValueError as exc:
@@ -351,7 +350,7 @@ def update_configuration(db: Database, admin: Member, values: dict[str, Any]) ->
     return get_configuration(db, admin)
 
 
-def delivery_failures(db: Database, admin: Member, limit: int) -> list[AdminDeliveryFailureOut]:
+def delivery_failures(db: Database, admin: Operator, limit: int) -> list[AdminDeliveryFailureOut]:
     with db.service() as conn:
         rows = conn.execute(
             "SELECT id, incident_id, provider, status, attempts, last_error, created_at FROM nw.notification_deliveries"
@@ -362,7 +361,7 @@ def delivery_failures(db: Database, admin: Member, limit: int) -> list[AdminDeli
     return [AdminDeliveryFailureOut(delivery_id=r["id"], **{k: r[k] for k in r if k != "id"}) for r in rows]
 
 
-def audit_logs(db: Database, admin: Member, limit: int) -> list[AdminAuditLogOut]:
+def audit_logs(db: Database, admin: Operator, limit: int) -> list[AdminAuditLogOut]:
     with db.service() as conn:
         rows = conn.execute(
             "SELECT a.id, a.action, a.target_type, a.target_id, a.actor_type, a.created_at, a.metadata,"

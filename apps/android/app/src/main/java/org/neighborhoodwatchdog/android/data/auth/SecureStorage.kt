@@ -4,9 +4,7 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.AtomicFile
-import org.neighborhoodwatchdog.android.domain.auth.AuthTokens
-import org.neighborhoodwatchdog.android.domain.auth.TokenStore
-import org.neighborhoodwatchdog.android.domain.model.WatchdogJson
+import org.neighborhoodwatchdog.android.domain.auth.CredentialStore
 import java.io.File
 import java.security.GeneralSecurityException
 import java.security.KeyStore
@@ -97,25 +95,26 @@ class EncryptedFileStore(context: Context, private val cipher: KeystoreCipher) {
     }
 }
 
-class EncryptedTokenStore(private val files: EncryptedFileStore) : TokenStore {
-    @Volatile private var cached: AuthTokens? = null
+/** The device secret from enrolment, encrypted at rest with the Keystore key. */
+class EncryptedCredentialStore(private val files: EncryptedFileStore) : CredentialStore {
+    @Volatile private var cached: String? = null
     @Volatile private var loaded = false
 
     @Synchronized
-    override fun load(): AuthTokens? {
+    override fun load(): String? {
         if (!loaded) {
-            cached = files.read(FILE)?.let { bytes ->
-                runCatching { WatchdogJson.decodeFromString(AuthTokens.serializer(), bytes.decodeToString()) }.getOrNull()
-            }
+            // Left behind by builds that still had a sign-in; never read again.
+            files.delete(LEGACY_SESSION_FILE)
+            cached = files.read(FILE)?.decodeToString()?.takeIf { it.isNotBlank() }
             loaded = true
         }
         return cached
     }
 
     @Synchronized
-    override fun save(tokens: AuthTokens) {
-        files.write(FILE, WatchdogJson.encodeToString(AuthTokens.serializer(), tokens).encodeToByteArray())
-        cached = tokens
+    override fun save(deviceToken: String) {
+        files.write(FILE, deviceToken.encodeToByteArray())
+        cached = deviceToken
         loaded = true
     }
 
@@ -127,6 +126,7 @@ class EncryptedTokenStore(private val files: EncryptedFileStore) : TokenStore {
     }
 
     private companion object {
-        const val FILE = "session.bin"
+        const val FILE = "device_credential.bin"
+        const val LEGACY_SESSION_FILE = "session.bin"
     }
 }

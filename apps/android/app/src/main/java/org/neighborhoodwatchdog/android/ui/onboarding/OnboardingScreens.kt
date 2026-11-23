@@ -5,11 +5,9 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -22,12 +20,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.neighborhoodwatchdog.android.R
@@ -37,10 +34,9 @@ import org.neighborhoodwatchdog.android.ui.common.ScreenScaffold
 import org.neighborhoodwatchdog.android.ui.common.SectionCard
 import org.neighborhoodwatchdog.android.ui.common.ispLabel
 
-/** Education first, then explicit consent. Nothing is monitored or sent before the button is pressed. */
+/** What the app does and does not do. Nothing is monitored or sent before the phone has joined. */
 @Composable
-fun ConsentScreen(viewModel: ConsentViewModel = hiltViewModel()) {
-    var agreed by rememberSaveable { mutableStateOf(false) }
+fun IntroScreen(viewModel: IntroViewModel = hiltViewModel()) {
     ScreenScaffold(title = stringResource(R.string.app_name)) {
         Text(stringResource(R.string.welcome_intro), style = MaterialTheme.typography.bodyLarge)
         SectionCard(stringResource(R.string.edu_monitored_title)) { Text(stringResource(R.string.edu_monitored_body)) }
@@ -51,117 +47,80 @@ fun ConsentScreen(viewModel: ConsentViewModel = hiltViewModel()) {
         SectionCard(stringResource(R.string.edu_correlation_title)) { Text(stringResource(R.string.edu_correlation_body)) }
         SectionCard(stringResource(R.string.edu_disable_title)) { Text(stringResource(R.string.edu_disable_body)) }
         SectionCard(stringResource(R.string.edu_leave_title)) { Text(stringResource(R.string.edu_leave_body)) }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = agreed, onCheckedChange = { agreed = it })
-            Text(stringResource(R.string.consent_checkbox), modifier = Modifier.weight(1f))
-        }
-        Button(onClick = viewModel::giveConsent, enabled = agreed, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.consent_button))
+        Button(onClick = viewModel::continueToJoin, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.action_continue))
         }
     }
 }
 
+/**
+ * Two steps on one screen: the invitation link (skipped when the link opened the app), then the
+ * street and an optional house number. Nothing else is asked.
+ */
 @Composable
-fun SignInScreen(viewModel: SignInViewModel = hiltViewModel()) {
+fun JoinScreen(onOpenTransparency: () -> Unit, viewModel: JoinViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    ScreenScaffold(title = stringResource(R.string.sign_in_title)) {
-        if (!state.codeRequested) {
-            Text(stringResource(R.string.sign_in_email_help))
+    val uriHandler = LocalUriHandler.current
+    ScreenScaffold(title = stringResource(R.string.join_title)) {
+        if (state.enrolmentEnded) Text(stringResource(R.string.join_enrolment_ended), color = MaterialTheme.colorScheme.error)
+        if (state.token == null) {
+            Text(stringResource(R.string.join_link_intro))
             OutlinedTextField(
-                value = state.email,
-                onValueChange = viewModel::setEmail,
-                label = { Text(stringResource(R.string.sign_in_email_label)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                value = state.link,
+                onValueChange = viewModel::setLink,
+                label = { Text(stringResource(R.string.join_invitation_label)) },
+                supportingText = { Text(stringResource(R.string.join_invitation_help)) },
+                enabled = !state.busy,
                 modifier = Modifier.fillMaxWidth(),
             )
             ErrorText(state.error?.let { stringResource(it) })
-            Button(onClick = viewModel::requestCode, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.sign_in_send_code))
+            Button(onClick = viewModel::submitLink, enabled = !state.busy && state.link.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.action_continue))
             }
         } else {
-            Text(stringResource(R.string.sign_in_code_help, state.email.trim()))
+            state.neighborhoodName?.let { Text(stringResource(R.string.join_neighborhood, it), style = MaterialTheme.typography.titleMedium) }
             OutlinedTextField(
-                value = state.code,
-                onValueChange = viewModel::setCode,
-                label = { Text(stringResource(R.string.sign_in_code_label)) },
+                value = state.streetName,
+                onValueChange = viewModel::setStreet,
+                label = { Text(stringResource(R.string.join_street_label)) },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 modifier = Modifier.fillMaxWidth(),
             )
-            ErrorText(state.error?.let { stringResource(it) })
-            Button(onClick = viewModel::verify, enabled = !state.busy && state.code.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.sign_in_verify))
+            OutlinedTextField(
+                value = state.houseNumber,
+                onValueChange = viewModel::setHouseNumber,
+                label = { Text(stringResource(R.string.join_house_number_label)) },
+                supportingText = { Text(stringResource(R.string.join_house_number_help)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            SectionCard(stringResource(R.string.join_privacy_title)) {
+                Text(stringResource(R.string.join_privacy_summary))
+                TextButton(
+                    onClick = {
+                        val url = viewModel.config.privacyUrl
+                        if (url.isBlank()) {
+                            onOpenTransparency()
+                        } else {
+                            try {
+                                uriHandler.openUri(url)
+                            } catch (_: Exception) {
+                                // No app can open the link: show what the app itself documents.
+                                onOpenTransparency()
+                            }
+                        }
+                    },
+                ) { Text(stringResource(R.string.join_privacy_full)) }
             }
-            TextButton(onClick = viewModel::requestCode, enabled = !state.busy) { Text(stringResource(R.string.sign_in_resend)) }
-            TextButton(onClick = viewModel::changeEmail, enabled = !state.busy) { Text(stringResource(R.string.sign_in_change_email)) }
+            ErrorText(state.serverMessage ?: state.error?.let { stringResource(it) })
+            Button(onClick = viewModel::join, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.join_button))
+            }
+            Text(stringResource(R.string.join_acknowledgement), style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = viewModel::changeLink, enabled = !state.busy) { Text(stringResource(R.string.join_other_link)) }
         }
         if (state.busy) CircularProgressIndicator()
-    }
-}
-
-@Composable
-fun MembershipScreen(viewModel: MembershipViewModel = hiltViewModel()) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    ScreenScaffold(title = stringResource(R.string.join_title)) {
-        when {
-            state.checking -> {
-                CircularProgressIndicator()
-                Text(stringResource(R.string.join_checking))
-            }
-            !state.showJoinForm -> {
-                ErrorText(state.error?.let { stringResource(it) })
-                Button(onClick = viewModel::check) { Text(stringResource(R.string.action_retry)) }
-                TextButton(onClick = viewModel::signOut) { Text(stringResource(R.string.settings_sign_out)) }
-            }
-            else -> {
-                Text(stringResource(R.string.join_intro))
-                OutlinedTextField(
-                    value = state.invitation,
-                    onValueChange = { value -> viewModel.edit { it.copy(invitation = value) } },
-                    label = { Text(stringResource(R.string.join_invitation_label)) },
-                    supportingText = { Text(stringResource(R.string.join_invitation_help)) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = state.houseNumber,
-                    onValueChange = { value -> viewModel.edit { it.copy(houseNumber = value.take(16)) } },
-                    label = { Text(stringResource(R.string.join_house_number_label)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = state.streetName,
-                    onValueChange = { value -> viewModel.edit { it.copy(streetName = value.take(80)) } },
-                    label = { Text(stringResource(R.string.join_street_label)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = state.displayLabel,
-                    onValueChange = { value -> viewModel.edit { it.copy(displayLabel = value.take(40)) } },
-                    label = { Text(stringResource(R.string.join_label_label)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                IspPicker(selected = state.isp, onSelected = { isp -> viewModel.edit { it.copy(isp = isp) } })
-                Text(stringResource(R.string.join_address_note), style = MaterialTheme.typography.bodySmall)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = state.privacyAcknowledged,
-                        onCheckedChange = { value -> viewModel.edit { it.copy(privacyAcknowledged = value) } },
-                    )
-                    Text(stringResource(R.string.join_privacy_checkbox), modifier = Modifier.weight(1f))
-                }
-                state.neighborhoodName?.let { Text(stringResource(R.string.join_neighborhood, it)) }
-                ErrorText(state.error?.let { stringResource(it) })
-                Button(onClick = viewModel::join, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.join_button))
-                }
-                if (state.busy) CircularProgressIndicator()
-                TextButton(onClick = viewModel::signOut) { Text(stringResource(R.string.settings_sign_out)) }
-            }
-        }
     }
 }
 
@@ -188,23 +147,13 @@ fun IspPicker(selected: Isp?, onSelected: (Isp?) -> Unit) {
 }
 
 @Composable
-fun DeviceSetupScreen(viewModel: DeviceSetupViewModel = hiltViewModel()) {
+fun NotificationSetupScreen(viewModel: NotificationSetupViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         viewModel.onNotificationPermissionResult()
     }
     ScreenScaffold(title = stringResource(R.string.setup_title)) {
-        SectionCard(stringResource(R.string.setup_device_title)) {
-            Text(stringResource(R.string.setup_device_body))
-            when {
-                state.registering -> CircularProgressIndicator()
-                state.registered -> Text(stringResource(R.string.setup_device_done))
-                else -> {
-                    ErrorText(state.error?.let { stringResource(it) })
-                    Button(onClick = viewModel::register) { Text(stringResource(R.string.action_retry)) }
-                }
-            }
-        }
+        Text(stringResource(R.string.setup_joined))
         SectionCard(stringResource(R.string.setup_notifications_title)) {
             Text(stringResource(R.string.setup_notifications_rationale))
             if (!state.pushConfigured) {
@@ -225,7 +174,7 @@ fun DeviceSetupScreen(viewModel: DeviceSetupViewModel = hiltViewModel()) {
                 PushSetup.NOT_CONFIGURED, PushSetup.NOT_TRIED -> Unit
             }
         }
-        Button(onClick = viewModel::finish, enabled = state.registered, modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = viewModel::finish, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.action_continue))
         }
     }

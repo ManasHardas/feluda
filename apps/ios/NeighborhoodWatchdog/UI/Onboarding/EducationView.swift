@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// Onboarding step 1: education and explicit consent. Monitoring never starts before this.
+/// Onboarding step 1: what the app does and the privacy summary. Nothing is monitored or sent
+/// here; the acknowledgement is the "Join" button on the next screen.
 struct EducationView: View {
     @Environment(AppModel.self) private var model
-    @State private var consentChecked = false
 
     var body: some View {
         NavigationStack {
@@ -15,17 +15,10 @@ struct EducationView: View {
                         EducationTopicView(topic: topic)
                     }
                     Divider()
-                    Toggle(isOn: $consentChecked) {
-                        Text("I have read this and I agree that this app monitors this phone's connection state and reports it to my private neighborhood group as described above.")
-                            .font(.body)
+                    PrimaryButton(title: "Continue") {
+                        model.finishIntroduction()
                     }
-                    .toggleStyle(CheckboxToggleStyle())
-                    .accessibilityHint("Required before monitoring can start")
-                    PrimaryButton(title: "Agree and continue") {
-                        model.giveConsent()
-                    }
-                    .disabled(!consentChecked)
-                    Text("Nothing is monitored or sent until you agree and finish setting up.")
+                    Text("Nothing is monitored or sent until you join with an invitation link.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -52,26 +45,5 @@ struct EducationTopicView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-struct CheckboxToggleStyle: ToggleStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        Button {
-            configuration.isOn.toggle()
-        } label: {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: configuration.isOn ? "checkmark.square.fill" : "square")
-                    .font(.title2)
-                    .foregroundStyle(configuration.isOn ? Color.accentColor : .secondary)
-                    .accessibilityHidden(true)
-                configuration.label
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.leading)
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(configuration.isOn ? [.isSelected] : [])
-        .accessibilityValue(configuration.isOn ? "Checked" : "Not checked")
     }
 }

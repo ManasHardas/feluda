@@ -13,12 +13,12 @@ interference. Every classification is an inference from connectivity reports and
  Android app (Kotlin, Compose)        iOS app (Swift, SwiftUI)
    NetworkCallback + WorkManager        NWPathMonitor + BGAppRefresh
    durable event queue (Room)           durable event queue (file)
-        |  HTTPS (Bearer access token)        |
+        |  HTTPS (Bearer device secret)       |
         +----------------+--------------------+
                          v
               Backend API (FastAPI, one process)
    +-----------------------------------------------------------+
-   | authentication   verify access tokens, resolve membership |
+   | authentication   device secret -> enrolled phone; operator |
    | api              /api/v1 routes, request validation        |
    | services         membership, devices, ingestion, status,   |
    |                  incidents, administration, retention      |
@@ -26,14 +26,17 @@ interference. Every classification is an inference from connectivity reports and
    | notifications    planner, dispatcher, FCM and APNs senders |
    | pipeline         glue + periodic maintenance tick          |
    +-----------------------------------------------------------+
-        |                         |                    |
-        v                         v                    v
-  PostgreSQL (schema nw)    Supabase Auth        FCM / APNs
-  row-level security        (e-mail codes)       (push delivery)
+        |                                              |
+        v                                              v
+  PostgreSQL (schema nw)                         FCM / APNs
+  row-level security                             (push delivery)
 ```
 
-Sign-in happens between the apps and the identity provider. The backend never sees codes or
-refresh tokens; it only verifies access tokens.
+There is no sign-in and no identity provider (decision 0014). The organizer creates a private
+invitation link; opening it enrols the phone (`POST /api/v1/enroll`), which receives a random
+device secret, keeps it in the platform keystore and sends it as a bearer token from then on. The
+server stores only a hash of it. Administration uses one operator secret (`ADMIN_API_TOKEN`) with
+the command-line tool in `apps/admin`.
 
 ## Repository layout
 
@@ -41,7 +44,7 @@ refresh tokens; it only verifies access tokens.
 | --- | --- |
 | `apps/android` | Android app. Own Gradle build. |
 | `apps/ios` | iOS app. Own Xcode project (generated from `project.yml`). |
-| `apps/admin` | Small command-line client for the administrator API. |
+| `apps/admin` | Small command-line client for the administrator API (operator secret). |
 | `backend` | Python package `watchdog`, SQL migrations, tests, Dockerfile. |
 | `shared/api-contracts/openapi.json` | The API contract, generated from the backend. |
 | `shared/documentation/CLIENT_PROTOCOL.md` | Behaviour both apps must implement. |
@@ -71,16 +74,18 @@ There is no message broker: PostgreSQL is the queue (decision 0011).
 
 ## Data model
 
-Schema `nw` (see `backend/migrations/0001_initial_schema.sql`): `users`, `neighborhoods`,
-`households`, `household_members`, `invitations`, `devices`, `device_sessions`,
+Schema `nw` (see `backend/migrations/0001_initial_schema.sql` and `0002_no_sign_in.sql`): `users`,
+`neighborhoods`, `households`, `household_members`, `invitations`, `devices`, `device_credentials`,
+`device_sessions`,
 `connectivity_events`, `incident_candidates`, `incidents`, `incident_households`,
 `notification_tokens`, `notification_preferences`, `notification_deliveries`, `admin_audit_logs`,
 `security_events`, `system_configuration`, `rate_limit_counters`, `schema_migrations`.
 
 All primary keys are UUIDs, all timestamps are `timestamptz` in UTC, every table has `created_at`
 and `updated_at`, and row-level security is enabled on every table. Telemetry tables hold only
-UUIDs; addresses and e-mail addresses live in `households` and `users` and are unreadable to the
-correlation role.
+UUIDs; streets and house numbers live in `households` and are unreadable to the correlation role.
+A row in `users` stands for one enrolled phone and holds no personal data; it is the identity that
+row-level security policies use.
 
 ## Platform capabilities (they are not the same)
 
@@ -102,8 +107,8 @@ never as a value.
 
 Kotlin, Jetpack Compose, Hilt, Retrofit/OkHttp, kotlinx.serialization, WorkManager, Room, Android
 Keystore, FCM. Swift, SwiftUI, URLSession, Network framework, Keychain, APNs, BackgroundTasks, no
-third-party iOS dependencies. Python 3.12, FastAPI, psycopg 3, PyJWT, httpx, PostgreSQL 16 (13 or
-later works). Supabase for managed PostgreSQL and sign-in. Docker for local development and
+third-party iOS dependencies. Python 3.12, FastAPI, psycopg 3, httpx, PyJWT (for the APNs provider token only), PostgreSQL 16
+(13 or later works). Supabase for managed PostgreSQL only; its sign-in service is not used. Docker for local development and
 deployment. GitHub Actions for CI. Reasons and alternatives are in `ai/docs/decisions/`.
 
 ## Known limitations
@@ -112,5 +117,10 @@ deployment. GitHub Actions for CI. Reasons and alternatives are in `ai/docs/deci
 - A phone is on one Wi-Fi band at a time; "both bands failed" is never claimed.
 - iOS monitoring has gaps by design of the operating system.
 - A household whose only phone is away from home is not monitored at all.
+- Residents are not asked for a location. Unless the organizer adds a household by hand with
+  coordinates, the 500-metre check does not apply to it and correlation treats the whole
+  neighborhood as one area (`docs/DETECTION_PROTOCOL.md`).
+- A phone is recognised by a device secret alone and administration by one shared secret
+  (`docs/SECURITY.md`, "What this design gives up").
 - Detection thresholds are untested against real disruptions (see decision 0007).
 - One API process per environment is assumed (decision 0011).

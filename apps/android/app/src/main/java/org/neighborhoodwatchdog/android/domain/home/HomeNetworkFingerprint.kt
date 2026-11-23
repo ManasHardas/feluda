@@ -92,4 +92,17 @@ object InvitationToken {
         } ?: return null
         return candidate.takeIf { pattern.matches(it) }
     }
+
+    /**
+     * The token from the link the web join page opens: `feluda://join#t=<token>`. Null for any
+     * other address, so an unrelated VIEW intent is ignored.
+     */
+    fun fromAppLink(link: String?): String? {
+        val text = link?.trim().orEmpty()
+        val rest = APP_LINK_PREFIXES.firstOrNull { text.startsWith(it, ignoreCase = true) }?.let { text.substring(it.length) } ?: return null
+        if (!rest.startsWith("#") && !rest.startsWith("?")) return null
+        return parse(rest)
+    }
+
+    private val APP_LINK_PREFIXES = listOf("feluda://join/", "feluda://join")
 }

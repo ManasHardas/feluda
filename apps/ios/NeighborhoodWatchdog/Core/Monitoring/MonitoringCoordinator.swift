@@ -205,7 +205,7 @@ actor MonitoringCoordinator {
         await requestFlush()
     }
 
-    /// Stops the monitor for a reason other than the monitoring switch (sign-out, leaving).
+    /// Stops the monitor for a reason other than the monitoring switch (leaving).
     func stop(userInitiated: Bool) async {
         guard isRunning else { return }
         await enqueue(.monitoringStopped, at: deps.now(), inputs: persisted.machine.latestInputs,
@@ -230,7 +230,7 @@ actor MonitoringCoordinator {
         save()
     }
 
-    /// Removes everything this component stored (leaving, deleting the account, signing out).
+    /// Removes everything this component stored (leaving, or the phone is no longer enrolled).
     func wipe() async {
         if isRunning { halt() }
         await deps.queue.clear()

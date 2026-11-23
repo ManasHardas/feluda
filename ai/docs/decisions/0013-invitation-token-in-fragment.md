@@ -1,5 +1,10 @@
 # 0013 Invitation token in the URL fragment
 
+**Note (2026-11-23).** See 0014. The token still travels in the fragment, but the page now hands
+it to the app (`feluda://join#t=<token>`) instead of posting a registration; a link enrols several
+phones (`max_uses`) instead of being single-use; and the wrong-address lock and the approved-address
+list mentioned below no longer exist.
+
 **Decision.** Invitation links are `https://<host>/join#t=<token>`. The page's script reads the
 fragment, removes it from the address bar, and posts the token to the API.
 

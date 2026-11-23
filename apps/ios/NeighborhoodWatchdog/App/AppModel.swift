@@ -16,7 +16,7 @@ enum NotificationPermission: String, Sendable {
     }
 }
 
-/// App-wide state and the flows that span screens (onboarding, session, monitoring switch,
+/// App-wide state and the flows that span screens (onboarding, enrolment, monitoring switch,
 /// leaving). Screen-specific loading lives in the small view models next to each screen.
 @MainActor
 @Observable
@@ -33,10 +33,11 @@ final class AppModel {
     enum Phase: Equatable {
         case loading
         case configurationError(String)
+        /// Introduction and privacy summary.
         case education
-        case signIn
+        /// Invitation link, then street and optional house number. There is no sign-in.
+        case join
         case settingUp
-        case joinHousehold
         case notifications
         case homeNetwork
         case main
@@ -55,7 +56,11 @@ final class AppModel {
     private(set) var lastRefreshAt: Date?
     private(set) var isRefreshing = false
     private(set) var setupError: String?
-    private(set) var signedInEmail: String?
+    /// Invitation token from a link that opened the app (`feluda://join#t=<token>`), waiting for
+    /// the join screen.
+    private(set) var pendingInvitation: String?
+    /// Shown on the join screen, for example after the server said this phone is not enrolled.
+    private(set) var joinNotice: String?
     private(set) var notificationPermission: NotificationPermission = .notDetermined
     private(set) var backgroundRefreshAvailable = true
     /// Incident to open because the resident tapped a notification.
@@ -64,6 +69,9 @@ final class AppModel {
     @ObservationIgnored private var bootstrapTask: Task<Void, Never>?
     @ObservationIgnored private var monitorStartTask: Task<Void, Never>?
     @ObservationIgnored private var batteryObserver: NSObjectProtocol?
+    /// The Keychain could not be read at launch (phone not unlocked since it restarted), so it is
+    /// not known yet whether the device secret is still there.
+    @ObservationIgnored private var enrolmentUnknown = false
 
     private init() {}
 
@@ -109,26 +117,54 @@ final class AppModel {
         }
         startBatteryMonitoring()
 
-        signedInEmail = await services.auth.signedInEmail
-        let signedIn = await services.auth.isSignedIn
-
-        if settings.consentGivenAt == nil {
-            phase = .education
-        } else if settings.onboardingComplete {
-            // Monitoring keeps working without a connection and without a valid session; events
-            // wait in the queue.
-            phase = signedIn ? .main : .signIn
-            startMonitoring(reason: .processLaunch)
-            if signedIn {
-                Task { await self.syncAfterLaunch() }
-            }
-        } else if !signedIn {
-            phase = .signIn
-        } else {
-            await continueAfterSignIn()
-        }
+        await routeAtLaunch()
         monitoring = await services.coordinator.snapshot()
         await refreshPermissions()
+    }
+
+    /// Chooses the first screen from what is stored on the phone. Enrolled means: the Keychain
+    /// holds a device secret.
+    private func routeAtLaunch() async {
+        guard let services else { return }
+        let settings = services.settings
+        if services.api.isEnrolled {
+            pendingInvitation = nil
+            if settings.onboardingComplete {
+                // Monitoring keeps working without a connection; events wait in the queue.
+                phase = .main
+                startMonitoring(reason: .processLaunch)
+                Task { await self.syncAfterLaunch() }
+            } else {
+                await completeMembership()
+            }
+        } else if settings.registeredSignature != nil, !UIApplication.shared.isProtectedDataAvailable {
+            // Launched in the background before the first unlock: the Keychain cannot be read yet.
+            // Nothing is decided or removed until the app is opened.
+            enrolmentUnknown = true
+            if settings.onboardingComplete {
+                phase = .main
+                startMonitoring(reason: .processLaunch)
+            }
+        } else if settings.registeredSignature != nil || settings.onboardingComplete {
+            // This phone was enrolled but holds no secret any more: start again with a clean slate.
+            await wipeLocalData(keepIntroSeen: true)
+        } else {
+            phase = settings.introSeen ? .join : .education
+        }
+    }
+
+    private func resolveUnknownEnrolment() async {
+        guard enrolmentUnknown, let services else { return }
+        let enrolled = services.api.isEnrolled
+        guard enrolled || UIApplication.shared.isProtectedDataAvailable else { return }
+        enrolmentUnknown = false
+        if !enrolled {
+            await wipeLocalData(keepIntroSeen: true)
+        } else if services.settings.onboardingComplete {
+            await syncAfterLaunch()
+        } else {
+            await completeMembership()
+        }
     }
 
     private func syncAfterLaunch() async {
@@ -149,72 +185,62 @@ final class AppModel {
 
     // MARK: Onboarding
 
-    /// The resident read the explanation and gave explicit consent.
-    func giveConsent() {
+    /// The resident read the introduction and privacy summary. Nothing is monitored or sent yet.
+    func finishIntroduction() {
         guard let services else { return }
-        services.settings.consentGivenAt = Date()
-        phase = .signIn
+        services.settings.introSeen = true
+        phase = .join
     }
 
-    func requestSignInCode(email: String) async throws {
-        guard let services else { return }
-        do {
-            try await services.auth.requestCode(email: email)
-        } catch {
-            throw APIError.from(error)
-        }
+    /// A link opened the app. Only `feluda://join#t=<token>` (and the same link as https) is
+    /// understood; anything else is ignored. A phone that is already enrolled ignores it too.
+    func handleIncomingURL(_ url: URL) {
+        guard !Self.isRunningTests, let token = InvitationLink.token(from: url) else { return }
+        if let services, services.api.isEnrolled { return }
+        pendingInvitation = token
+        joinNotice = nil
     }
 
-    func verifySignInCode(email: String, code: String) async throws {
-        guard let services else { return }
-        do {
-            try await services.auth.verify(email: email, code: code)
-        } catch {
-            throw APIError.from(error)
-        }
-        signedInEmail = await services.auth.signedInEmail
-        await continueAfterSignIn()
+    func clearPendingInvitation() {
+        pendingInvitation = nil
     }
 
-    /// After sign-in: is this email a member of a household already?
-    func continueAfterSignIn() async {
-        guard let services else { return }
-        phase = .settingUp
-        setupError = nil
-        do {
-            household = try await services.api.myHousehold()
-        } catch let error as APIError where error.isNotAMember {
-            phase = .joinHousehold
-            return
-        } catch let error as APIError where error == .sessionExpired || error == .notSignedIn {
-            phase = .signIn
-            return
-        } catch {
-            setupError = APIError.from(error).userMessage
-            return
-        }
-        await completeMembership()
-    }
-
-    func joinHousehold(invitation: String, houseNumber: String, streetName: String, label: String, isp: Isp?,
-                       privacyAcknowledged: Bool) async throws {
-        guard let services else { return }
-        guard let token = InvitationToken.parse(invitation) else {
+    /// Checks an invitation (pasted link, bare token or the token from a link) with the service
+    /// and returns the name of the neighborhood it belongs to.
+    func verifyInvitation(_ input: String) async throws -> VerifiedInvitation {
+        guard let services, let token = InvitationToken.parse(input) else {
             throw APIError.server(status: 404, code: "invitation_invalid", message: "", requestID: nil, retryAfter: nil)
         }
-        let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
-        _ = try await services.api.verifyInvitation(token: token)
-        household = try await services.api.joinHousehold(JoinHouseholdRequest(
-            invitationToken: token,
-            houseNumber: houseNumber.trimmingCharacters(in: .whitespacesAndNewlines),
+        let response = try await services.api.verifyInvitation(token: token)
+        return VerifiedInvitation(token: token, neighborhoodName: response.neighborhoodName)
+    }
+
+    /// Enrols this phone. The resident gives only the street and, if they wish, a house number;
+    /// tapping "Join" under the privacy summary is the acknowledgement.
+    func enroll(invitation: VerifiedInvitation, streetName: String, houseNumber: String) async throws {
+        guard let services else { return }
+        let settings = services.settings
+        let number = houseNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        let signature = DeviceRegistration.signature(settings: settings)
+        let response = try await services.api.enroll(EnrollRequest(
+            invitationToken: invitation.token,
             streetName: streetName.trimmingCharacters(in: .whitespacesAndNewlines),
-            displayLabel: trimmedLabel.isEmpty ? nil : trimmedLabel,
-            isp: isp,
-            privacyAcknowledged: privacyAcknowledged))
+            houseNumber: number.isEmpty ? nil : number,
+            privacyAcknowledged: true,
+            deviceID: settings.installIDCreatingIfNeeded(),
+            platform: .ios, osVersion: SystemInfo.osVersion, appVersion: SystemInfo.appVersion, capabilities: .iOS))
+        household = response.household
+        settings.introSeen = true
+        settings.consentGivenAt = Date()
+        // Enrolment created the device with these values; nothing more to send until they change.
+        settings.registeredSignature = signature
+        pendingInvitation = nil
+        joinNotice = nil
         await completeMembership()
     }
 
-    /// Membership is confirmed: register this install, then continue with the remaining steps.
+    /// This phone is enrolled: bring its device record up to date if the OS or app version
+    /// changed, then continue with the remaining steps.
     func completeMembership() async {
         guard let services else { return }
         phase = .settingUp
@@ -242,11 +268,7 @@ final class AppModel {
     }
 
     func retrySetup() async {
-        if household == nil {
-            await continueAfterSignIn()
-        } else {
-            await completeMembership()
-        }
+        await completeMembership()
     }
 
     func requestNotificationPermission() async {
@@ -336,17 +358,18 @@ final class AppModel {
     }
 
     func handleServiceError(_ error: APIError) {
-        switch error {
-        case .sessionExpired, .notSignedIn:
-            serviceError = error.userMessage
-            phase = .signIn
-        default:
-            if error.isNotAMember {
-                household = nil
-                phase = .joinHousehold
-            }
-            serviceError = error.userMessage
-        }
+        // `.notEnrolled` after a 401 is handled by `deviceWasUnenrolled`, which the API client
+        // calls itself. Here it can also mean the Keychain was not readable; nothing is removed.
+        serviceError = error.userMessage
+    }
+
+    /// The server answered 401: this phone is not enrolled any more (removed by the household or
+    /// the organizer, or revoked). The API client has already removed the secret. Everything
+    /// else the app stored goes too, and the join screen is shown.
+    func deviceWasUnenrolled() async {
+        guard services != nil, phase != .join, phase != .education else { return }
+        await wipeLocalData(keepIntroSeen: true)
+        joinNotice = "This phone is no longer enrolled in the neighborhood. To take part again, open an invitation link from your neighborhood organizer."
     }
 
     // MARK: Monitoring switch
@@ -365,61 +388,35 @@ final class AppModel {
 
     // MARK: Leaving
 
+    /// The server deletes this phone and everything it reported; then the phone is emptied too.
     func leaveNeighborhood() async throws {
         guard let services else { return }
         _ = try await services.api.leaveHousehold()
         await wipeLocalData()
     }
 
-    func deleteAccount() async throws {
-        guard let services else { return }
-        _ = try await services.api.deleteAccount()
-        await wipeLocalData()
-    }
-
-    /// Signs out on this phone: the monitor stops, this install's registration is withdrawn, and
-    /// tokens, queue, home-network fingerprint and install id are removed.
-    func signOut() async {
-        guard let services else { return }
-        await monitorStartTask?.value
-        await services.coordinator.stop(userInitiated: true)
-        await flushBriefly()
-        if let installID = services.settings.installID, services.settings.registeredSignature != nil {
-            _ = try? await services.api.revokeDevice(id: installID)
-        }
-        await services.auth.signOut()
-        await wipeLocalData()
-    }
-
-    private func flushBriefly() async {
-        guard let services else { return }
-        let reporter = services.reporter
-        let flush = Task { _ = await reporter.flush(ignoreBackoff: true) }
-        let timeout = Task {
-            try? await Task.sleep(nanoseconds: 5_000_000_000)
-            flush.cancel()
-        }
-        await flush.value
-        timeout.cancel()
-    }
-
-    private func wipeLocalData() async {
+    /// Removes the device secret, queue, sent log, home-network fingerprint, installation id and
+    /// flags. `keepIntroSeen` is for a phone that did not choose to leave: it goes straight to
+    /// the join screen.
+    private func wipeLocalData(keepIntroSeen: Bool = false) async {
         guard let services else { return }
         await monitorStartTask?.value
         await services.coordinator.wipe()
         await services.sentLog.clear()
-        await services.auth.clearLocal()
-        services.settings.resetForSignOut()
+        services.credentials.clear()
+        services.settings.resetForLeaving(keepIntroSeen: keepIntroSeen)
+        enrolmentUnknown = false
         UIApplication.shared.unregisterForRemoteNotifications()
         household = nil
         neighborhood = nil
         status = nil
         openIncidents = []
         serviceError = nil
-        signedInEmail = nil
+        setupError = nil
+        joinNotice = nil
         pendingIncidentID = nil
         monitoring = await services.coordinator.snapshot()
-        phase = .education
+        phase = services.settings.introSeen ? .join : .education
     }
 
     // MARK: Push
@@ -434,7 +431,7 @@ final class AppModel {
         guard let services else { return }
         let settings = services.settings
         guard let token = settings.pushToken, let installID = settings.installID, settings.registeredSignature != nil,
-              await services.auth.isSignedIn else { return }
+              services.api.isEnrolled else { return }
         let signature = "\(installID.uuidString)|\(token)"
         guard settings.pushTokenSentSignature != signature else { return }
         let request = RegisterPushTokenRequest(deviceID: installID, provider: .apns, token: token,
@@ -456,6 +453,7 @@ final class AppModel {
     func appBecameActive() async {
         await bootstrap()
         guard let services else { return }
+        await resolveUnknownEnrolment()
         await refreshPermissions()
         await services.coordinator.appBecameActive()
         await refresh()
@@ -537,6 +535,12 @@ final class AppModel {
         }
         Task { await services.coordinator.powerStateChanged(state) }
     }
+}
+
+/// An invitation the service accepted, with the neighborhood it belongs to.
+struct VerifiedInvitation: Equatable, Sendable {
+    let token: String
+    let neighborhoodName: String
 }
 
 /// Wraps `beginBackgroundTask` / `endBackgroundTask` so the task is always ended exactly once.

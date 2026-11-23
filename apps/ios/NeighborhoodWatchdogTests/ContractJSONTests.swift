@@ -130,11 +130,26 @@ final class ContractJSONTests: XCTestCase {
         XCTAssertEqual(pushObject["provider"] as? String, "apns")
         XCTAssertEqual(pushObject["apns_environment"] as? String, "sandbox")
 
-        let join = JoinHouseholdRequest(invitationToken: "abcdefghijklmnopqrstuvwxyz", houseNumber: "12", streetName: "Elm Street",
-                                        displayLabel: nil, isp: .tmobileHome, privacyAcknowledged: true)
-        let joinObject = try jsonObject(try WatchdogJSON.encoder().encode(join))
-        XCTAssertEqual(Set(joinObject.keys), ["invitation_token", "house_number", "street_name", "isp", "privacy_acknowledged"])
-        XCTAssertEqual(joinObject["isp"] as? String, "tmobile_home")
+        // Enrolment: the server rejects unknown fields, and an empty house number is left out.
+        let deviceID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+        func enroll(houseNumber: String?) throws -> [String: Any] {
+            try jsonObject(try WatchdogJSON.encoder().encode(EnrollRequest(
+                invitationToken: "abcdefghijklmnopqrstuvwxyz", streetName: "Elm Street", houseNumber: houseNumber,
+                privacyAcknowledged: true, deviceID: deviceID, platform: .ios, osVersion: "17.4", appVersion: "1.0.0 (1)",
+                capabilities: .iOS)))
+        }
+        let required: Set<String> = ["invitation_token", "street_name", "privacy_acknowledged", "device_id", "platform",
+                                     "os_version", "app_version", "capabilities"]
+        let withoutNumber = try enroll(houseNumber: nil)
+        XCTAssertEqual(Set(withoutNumber.keys), required, "no house number: the field is omitted")
+        XCTAssertEqual(withoutNumber["privacy_acknowledged"] as? Bool, true)
+        XCTAssertEqual(withoutNumber["platform"] as? String, "ios")
+        XCTAssertEqual((withoutNumber["device_id"] as? String)?.lowercased(), "11111111-2222-3333-4444-555555555555")
+        let withNumber = try enroll(houseNumber: "12")
+        XCTAssertEqual(Set(withNumber.keys), required.union(["house_number"]))
+        XCTAssertEqual(withNumber["house_number"] as? String, "12")
+        XCTAssertEqual(Set(EnrollRequest.CodingKeys.allCases.map(\.rawValue)), required.union(["house_number"]),
+                       "nothing but the street and the optional house number is asked of the resident")
 
         var preferences = NotificationPreferences()
         preferences.quietHoursEnabled = true
@@ -253,10 +268,18 @@ final class ContractJSONTests: XCTestCase {
     }
 
     func testDecodeOtherResponses() throws {
-        let household = #"{"household_id":"11111111-2222-3333-4444-555555555555","neighborhood_id":"21111111-2222-3333-4444-555555555555","anonymous_reference":"Household 7","display_label":null,"house_number":"12","street_name":"Elm Street","isp":"att","membership_status":"active","role":"resident","member_count":2,"device_count":3}"#
+        let household = #"{"household_id":"11111111-2222-3333-4444-555555555555","neighborhood_id":"21111111-2222-3333-4444-555555555555","anonymous_reference":"Household 7","display_label":null,"house_number":null,"street_name":"Elm Street","isp":"att","membership_status":"active","device_count":3}"#
         let decodedHousehold = try WatchdogJSON.decoder().decode(HouseholdOut.self, from: Data(household.utf8))
         XCTAssertEqual(decodedHousehold.isp, .att)
         XCTAssertNil(decodedHousehold.displayLabel)
+        XCTAssertNil(decodedHousehold.houseNumber, "the house number is optional")
+        XCTAssertEqual(decodedHousehold.deviceCount, 3)
+
+        let enrolled = #"{"device_token":"s3cret-device-token","household":\#(household.replacingOccurrences(of: #""house_number":null"#, with: #""house_number":"12""#)),"device":{"device_id":"11111111-2222-3333-4444-555555555555","platform":"ios","os_version":"17.4","app_version":"1.0.0 (1)","status":"active","monitoring_enabled":true,"last_seen_at":null,"created_at":"2026-11-01T10:00:00.000000Z"}}"#
+        let decodedEnrolment = try WatchdogJSON.decoder().decode(EnrollResponse.self, from: Data(enrolled.utf8))
+        XCTAssertEqual(decodedEnrolment.deviceToken, "s3cret-device-token")
+        XCTAssertEqual(decodedEnrolment.household.houseNumber, "12")
+        XCTAssertEqual(decodedEnrolment.device.platform, .ios)
 
         let neighborhood = #"{"neighborhood_id":"21111111-2222-3333-4444-555555555555","name":"Maple Grove","participating_households":20,"confirmed_active_households":11,"open_incident_count":1,"highest_alert_level":3,"status_color":"RED","status_explanation":"x","correlation_radius_m":500,"correlation_window_s":180}"#
         let decodedNeighborhood = try WatchdogJSON.decoder().decode(NeighborhoodOut.self, from: Data(neighborhood.utf8))
@@ -275,7 +298,7 @@ final class ContractJSONTests: XCTestCase {
         let health = #"{"status":"ok","api":"ok","database":"ok","version":"0.1.0","server_time":"2026-11-21T03:54:07.1Z"}"#
         XCTAssertEqual(try WatchdogJSON.decoder().decode(HealthOut.self, from: Data(health.utf8)).status, "ok")
 
-        let invitation = #"{"valid":true,"neighborhood_name":"Maple Grove","expires_at":"2026-11-24T03:54:07+00:00","household_bound":false}"#
+        let invitation = #"{"valid":true,"neighborhood_name":"Maple Grove","expires_at":"2026-11-24T03:54:07+00:00"}"#
         XCTAssertEqual(try WatchdogJSON.decoder().decode(VerifyInvitationResponse.self, from: Data(invitation.utf8)).neighborhoodName, "Maple Grove")
     }
 
@@ -293,10 +316,15 @@ final class ContractJSONTests: XCTestCase {
     func testAPIErrorEnvelope() {
         let response = HTTPURLResponse(url: URL(string: "https://api.example.org/api/v1/households/me")!, statusCode: 403,
                                        httpVersion: nil, headerFields: nil)!
-        let body = Data(#"{"error":{"code":"not_a_member","message":"No household for this account.","request_id":"req-1"}}"#.utf8)
+        let body = Data(#"{"error":{"code":"household_suspended","message":"This household's membership is suspended.","request_id":"req-1"}}"#.utf8)
         let error = APIError.fromResponse(data: body, response: response)
-        XCTAssertEqual(error, .server(status: 403, code: "not_a_member", message: "No household for this account.", requestID: "req-1", retryAfter: nil))
-        XCTAssertTrue(error.isNotAMember)
+        XCTAssertEqual(error, .server(status: 403, code: "household_suspended", message: "This household's membership is suspended.", requestID: "req-1", retryAfter: nil))
+
+        let conflict = HTTPURLResponse(url: URL(string: "https://api.example.org/api/v1/enroll")!, statusCode: 409, httpVersion: nil, headerFields: nil)!
+        let taken = APIError.fromResponse(
+            data: Data(#"{"error":{"code":"household_already_registered","message":"This home already takes part. Ask the organizer for its link."}}"#.utf8),
+            response: conflict)
+        XCTAssertEqual(taken.userMessage, "This home already takes part. Ask the organizer for its link.", "the server's sentence is shown")
 
         let limited = HTTPURLResponse(url: URL(string: "https://api.example.org/x")!, statusCode: 429, httpVersion: nil,
                                       headerFields: ["Retry-After": "42"])!

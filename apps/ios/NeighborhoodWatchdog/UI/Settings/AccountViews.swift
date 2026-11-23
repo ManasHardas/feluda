@@ -123,16 +123,15 @@ struct HouseholdView: View {
             if let household = model.household {
                 Section {
                     InfoRow(label: "Membership", value: household.membershipStatus.rawValue.capitalized)
-                    InfoRow(label: "Your role", value: household.role.rawValue.capitalized)
                     InfoRow(label: "Shown to neighbors as", value: household.anonymousReference)
-                    InfoRow(label: "Registered address", value: "\(household.houseNumber) \(household.streetName)")
-                    InfoRow(label: "Residents", value: "\(household.memberCount)")
+                    InfoRow(label: "Street", value: household.streetName)
+                    InfoRow(label: "House number", value: household.houseNumber ?? "Not given")
                     InfoRow(label: "Phones", value: "\(household.deviceCount)")
                     if let neighborhood = model.neighborhood {
                         InfoRow(label: "Neighborhood", value: neighborhood.name)
                     }
                 } footer: {
-                    Text("Your address is only visible to you and the neighborhood administrator. Incidents never show addresses.")
+                    Text("Your street and house number are only visible to your household and the neighborhood organizer. Incidents never show addresses.")
                 }
                 Section {
                     TextField("Label (optional)", text: $label)
@@ -218,14 +217,14 @@ struct DevicesView: View {
         let installID = model.services?.settings.installID
         List {
             Section {
-                InfoRow(label: "Registered with the service", value: model.services?.settings.registeredSignature == nil ? "No" : "Yes")
+                InfoRow(label: "Enrolled with the service", value: model.services?.api.isEnrolled == true ? "Yes" : "No")
                 InfoRow(label: "Installation id", value: installID?.uuidString.lowercased() ?? "None")
                 InfoRow(label: "iOS version", value: SystemInfo.osVersion)
                 InfoRow(label: "App version", value: SystemInfo.appVersion)
             } header: {
                 Text("This phone")
             } footer: {
-                Text("The installation id is a random number created by the app. It is not a hardware identifier and is removed when you sign out or delete the app.")
+                Text("The installation id is a random number created by the app. It is not a hardware identifier and is removed when you leave the neighborhood or delete the app.")
             }
             if let error = viewModel.errorMessage {
                 Section { ErrorBanner(message: error) }

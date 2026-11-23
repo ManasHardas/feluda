@@ -4,8 +4,6 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var isTogglingMonitoring = false
     @State private var confirmLeave = false
-    @State private var confirmDelete = false
-    @State private var confirmSignOut = false
     @State private var isWorking = false
     @State private var actionError: String?
     @State private var homeMessage: String?
@@ -90,9 +88,6 @@ struct SettingsView: View {
         Section("Household and device") {
             NavigationLink("Household membership") { HouseholdView() }
             NavigationLink("Device registration") { DevicesView() }
-            if let email = model.signedInEmail {
-                InfoRow(label: "Signed in as", value: email)
-            }
         }
     }
 
@@ -109,26 +104,16 @@ struct SettingsView: View {
             if let actionError {
                 ErrorBanner(message: actionError)
             }
-            Button("Sign out on this phone") { confirmSignOut = true }
-                .confirmationDialog("Sign out on this phone?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-                    Button("Sign out", role: .destructive) { run { await model.signOut() } }
-                } message: {
-                    Text("Monitoring stops on this phone. Events not yet sent, the home-network fingerprint and this phone's registration are removed. Your household stays in the neighborhood.")
-                }
             Button("Leave neighborhood", role: .destructive) { confirmLeave = true }
                 .confirmationDialog("Leave the neighborhood?", isPresented: $confirmLeave, titleVisibility: .visible) {
                     Button("Leave neighborhood", role: .destructive) { run { try await model.leaveNeighborhood() } }
                 } message: {
-                    Text("You stop receiving alerts and this phone stops reporting. Everything the app stored on this phone is removed. You need a new invitation to join again.")
-                }
-            Button("Delete account", role: .destructive) { confirmDelete = true }
-                .confirmationDialog("Delete your account?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                    Button("Delete account", role: .destructive) { run { try await model.deleteAccount() } }
-                } message: {
-                    Text("Your account is removed from the service and everything the app stored on this phone is removed. This cannot be undone.")
+                    Text("The service deletes this phone and everything it reported. You stop receiving alerts, and everything the app stored on this phone is removed. To join again you need an invitation link.")
                 }
         } header: {
             Text("Leaving")
+        } footer: {
+            Text("Leaving deletes what this phone reported. There is no account, so nothing else remains.")
         }
     }
 

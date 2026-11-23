@@ -12,7 +12,9 @@ without a database.
 **Privacy effect.** Coordinates never leave the backend. Only the correlation role can read them,
 and the incident stores an extent rounded up to 50 metres.
 
-**No geocoding.** The administrator supplies coordinates when approving an address. If they are
+**No geocoding.** The administrator supplies coordinates when approving an address. (See 0014:
+since 2026-11-23 addresses are not approved in advance and residents are not asked for a location,
+so most households have no coordinates unless the organizer adds them by hand.) If they are
 missing, the household is treated as inside the radius and the incident lists the missing location
 as missing evidence. No address is sent to an external geocoding service.
 

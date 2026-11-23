@@ -13,16 +13,11 @@ import kotlinx.coroutines.android.asCoroutineDispatcher
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import org.neighborhoodwatchdog.android.config.AppConfig
-import org.neighborhoodwatchdog.android.data.api.AuthApi
 import org.neighborhoodwatchdog.android.data.api.WatchdogApi
-import org.neighborhoodwatchdog.android.data.auth.ApiKeyInterceptor
-import org.neighborhoodwatchdog.android.data.auth.AuthRepository
-import org.neighborhoodwatchdog.android.data.auth.BearerInterceptor
+import org.neighborhoodwatchdog.android.data.auth.DeviceTokenInterceptor
+import org.neighborhoodwatchdog.android.data.auth.EncryptedCredentialStore
 import org.neighborhoodwatchdog.android.data.auth.EncryptedFileStore
-import org.neighborhoodwatchdog.android.data.auth.EncryptedTokenStore
 import org.neighborhoodwatchdog.android.data.auth.KeystoreCipher
-import org.neighborhoodwatchdog.android.data.auth.RemoteTokenRefresher
-import org.neighborhoodwatchdog.android.data.auth.TokenAuthenticator
 import org.neighborhoodwatchdog.android.data.local.EventDao
 import org.neighborhoodwatchdog.android.data.local.FingerprintStore
 import org.neighborhoodwatchdog.android.data.local.LocalState
@@ -31,8 +26,8 @@ import org.neighborhoodwatchdog.android.data.local.RoomSentEventLog
 import org.neighborhoodwatchdog.android.data.local.WatchdogDatabase
 import org.neighborhoodwatchdog.android.data.repository.DeviceRepository
 import org.neighborhoodwatchdog.android.data.repository.WatchdogRepository
-import org.neighborhoodwatchdog.android.domain.auth.TokenManager
-import org.neighborhoodwatchdog.android.domain.auth.TokenStore
+import org.neighborhoodwatchdog.android.domain.auth.CredentialStore
+import org.neighborhoodwatchdog.android.domain.auth.DeviceCredentials
 import org.neighborhoodwatchdog.android.domain.model.Clock
 import org.neighborhoodwatchdog.android.domain.model.WatchdogJson
 import org.neighborhoodwatchdog.android.domain.reporting.EventFactory
@@ -51,6 +46,7 @@ import org.neighborhoodwatchdog.android.monitoring.PowerTracker
 import org.neighborhoodwatchdog.android.monitoring.ProbeRunner
 import org.neighborhoodwatchdog.android.monitoring.WorkScheduler
 import org.neighborhoodwatchdog.android.push.PushManager
+import org.neighborhoodwatchdog.android.session.InvitationInbox
 import org.neighborhoodwatchdog.android.session.SessionCoordinator
 import org.neighborhoodwatchdog.android.session.SessionSignal
 import retrofit2.Retrofit
@@ -76,13 +72,19 @@ object AppModule {
     @Provides @Singleton
     fun sessionSignal(): SessionSignal = SessionSignal()
 
-    // ---- secure storage and auth ----
+    @Provides @Singleton
+    fun invitationInbox(): InvitationInbox = InvitationInbox()
+
+    // ---- secure storage and the device secret ----
 
     @Provides @Singleton
     fun encryptedFiles(@ApplicationContext context: Context): EncryptedFileStore = EncryptedFileStore(context, KeystoreCipher())
 
     @Provides @Singleton
-    fun tokenStore(files: EncryptedFileStore): TokenStore = EncryptedTokenStore(files)
+    fun credentialStore(files: EncryptedFileStore): CredentialStore = EncryptedCredentialStore(files)
+
+    @Provides @Singleton
+    fun deviceCredentials(store: CredentialStore): DeviceCredentials = DeviceCredentials(store)
 
     @Provides @Singleton
     fun fingerprintStore(files: EncryptedFileStore): FingerprintStore = FingerprintStore(files)
@@ -94,25 +96,10 @@ object AppModule {
         .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    @Provides @Singleton
-    fun authApi(@Named("base") base: OkHttpClient, config: AppConfig): AuthApi = Retrofit.Builder()
-        .baseUrl(config.authRoot)
-        .client(base.newBuilder().addInterceptor(ApiKeyInterceptor(config.authPublicKey)).build())
-        .addConverterFactory(WatchdogJson.asConverterFactory(jsonMediaType))
-        .build()
-        .create(AuthApi::class.java)
-
-    @Provides @Singleton
-    fun tokenManager(store: TokenStore, authApi: AuthApi, clock: Clock, signal: SessionSignal): TokenManager =
-        TokenManager(store, RemoteTokenRefresher(authApi, clock), clock, onSessionEnded = signal::bump)
-
-    @Provides @Singleton
-    fun authRepository(authApi: AuthApi, tokens: TokenManager, clock: Clock): AuthRepository = AuthRepository(authApi, tokens, clock)
-
+    /** Adds the device secret to every request; a 401 `unauthorized` removes it (see [DeviceTokenInterceptor]). */
     @Provides @Singleton @Named("api")
-    fun apiClient(@Named("base") base: OkHttpClient, tokens: TokenManager): OkHttpClient = base.newBuilder()
-        .addInterceptor(BearerInterceptor(tokens))
-        .authenticator(TokenAuthenticator(tokens))
+    fun apiClient(@Named("base") base: OkHttpClient, credentials: DeviceCredentials): OkHttpClient = base.newBuilder()
+        .addInterceptor(DeviceTokenInterceptor(credentials))
         .build()
 
     @Provides @Singleton
@@ -124,11 +111,16 @@ object AppModule {
         .create(WatchdogApi::class.java)
 
     @Provides @Singleton
-    fun repository(api: WatchdogApi, localState: LocalState): WatchdogRepository = WatchdogRepository(api, localState)
+    fun repository(api: WatchdogApi): WatchdogRepository = WatchdogRepository(api)
 
     @Provides @Singleton
-    fun deviceRepository(@ApplicationContext context: Context, api: WatchdogApi, localState: LocalState, config: AppConfig): DeviceRepository =
-        DeviceRepository(context, api, localState, config)
+    fun deviceRepository(
+        @ApplicationContext context: Context,
+        api: WatchdogApi,
+        localState: LocalState,
+        config: AppConfig,
+        credentials: DeviceCredentials,
+    ): DeviceRepository = DeviceRepository(context, api, localState, config, credentials)
 
     // ---- durable queue ----
 
@@ -191,7 +183,8 @@ object AppModule {
         sentLog: SentEventLog,
         fingerprintStore: FingerprintStore,
         localState: LocalState,
-        tokens: TokenManager,
+        credentials: DeviceCredentials,
+        signal: SessionSignal,
         permissions: PermissionStatus,
         scheduler: WorkScheduler,
         devices: DeviceRepository,
@@ -206,14 +199,21 @@ object AppModule {
         sentLog = sentLog,
         fingerprintStore = fingerprintStore,
         localState = localState,
-        tokens = tokens,
+        credentials = credentials,
         powerTracker = PowerTracker(context, clock),
         aliveClock = AliveClock(context, clock),
         permissions = permissions,
         scheduler = scheduler,
         devices = devices,
         clock = clock,
-    )
+    ).also { controller ->
+        // The server no longer accepts this phone: show the join screen at once, then again when
+        // the local data of the old enrolment has been cleared.
+        credentials.addRejectedListener {
+            signal.bump()
+            controller.onEnrolmentRejected(done = signal::bump)
+        }
+    }
 
     @Provides @Singleton
     fun pushManager(
@@ -221,15 +221,15 @@ object AppModule {
         config: AppConfig,
         devices: DeviceRepository,
         localState: LocalState,
-        auth: AuthRepository,
-    ): PushManager = PushManager(context, config, devices, localState, auth)
+        credentials: DeviceCredentials,
+    ): PushManager = PushManager(context, config, devices, localState, credentials)
 
     @Provides @Singleton
     fun sessionCoordinator(
-        auth: AuthRepository,
+        credentials: DeviceCredentials,
         repository: WatchdogRepository,
         controller: MonitoringController,
         localState: LocalState,
         signal: SessionSignal,
-    ): SessionCoordinator = SessionCoordinator(auth, repository, controller, localState, signal)
+    ): SessionCoordinator = SessionCoordinator(credentials, repository, controller, localState, signal)
 }

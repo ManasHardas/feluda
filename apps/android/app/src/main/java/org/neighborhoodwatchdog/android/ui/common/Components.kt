@@ -226,10 +226,9 @@ fun ispKeyLabel(key: String): String {
 fun errorMessage(error: ApiError): Int = when {
     error.isNetwork -> R.string.error_network
     else -> when (error.code) {
-        "not_a_member" -> R.string.error_not_a_member
         "invitation_invalid" -> R.string.error_invitation_invalid
-        "address_not_recognized" -> R.string.error_address_not_recognized
         "household_already_registered" -> R.string.error_household_already_registered
+        "device_conflict" -> R.string.error_device_conflict
         "household_suspended" -> R.string.error_household_suspended
         "device_revoked" -> R.string.error_device_revoked
         "rate_limited" -> R.string.error_rate_limited

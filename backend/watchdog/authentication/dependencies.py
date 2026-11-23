@@ -1,93 +1,84 @@
-"""FastAPI dependencies that turn a bearer token into an authorised member.
+"""FastAPI dependencies that turn a request's credential into an authorised caller.
 
-Authorisation is decided here and in PostgreSQL row-level security, never from identifiers the
-client sends. The household and neighborhood of a request always come from the membership record of
-the signed-in user.
+There is no sign-in. A phone is enrolled once with an invitation link and receives a random secret
+(its device credential), which it sends as a bearer token. Authorisation is decided here and in
+PostgreSQL row-level security, never from identifiers the client sends: the household and
+neighborhood of a request always come from the enrolment record of the calling phone.
+
+Administration uses one separate secret (ADMIN_API_TOKEN) held by the operator.
 """
 
 from __future__ import annotations
 
+import secrets
 from dataclasses import dataclass
 from uuid import UUID
 
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from ..errors import forbidden, household_suspended, not_a_member, unauthorized
-from .tokens import Principal
+from ..errors import forbidden, household_suspended, not_found, unauthorized
+from ..invitation_tokens import hash_token
 
-_bearer = HTTPBearer(auto_error=False, description="Access token from the identity provider")
+_bearer = HTTPBearer(auto_error=False, description="Device credential issued at enrolment")
+NEIGHBORHOOD_HEADER = "X-Neighborhood-Id"
 
 
 @dataclass(frozen=True)
 class Member:
+    """An enrolled phone. `user_id` is the row-level-security identity of that one phone."""
+
     user_id: UUID
+    device_id: UUID
     household_id: UUID
     neighborhood_id: UUID
-    role: str
     household_status: str
     neighborhood_status: str
-    assurance_level: str
 
     @property
     def is_active(self) -> bool:
         return self.household_status == "active" and self.neighborhood_status == "active"
 
 
-def get_principal(request: Request, credentials: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> Principal:
-    if credentials is None or credentials.scheme.lower() != "bearer":
+@dataclass(frozen=True)
+class Operator:
+    """The administrator, acting on one neighborhood. Not a resident: has no household and no user id."""
+
+    neighborhood_id: UUID
+    user_id: None = None
+    household_id: None = None
+
+
+def _credential(credentials: HTTPAuthorizationCredentials | None) -> str:
+    if credentials is None or credentials.scheme.lower() != "bearer" or not credentials.credentials:
         raise unauthorized()
-    return request.app.state.verifier.verify(credentials.credentials)
+    return credentials.credentials
 
 
-def resolve_user_id(request: Request, principal: Principal) -> UUID | None:
-    """Find the account for this identity; bind it on first sign-in.
-
-    An account row is created only by invitation-based registration, keyed by e-mail address. The
-    first time that e-mail address signs in (which proves control of the mailbox through the
-    one-time code) the identity provider's subject is attached to the row. Identities that never
-    registered get no account.
-    """
-    db = request.app.state.db
-    with db.service() as conn:
-        row = conn.execute(
-            "SELECT id FROM nw.users WHERE auth_subject = %s AND status <> 'deleted'", [principal.subject]
-        ).fetchone()
-        if row:
-            return row["id"]
-        if principal.email is None:
-            return None
-        row = conn.execute(
-            "UPDATE nw.users SET auth_subject = %s, status = 'active'"
-            " WHERE email = %s AND auth_subject IS NULL AND status = 'pending' RETURNING id",
-            [principal.subject, principal.email],
-        ).fetchone()
-        return row["id"] if row else None
-
-
-def get_member_any(request: Request, principal: Principal = Depends(get_principal)) -> Member:
-    """A member whose household may be suspended (enough to read own membership, leave, delete)."""
-    user_id = resolve_user_id(request, principal)
-    if user_id is None:
-        raise not_a_member()
+def get_member_any(request: Request, credentials: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> Member:
+    """An enrolled phone whose household may be suspended (enough to read its own enrolment or leave)."""
+    secret = _credential(credentials)
     with request.app.state.db.service() as conn:
         row = conn.execute(
-            "SELECT hm.household_id, hm.role, h.neighborhood_id, h.membership_status, n.status AS neighborhood_status"
-            " FROM nw.household_members hm JOIN nw.households h ON h.id = hm.household_id"
-            " JOIN nw.neighborhoods n ON n.id = h.neighborhood_id"
-            " WHERE hm.user_id = %s AND hm.status = 'active'",
-            [user_id],
+            "SELECT d.id AS device_id, d.user_id, d.household_id, h.neighborhood_id, h.membership_status,"
+            " n.status AS neighborhood_status"
+            " FROM nw.device_credentials c JOIN nw.devices d ON d.id = c.device_id"
+            " JOIN nw.household_members hm ON hm.user_id = d.user_id AND hm.household_id = d.household_id"
+            " AND hm.status = 'active'"
+            " JOIN nw.households h ON h.id = d.household_id JOIN nw.neighborhoods n ON n.id = h.neighborhood_id"
+            " WHERE c.secret_hash = %s AND d.status = 'active'",
+            [hash_token(secret)],
         ).fetchone()
     if row is None or row["membership_status"] == "removed":
-        raise not_a_member()
+        # One answer for unknown, revoked and removed phones.
+        raise unauthorized("This phone is not enrolled. Use an invitation link to join.")
     return Member(
-        user_id=user_id,
+        user_id=row["user_id"],
+        device_id=row["device_id"],
         household_id=row["household_id"],
         neighborhood_id=row["neighborhood_id"],
-        role=row["role"],
         household_status=row["membership_status"],
         neighborhood_status=row["neighborhood_status"],
-        assurance_level=principal.assurance_level,
     )
 
 
@@ -99,9 +90,24 @@ def get_member(member: Member = Depends(get_member_any)) -> Member:
     return member
 
 
-def get_admin(request: Request, member: Member = Depends(get_member)) -> Member:
-    if member.role != "admin":
-        raise forbidden("Administrator access is required.")
-    if request.app.state.settings.admin_require_mfa and member.assurance_level != "aal2":
-        raise forbidden("Administrator access requires multi-factor sign-in.")
-    return member
+def get_operator(request: Request, credentials: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> Operator:
+    """The administrator. The neighborhood is named in a header, or is the only one that exists."""
+    expected = request.app.state.settings.admin_api_token
+    supplied = _credential(credentials)
+    if not expected or not secrets.compare_digest(supplied.encode(), expected.encode()):
+        raise unauthorized()
+    requested = request.headers.get(NEIGHBORHOOD_HEADER, "").strip()
+    with request.app.state.db.service() as conn:
+        if requested:
+            try:
+                wanted = UUID(requested)
+            except ValueError as exc:
+                raise not_found("Neighborhood not found.") from exc
+            row = conn.execute("SELECT id FROM nw.neighborhoods WHERE id = %s", [wanted]).fetchone()
+            if row is None:
+                raise not_found("Neighborhood not found.")
+            return Operator(neighborhood_id=row["id"])
+        rows = conn.execute("SELECT id FROM nw.neighborhoods ORDER BY created_at LIMIT 2").fetchall()
+    if len(rows) != 1:
+        raise not_found(f"Name the neighborhood with the {NEIGHBORHOOD_HEADER} header.")
+    return Operator(neighborhood_id=rows[0]["id"])

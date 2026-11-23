@@ -22,7 +22,7 @@ Reminder
 For reviewers
 - Source: <repository URL> at tag <tag> (commit <sha>)
 - Android signing certificate SHA-256: <fingerprint>
-- Public build configuration: API_BASE_URL=<...>, AUTH_BASE_URL=<...>
+- Public build configuration: API_BASE_URL=<...>
 - Checksums and SBOMs are attached to the GitHub release.
 - Security review status: <link to docs/SECURITY_REVIEW.md at this tag>
 ```

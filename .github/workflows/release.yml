@@ -73,8 +73,6 @@ jobs:
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
       API_BASE_URL: ${{ vars.API_BASE_URL }}
-      AUTH_BASE_URL: ${{ vars.AUTH_BASE_URL }}
-      AUTH_PUBLIC_KEY: ${{ vars.AUTH_PUBLIC_KEY }}
       SOURCE_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
       PRIVACY_URL: ${{ vars.PRIVACY_URL }}
       SECURITY_CONTACT: ${{ vars.SECURITY_CONTACT }}

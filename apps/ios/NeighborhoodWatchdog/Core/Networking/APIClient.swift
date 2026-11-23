@@ -1,13 +1,35 @@
 import Foundation
 
-/// Typed client for /api/v1. Every authenticated request carries `Authorization: Bearer <token>`.
-/// On a 401 the token is refreshed once (serialised by `AuthService`) and the request retried once.
+/// Where the single device secret lives. The app uses the Keychain; tests use memory.
+protocol DeviceTokenStore: Sendable {
+    func load() -> String?
+    func save(_ token: String) throws
+    func clear()
+}
+
+/// Typed client for /api/v1. There is no sign-in: a phone is enrolled once with an invitation link
+/// and then sends its device secret as `Authorization: Bearer <secret>`. The secret never expires
+/// and is never refreshed. When the server answers 401 `unauthorized` the phone is no longer
+/// enrolled (removed, revoked or reinstalled): the stored secret is removed and the caller gets
+/// `APIError.notEnrolled`.
 struct APIClient: Sendable {
     let baseURL: URL
     let transport: HTTPTransport
-    let auth: AuthService
+    let credentials: DeviceTokenStore
+    /// Called after a 401 removed the stored secret, so the app can show the join screen.
+    var onUnenrolled: (@Sendable () async -> Void)?
+
+    init(baseURL: URL, transport: HTTPTransport, credentials: DeviceTokenStore,
+         onUnenrolled: (@Sendable () async -> Void)? = nil) {
+        self.baseURL = baseURL
+        self.transport = transport
+        self.credentials = credentials
+        self.onUnenrolled = onUnenrolled
+    }
 
     private struct NoBody: Encodable, Sendable {}
+
+    var isEnrolled: Bool { credentials.load() != nil }
 
     // MARK: Endpoints
 
@@ -19,8 +41,16 @@ struct APIClient: Sendable {
         try await call("POST", "auth/verify-invitation", body: VerifyInvitationRequest(invitationToken: token), authenticated: false)
     }
 
-    func joinHousehold(_ request: JoinHouseholdRequest) async throws -> HouseholdOut {
-        try await call("POST", "households/join", body: request)
+    /// Enrols this phone and stores the device secret. Safe to repeat with the same device id and
+    /// link: the server then issues a fresh secret without using the link a second time.
+    func enroll(_ request: EnrollRequest) async throws -> EnrollResponse {
+        let response: EnrollResponse = try await call("POST", "enroll", body: request, authenticated: false)
+        do {
+            try credentials.save(response.deviceToken)
+        } catch {
+            throw APIError.credentialStorage
+        }
+        return response
     }
 
     func myHousehold() async throws -> HouseholdOut {
@@ -31,18 +61,19 @@ struct APIClient: Sendable {
         try await call("PATCH", "households/me", body: request)
     }
 
+    /// Deletes this phone and everything it reported. The secret is invalid afterwards, so it is
+    /// removed here as well.
     func leaveHousehold() async throws -> OkResponse {
-        try await call("POST", "households/leave")
-    }
-
-    func deleteAccount() async throws -> OkResponse {
-        try await call("DELETE", "account")
+        let response: OkResponse = try await call("POST", "households/leave")
+        credentials.clear()
+        return response
     }
 
     func myNeighborhood() async throws -> NeighborhoodOut {
         try await call("GET", "neighborhoods/me")
     }
 
+    /// Updates this phone's own record (OS or app version, capabilities). Never creates a device.
     func registerDevice(_ request: RegisterDeviceRequest) async throws -> DeviceOut {
         try await call("POST", "devices/register", body: request)
     }
@@ -116,14 +147,27 @@ struct APIClient: Sendable {
 
         var token: String?
         if authenticated {
-            token = try await auth.validAccessToken()
+            guard let stored = credentials.load() else { throw APIError.notEnrolled }
+            token = stored
+            request.setValue("Bearer \(stored)", forHTTPHeaderField: "Authorization")
         }
-        var (data, response) = try await perform(request, token: token)
+        let data: Data, response: HTTPURLResponse
+        do {
+            (data, response) = try await transport.send(request)
+        } catch {
+            throw APIError.from(error)
+        }
 
-        if response.statusCode == 401, authenticated, let rejected = token {
-            // Refresh once, retry once. A second 401 is reported to the caller.
-            let fresh = try await auth.accessTokenAfterUnauthorized(rejectedToken: rejected)
-            (data, response) = try await perform(request, token: fresh)
+        if response.statusCode == 401, let rejected = token {
+            let error = APIError.fromResponse(data: data, response: response)
+            guard error.code == "unauthorized" else { throw error }
+            // Remove the secret only if it is still the one that was refused (the phone may have
+            // been enrolled again while this request was on its way).
+            if credentials.load() == rejected {
+                credentials.clear()
+                await onUnenrolled?()
+            }
+            throw APIError.notEnrolled
         }
 
         guard (200..<300).contains(response.statusCode) else {
@@ -135,19 +179,10 @@ struct APIClient: Sendable {
             throw APIError.decoding("\(method) \(path): \(error)")
         }
     }
-
-    private func perform(_ request: URLRequest, token: String?) async throws -> (Data, HTTPURLResponse) {
-        var request = request
-        if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
-        do {
-            return try await transport.send(request)
-        } catch {
-            throw APIError.from(error)
-        }
-    }
 }
 
-/// Accepts either a full invitation link (`https://host/join#t=<token>`) or the bare token.
+/// Accepts a full invitation link (`https://host/join#t=<token>`), the link the web join page
+/// opens (`feluda://join#t=<token>`) or the bare token.
 enum InvitationToken {
     static func parse(_ input: String) -> String? {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -167,5 +202,15 @@ enum InvitationToken {
         guard (20...128).contains(candidate.count),
               candidate.unicodeScalars.allSatisfy({ allowed.contains($0) }) else { return nil }
         return candidate
+    }
+}
+
+/// The link the web join page opens to hand an invitation to the app: `feluda://join#t=<token>`.
+enum InvitationLink {
+    static let scheme = "feluda"
+
+    static func token(from url: URL) -> String? {
+        guard url.scheme?.lowercased() == scheme, url.host?.lowercased() == "join", url.fragment != nil else { return nil }
+        return InvitationToken.parse(url.absoluteString)
     }
 }

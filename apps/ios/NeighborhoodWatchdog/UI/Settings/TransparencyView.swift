@@ -18,14 +18,13 @@ struct TransparencyView: View {
 
             Section {
                 BulletList(items: [
-                    "Your email address, to sign in.",
-                    "House number and street, once, when you join with an invitation.",
+                    "Your street and, if you gave one, your house number, once, when you join with an invitation link. No email address and no name.",
                     "A random installation id, the iOS version and the app version.",
                     "Connectivity events: kind of change, time, connection state, and the diagnostic values (Wi-Fi connected, internet reachable, cellular available, default network type, home network yes/no/unknown, charger unplugged, Low Power Mode, monitoring gaps).",
                     "The notification token Apple gives this app, so alerts can be delivered.",
                     "Your notification preferences.",
                 ])
-                Text("When the service does not answer the reachability test, the app also sends one plain request to a second address (\(config?.probeFallbackURL?.host ?? "not configured")). That request carries no account or device information, but like any internet request it reveals the phone's IP address to that server.")
+                Text("When the service does not answer the reachability test, the app also sends one plain request to a second address (\(config?.probeFallbackURL?.host ?? "not configured")). That request carries no device information, but like any internet request it reveals the phone's IP address to that server.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 NavigationLink("See the events on this phone") { EventLogView() }

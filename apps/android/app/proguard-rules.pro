@@ -18,7 +18,6 @@
 -keep,allowobfuscation,allowshrinking class retrofit2.Response
 -keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
 -keep interface org.neighborhoodwatchdog.android.data.api.WatchdogApi { *; }
--keep interface org.neighborhoodwatchdog.android.data.api.AuthApi { *; }
 
 # OkHttp optional platforms that are not on Android.
 -dontwarn org.bouncycastle.jsse.**

@@ -4,7 +4,7 @@ The source is public so that residents and reviewers can check what the software
 says how to relate a released artifact to the source, and is explicit about where that link is
 weaker than "bit-for-bit identical".
 
-Status: the release workflow is written but has never run (no repository on GitHub yet).
+Status: the release workflow is written but has never run (no release tag has been pushed).
 
 ## What a release contains
 
@@ -45,7 +45,7 @@ immediately are recorded here.
 
 | Date | Component | Advisory | Decision |
 | --- | --- | --- | --- |
-| 2026-11-22 | PyJWT 2.10.1 | 17 advisories (PYSEC-2025-183, PYSEC-2026-120 and others, GHSA-pxh4-856f-4h89) | Upgraded to 2.15.1 |
+| 2026-11-22 | PyJWT 2.10.1 | 17 advisories (PYSEC-2025-183, PYSEC-2026-120 and others, GHSA-pxh4-856f-4h89) | Upgraded to 2.15.1. Since 2026-11-23 PyJWT only signs the APNs provider token; it no longer verifies anything |
 | 2026-11-22 | Starlette 0.41.3 (through FastAPI 0.115.6) | 7 advisories (PYSEC-2026-161, -248, -249, -1941, -1942, -2280, -2281) | Upgraded FastAPI to 0.165.0, which brings Starlette 1.10.0 |
 | 2026-11-22 | All backend dependencies, including the optional `errors` extra | pip-audit: no known vulnerabilities | None needed |
 | 2026-11-22 | Android: the 155 resolved packages of `releaseRuntimeClasspath` (direct and transitive) | OSV database (api.osv.dev, Maven ecosystem): no known advisories. The lookup was checked with a known-vulnerable control (okhttp 3.12.0), which it flagged | None needed. Build plugins and test-only dependencies were not checked; iOS has no third-party dependencies |
@@ -94,7 +94,8 @@ Code signing embeds signatures and a provisioning profile; Apple re-signs and ma
 app on its side; and encrypted segments differ per delivery. The practical checks are: the build
 number in the app's Transparency screen matches a release tag; the app has no third-party code; and
 the network destinations it contacts (observable with a proxy on a test device) are only the
-configured API, the identity provider and the disclosed fallback probe target.
+configured API and the disclosed fallback probe target (plus Apple's push service, which the
+system contacts, not the app).
 
 ## Known gaps
 

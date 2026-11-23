@@ -50,8 +50,7 @@ services:
     environment:
       ENVIRONMENT: development
       DATABASE_URL: postgresql://watchdog:watchdog_local_dev_only@db:5432/watchdog
-      DEV_AUTH_ENABLED: "true"
-      AUTH_JWT_SECRET: local-development-secret-not-for-production-use
+      ADMIN_API_TOKEN: local-development-admin-token-not-for-production
       PUBLIC_BASE_URL: http://localhost:8000
     ports:
       - "127.0.0.1:8000:8000"

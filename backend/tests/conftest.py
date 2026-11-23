@@ -17,7 +17,6 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-import jwt
 import psycopg
 import pytest
 from fastapi.testclient import TestClient
@@ -33,7 +32,7 @@ from watchdog.seed import SeededHousehold, SeededNeighborhood, seed_neighborhood
 from watchdog.settings import Settings
 
 ADMIN_URL = os.environ.get("TEST_DATABASE_URL", "postgresql://watchdog:watchdog_local_dev_only@localhost:54329/postgres")
-JWT_SECRET = "test-secret-test-secret-test-secret-123456"
+ADMIN_TOKEN = "test-admin-token-test-admin-token-123456"
 START = datetime(2026, 3, 10, 20, 0, 0, tzinfo=UTC)
 
 
@@ -138,8 +137,7 @@ def senders():
 def make_settings(**overrides: Any) -> Settings:
     values = {
         "environment": "test",
-        "auth_jwt_secret": JWT_SECRET,
-        "dev_auth_enabled": True,
+        "admin_api_token": ADMIN_TOKEN,
         "background_worker_enabled": False,
         "public_base_url": "https://watchdog.example.test",
         "android_install_url": "https://appdistribution.example.test/android",
@@ -166,25 +164,9 @@ def client(app):
         yield test_client
 
 
-def token_for(
-    subject: str,
-    email: str | None,
-    *,
-    now: datetime = START,
-    ttl: int = 3600,
-    secret: str = JWT_SECRET,
-    aal: str = "aal1",
-    audience: str = "authenticated",
-) -> str:
-    claims = {"sub": subject, "aud": audience, "aal": aal, "iat": int(now.timestamp()), "exp": int(now.timestamp()) + ttl}
-    if email:
-        claims["email"] = email
-    return jwt.encode(claims, secret, algorithm="HS256")
-
-
 @dataclass
 class Actor:
-    """One seeded resident with helpers to call the API as that person."""
+    """One seeded phone with helpers to call the API as that phone."""
 
     client: TestClient
     clock: FixedClock
@@ -193,8 +175,7 @@ class Actor:
 
     @property
     def headers(self) -> dict[str, str]:
-        # Tokens are minted at real time so they stay valid however far the test clock moves.
-        return {"Authorization": f"Bearer {token_for(self.household.auth_subject, self.household.email, now=datetime.now(UTC))}"}
+        return {"Authorization": f"Bearer {self.household.device_secret}"}
 
     def get(self, path: str, **kwargs):
         return self.client.get(path, headers=self.headers, **kwargs)
@@ -258,6 +239,51 @@ class Actor:
 
 
 @dataclass
+class Admin:
+    """The operator, acting on one neighborhood with the administration secret."""
+
+    client: TestClient
+    neighborhood_id: Any
+    token: str = ADMIN_TOKEN
+
+    @property
+    def headers(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self.token}", "X-Neighborhood-Id": str(self.neighborhood_id)}
+
+    def get(self, path: str, **kwargs):
+        return self.client.get(path, headers=self.headers, **kwargs)
+
+    def post(self, path: str, json: Any = None):
+        return self.client.post(path, headers=self.headers, json=json)
+
+    def put(self, path: str, json: Any = None):
+        return self.client.put(path, headers=self.headers, json=json)
+
+    def invite(self, **body: Any) -> str:
+        """Create an invitation link and return its token."""
+        response = self.post("/api/v1/admin/invitations", body)
+        assert response.status_code == 201, response.text
+        return response.json()["invitation_url"].split("#t=")[1]
+
+
+def enroll_body(token: str, street: str = "Maple Hollow Drive", house_number: str | None = None, **overrides: Any) -> dict:
+    body = {
+        "invitation_token": token,
+        "street_name": street,
+        "privacy_acknowledged": True,
+        "device_id": str(uuid.uuid4()),
+        "platform": "android",
+        "os_version": "15",
+        "app_version": "0.1.0",
+        "capabilities": {},
+    }
+    if house_number is not None:
+        body["house_number"] = house_number
+    body.update(overrides)
+    return body
+
+
+@dataclass
 class World:
     db: Database
     client: TestClient
@@ -274,8 +300,8 @@ class World:
         return self._actors[household.device_id]
 
     @property
-    def admin(self) -> Actor:
-        return self.actor(self.hood.admin)
+    def admin(self) -> Admin:
+        return Admin(self.client, self.hood.neighborhood_id)
 
     def all_heartbeat(self) -> None:
         for household in self.hood.households:

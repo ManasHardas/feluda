@@ -4,6 +4,8 @@
 environment on Fly.io (`infrastructure/deployment/fly.*.toml`), with Supabase for the database and
 sign-in.
 
+(See 0014: since 2026-11-23 Supabase is used for the database only; there is no sign-in.)
+
 **Why.** Alerts are time-critical, so a host that puts the process to sleep (and takes tens of
 seconds to wake) is a poor fit, and the in-process worker needs a live process for escalation and
 retries. A tiny always-on machine costs a few dollars a month; free tiers that sleep are cheaper

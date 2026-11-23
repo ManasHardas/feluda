@@ -9,10 +9,11 @@ behaves. Do not mark a scenario as passed unless a person ran it on a phone and 
 1. A phone with Android 8.0 or newer, a SIM with mobile data, and a home Wi-Fi network you control
    (you need to be able to unplug the router and to unplug only its internet uplink).
 2. Backend reachable from the phone over HTTPS (or, for a debug build on an emulator only,
-   `http://10.0.2.2:8000`). Build with `API_BASE_URL`, `AUTH_BASE_URL`, `AUTH_PUBLIC_KEY` set.
+   `http://10.0.2.2:8000`). Build with `API_BASE_URL` set. There is no sign-in: you need an invitation
+   link from the organizer (`apps/admin/nwadmin.py`), one per home, good for a limited number of phones.
 3. Install: `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
-4. Complete onboarding: consent, sign in with the email code, join (or already a member), allow or
-   decline notifications, confirm the home Wi-Fi.
+4. Complete onboarding: read the introduction, join with the invitation link (street required,
+   house number optional; see scenario 0), allow or decline notifications, confirm the home Wi-Fi.
 5. Keep a second view open for evidence:
    - in the app: **Transparency**, sections "Events waiting to be sent" and "Last 50 events sent"
      (tap an event to see the JSON);
@@ -22,6 +23,28 @@ behaves. Do not mark a scenario as passed unless a person ran it on a phone and 
 
 Timing to expect: a change is classified about 5 seconds after the first callback. Uploads follow
 within seconds when a network is available.
+
+## 0. Joining with an invitation link — MANUAL_TEST_REQUIRED
+
+- Link from the web page: open the invitation link (`https://<host>/join#t=<token>`) in the phone's
+  browser and use the page's button that opens the app (`feluda://join#t=<token>`). Do it once with
+  the app not running and once with the app already open on the join screen. Expect: the join
+  screen shows "Invitation for: <neighborhood>" without anything being pasted.
+  `adb shell am start -a android.intent.action.VIEW -d 'feluda://join#t=<token>'` does the same.
+- Pasted link: open the app from the launcher. Expect a single field for the invitation link. Paste
+  the whole link, then repeat on a fresh install with only the token. A malformed, expired, used-up
+  or withdrawn link shows an error and does not continue.
+- The form asks only for the street and the house number. Expect: no e-mail, code, password, label,
+  provider or checkbox anywhere in onboarding. "Join" with an empty street shows an error and sends
+  nothing. Join once with a house number and, on a second phone with the same link, without one.
+- A short privacy summary and a link to the full text are shown above "Join".
+- An address that already takes part through another link: the server's explanation is shown.
+- After joining: Settings shows the street (and house number if given) and the number of phones.
+- Removed phone: have the organizer remove this phone (or remove it from another phone of the
+  household in Settings). Expect: at the next request the app returns to the join screen and says
+  the phone is no longer part of the network; the queue viewer is empty after joining again with a
+  new link.
+- Reinstall: after reinstalling, the app starts at the introduction and needs a new link.
 
 ## 1. Wi-Fi disconnection — MANUAL_TEST_REQUIRED
 
@@ -171,13 +194,15 @@ cause an event, start the backend: the event arrives exactly once).
 Rate limit: have the backend answer `rate_limited` with `retry_after_seconds = 60`; confirm the app
 waits at least 60 seconds before the next attempt and keeps the event.
 
-## 14. Monitoring toggle, sign-out, leave — MANUAL_TEST_REQUIRED
+## 14. Monitoring toggle, leave — MANUAL_TEST_REQUIRED
 
 - Settings, switch monitoring off: one `MONITORING_DISABLED_BY_USER` with
   `connectivity_state = MONITORING_PAUSED`; no further events; the main screen never shows the phone
   as working normally while paused. Switch on: `MONITORING_RESUMED` with `user_initiated = true`, no gap event.
-- Leave neighborhood / delete account (each asks for confirmation): monitoring stops; after
-  reopening, the app starts at the welcome screen; the queue viewer is empty.
+- Leave neighborhood (asks for confirmation and says that what the phone reported is deleted):
+  monitoring stops; the app returns to the introduction; on the server the phone, its events and
+  its push token are gone; joining again needs an invitation link that still has a free place.
+  There is no sign-out and no "delete account": there is no account.
 
 ## 15. Push notifications — MANUAL_TEST_REQUIRED, EXTERNAL_CREDENTIAL_REQUIRED
 
