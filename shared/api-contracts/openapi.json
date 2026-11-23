@@ -1,0 +1,5557 @@
+{
+  "components": {
+    "schemas": {
+      "AdminAuditLogOut": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "actor_reference": {
+            "title": "Actor Reference",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "target_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Id"
+          },
+          "target_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Type"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "target_type",
+          "target_id",
+          "actor_reference",
+          "created_at",
+          "metadata"
+        ],
+        "title": "AdminAuditLogOut",
+        "type": "object"
+      },
+      "AdminConfigurationOut": {
+        "properties": {
+          "defaults": {
+            "additionalProperties": true,
+            "title": "Defaults",
+            "type": "object"
+          },
+          "values": {
+            "additionalProperties": true,
+            "title": "Values",
+            "type": "object"
+          }
+        },
+        "required": [
+          "values",
+          "defaults"
+        ],
+        "title": "AdminConfigurationOut",
+        "type": "object"
+      },
+      "AdminCreateHouseholdRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "house_number": {
+            "maxLength": 16,
+            "minLength": 1,
+            "title": "House Number",
+            "type": "string"
+          },
+          "isp": {
+            "$ref": "#/components/schemas/Isp",
+            "default": "unknown"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "maximum": 90.0,
+                "minimum": -90.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "maximum": 180.0,
+                "minimum": -180.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          },
+          "street_name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Street Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "house_number",
+          "street_name"
+        ],
+        "title": "AdminCreateHouseholdRequest",
+        "type": "object"
+      },
+      "AdminCreateInvitationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expires_in_hours": {
+            "default": 72,
+            "maximum": 720.0,
+            "minimum": 1.0,
+            "title": "Expires In Hours",
+            "type": "integer"
+          },
+          "household_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Bind the invitation to one household (needed to add a second resident).",
+            "title": "Household Id"
+          },
+          "role": {
+            "$ref": "#/components/schemas/MemberRole",
+            "default": "resident"
+          }
+        },
+        "title": "AdminCreateInvitationRequest",
+        "type": "object"
+      },
+      "AdminDeliveryFailureOut": {
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "delivery_id": {
+            "format": "uuid",
+            "title": "Delivery Id",
+            "type": "string"
+          },
+          "incident_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incident Id"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/PushProvider"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DeliveryStatus"
+          }
+        },
+        "required": [
+          "delivery_id",
+          "incident_id",
+          "provider",
+          "status",
+          "attempts",
+          "last_error",
+          "created_at"
+        ],
+        "title": "AdminDeliveryFailureOut",
+        "type": "object"
+      },
+      "AdminHouseholdActionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "household_id": {
+            "format": "uuid",
+            "title": "Household Id",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "household_id"
+        ],
+        "title": "AdminHouseholdActionRequest",
+        "type": "object"
+      },
+      "AdminHouseholdOut": {
+        "properties": {
+          "anonymous_reference": {
+            "title": "Anonymous Reference",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "device_count": {
+            "title": "Device Count",
+            "type": "integer"
+          },
+          "has_location": {
+            "title": "Has Location",
+            "type": "boolean"
+          },
+          "house_number": {
+            "title": "House Number",
+            "type": "string"
+          },
+          "household_id": {
+            "format": "uuid",
+            "title": "Household Id",
+            "type": "string"
+          },
+          "isp": {
+            "$ref": "#/components/schemas/Isp"
+          },
+          "member_count": {
+            "title": "Member Count",
+            "type": "integer"
+          },
+          "membership_status": {
+            "$ref": "#/components/schemas/HouseholdStatus"
+          },
+          "street_name": {
+            "title": "Street Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "household_id",
+          "anonymous_reference",
+          "house_number",
+          "street_name",
+          "isp",
+          "membership_status",
+          "member_count",
+          "device_count",
+          "has_location",
+          "created_at"
+        ],
+        "title": "AdminHouseholdOut",
+        "type": "object"
+      },
+      "AdminInvitationCreatedOut": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "invitation_id": {
+            "format": "uuid",
+            "title": "Invitation Id",
+            "type": "string"
+          },
+          "invitation_url": {
+            "description": "Shown once. Only a hash of the token is stored.",
+            "title": "Invitation Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitation_id",
+          "invitation_url",
+          "expires_at"
+        ],
+        "title": "AdminInvitationCreatedOut",
+        "type": "object"
+      },
+      "AdminInvitationOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "household_bound": {
+            "title": "Household Bound",
+            "type": "boolean"
+          },
+          "invitation_id": {
+            "format": "uuid",
+            "title": "Invitation Id",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/MemberRole"
+          },
+          "status": {
+            "$ref": "#/components/schemas/InvitationStatus"
+          },
+          "used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Used At"
+          }
+        },
+        "required": [
+          "invitation_id",
+          "status",
+          "household_bound",
+          "role",
+          "expires_at",
+          "used_at",
+          "created_at"
+        ],
+        "title": "AdminInvitationOut",
+        "type": "object"
+      },
+      "AdminNeighborhoodSummaryOut": {
+        "properties": {
+          "devices_by_platform": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Devices By Platform",
+            "type": "object"
+          },
+          "households_by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Households By Status",
+            "type": "object"
+          },
+          "incidents_last_30_days": {
+            "title": "Incidents Last 30 Days",
+            "type": "integer"
+          },
+          "monitoring_by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Monitoring By Status",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "neighborhood_id": {
+            "format": "uuid",
+            "title": "Neighborhood Id",
+            "type": "string"
+          },
+          "notification_failures_last_7_days": {
+            "title": "Notification Failures Last 7 Days",
+            "type": "integer"
+          },
+          "open_incidents": {
+            "title": "Open Incidents",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "neighborhood_id",
+          "name",
+          "status",
+          "households_by_status",
+          "monitoring_by_status",
+          "devices_by_platform",
+          "open_incidents",
+          "incidents_last_30_days",
+          "notification_failures_last_7_days"
+        ],
+        "title": "AdminNeighborhoodSummaryOut",
+        "type": "object"
+      },
+      "AdminRevokeDeviceRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "device_id"
+        ],
+        "title": "AdminRevokeDeviceRequest",
+        "type": "object"
+      },
+      "AdminRevokeInvitationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "invitation_id": {
+            "format": "uuid",
+            "title": "Invitation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitation_id"
+        ],
+        "title": "AdminRevokeInvitationRequest",
+        "type": "object"
+      },
+      "AdminUpdateConfigurationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "values": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "title": "Values",
+            "type": "object"
+          }
+        },
+        "required": [
+          "values"
+        ],
+        "title": "AdminUpdateConfigurationRequest",
+        "type": "object"
+      },
+      "AlertLevel": {
+        "enum": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "title": "AlertLevel",
+        "type": "integer"
+      },
+      "ApnsEnvironment": {
+        "enum": [
+          "sandbox",
+          "production"
+        ],
+        "title": "ApnsEnvironment",
+        "type": "string"
+      },
+      "BackgroundMonitoring": {
+        "description": "What the platform lets this app do while it is not in the foreground.",
+        "enum": [
+          "callback",
+          "opportunistic",
+          "foreground_only"
+        ],
+        "title": "BackgroundMonitoring",
+        "type": "string"
+      },
+      "BandEvidence": {
+        "enum": [
+          "BAND_2_4_OBSERVED",
+          "BAND_5_OBSERVED",
+          "BAND_6_OBSERVED",
+          "BAND_UNKNOWN",
+          "MULTI_BAND_FAILURE_NOT_VERIFIED"
+        ],
+        "title": "BandEvidence",
+        "type": "string"
+      },
+      "Classification": {
+        "enum": [
+          "NORMAL",
+          "HOUSEHOLD_CONNECTIVITY_ISSUE",
+          "POSSIBLE_ISP_OUTAGE",
+          "POSSIBLE_ROUTER_OR_POWER_FAILURE",
+          "POSSIBLE_WIRELESS_INTERFERENCE",
+          "CORRELATED_NEIGHBORHOOD_DISRUPTION",
+          "HIGH_PRIORITY_SUSPICIOUS_DISRUPTION"
+        ],
+        "title": "Classification",
+        "type": "string"
+      },
+      "ConnectivityEventIn": {
+        "additionalProperties": false,
+        "properties": {
+          "app_version": {
+            "maxLength": 32,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9._ ()+-]+$",
+            "title": "App Version",
+            "type": "string"
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/ObservationConfidence",
+            "default": "OBSERVED"
+          },
+          "connectivity_state": {
+            "$ref": "#/components/schemas/ConnectivityState"
+          },
+          "diagnostics": {
+            "$ref": "#/components/schemas/Diagnostics"
+          },
+          "event_id": {
+            "description": "Stable UUID generated once on the device; the idempotency key.",
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "event_type": {
+            "$ref": "#/components/schemas/EventType"
+          },
+          "occurred_at": {
+            "description": "When the event happened on the device, in UTC.",
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "os_version": {
+            "maxLength": 32,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9._ ()+-]+$",
+            "title": "Os Version",
+            "type": "string"
+          },
+          "sequence": {
+            "description": "Per-device counter, increasing.",
+            "maximum": 9007199254740992.0,
+            "minimum": 0.0,
+            "title": "Sequence",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "event_id",
+          "sequence",
+          "event_type",
+          "connectivity_state",
+          "occurred_at",
+          "os_version",
+          "app_version"
+        ],
+        "title": "ConnectivityEventIn",
+        "type": "object"
+      },
+      "ConnectivityState": {
+        "enum": [
+          "HEALTHY",
+          "WIFI_DISCONNECTED",
+          "WIFI_CONNECTED_NO_INTERNET",
+          "INTERNET_UNAVAILABLE",
+          "CELLULAR_AVAILABLE",
+          "CELLULAR_UNAVAILABLE",
+          "NETWORK_TRANSITION",
+          "MONITORING_PAUSED",
+          "MONITORING_PERMISSION_REQUIRED",
+          "UNKNOWN"
+        ],
+        "title": "ConnectivityState",
+        "type": "string"
+      },
+      "ConnectivityStatusOut": {
+        "properties": {
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceMonitoringOut"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
+          "highest_alert_level": {
+            "$ref": "#/components/schemas/AlertLevel"
+          },
+          "household_monitoring_status": {
+            "$ref": "#/components/schemas/MonitoringStatus"
+          },
+          "open_incident_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Open Incident Ids",
+            "type": "array"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          },
+          "status_color": {
+            "$ref": "#/components/schemas/StatusColor"
+          },
+          "status_explanation": {
+            "title": "Status Explanation",
+            "type": "string"
+          }
+        },
+        "required": [
+          "household_monitoring_status",
+          "status_color",
+          "status_explanation",
+          "highest_alert_level",
+          "open_incident_ids",
+          "devices",
+          "server_time"
+        ],
+        "title": "ConnectivityStatusOut",
+        "type": "object"
+      },
+      "DeliveryStatus": {
+        "enum": [
+          "pending",
+          "sent",
+          "failed",
+          "expired",
+          "skipped_quiet_hours",
+          "skipped_preference",
+          "skipped_not_configured"
+        ],
+        "title": "DeliveryStatus",
+        "type": "string"
+      },
+      "DeviceCapabilities": {
+        "additionalProperties": false,
+        "properties": {
+          "background_monitoring": {
+            "$ref": "#/components/schemas/BackgroundMonitoring",
+            "default": "foreground_only"
+          },
+          "can_detect_band": {
+            "default": false,
+            "title": "Can Detect Band",
+            "type": "boolean"
+          },
+          "can_detect_power_source": {
+            "default": false,
+            "title": "Can Detect Power Source",
+            "type": "boolean"
+          },
+          "can_detect_wifi_radio_state": {
+            "default": false,
+            "title": "Can Detect Wifi Radio State",
+            "type": "boolean"
+          },
+          "can_identify_home_network": {
+            "default": false,
+            "title": "Can Identify Home Network",
+            "type": "boolean"
+          },
+          "can_measure_rssi": {
+            "default": false,
+            "title": "Can Measure Rssi",
+            "type": "boolean"
+          },
+          "can_probe_gateway": {
+            "default": false,
+            "title": "Can Probe Gateway",
+            "type": "boolean"
+          },
+          "can_route_over_cellular": {
+            "default": false,
+            "title": "Can Route Over Cellular",
+            "type": "boolean"
+          }
+        },
+        "title": "DeviceCapabilities",
+        "type": "object"
+      },
+      "DeviceMonitoringOut": {
+        "properties": {
+          "connectivity_state": {
+            "$ref": "#/components/schemas/ConnectivityState"
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "last_event_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Event At"
+          },
+          "last_received_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Received At"
+          },
+          "monitoring_status": {
+            "$ref": "#/components/schemas/MonitoringStatus"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/Platform"
+          }
+        },
+        "required": [
+          "device_id",
+          "platform",
+          "monitoring_status",
+          "connectivity_state",
+          "last_event_at",
+          "last_received_at"
+        ],
+        "title": "DeviceMonitoringOut",
+        "type": "object"
+      },
+      "DeviceOut": {
+        "properties": {
+          "app_version": {
+            "title": "App Version",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "monitoring_enabled": {
+            "title": "Monitoring Enabled",
+            "type": "boolean"
+          },
+          "os_version": {
+            "title": "Os Version",
+            "type": "string"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/Platform"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DeviceStatus"
+          }
+        },
+        "required": [
+          "device_id",
+          "platform",
+          "os_version",
+          "app_version",
+          "status",
+          "monitoring_enabled",
+          "last_seen_at",
+          "created_at"
+        ],
+        "title": "DeviceOut",
+        "type": "object"
+      },
+      "DeviceStatus": {
+        "enum": [
+          "active",
+          "revoked"
+        ],
+        "title": "DeviceStatus",
+        "type": "string"
+      },
+      "Diagnostics": {
+        "additionalProperties": false,
+        "description": "Measurements available at the time of the event. A field is null when it was not measured.\n\nDevices must never fill a field with a guess. Unknown is always null.",
+        "properties": {
+          "airplane_mode": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Airplane Mode"
+          },
+          "band_evidence": {
+            "$ref": "#/components/schemas/BandEvidence",
+            "default": "BAND_UNKNOWN"
+          },
+          "battery_saver": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Saver"
+          },
+          "cellular_available": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cellular Available"
+          },
+          "default_transport": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Transport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "external_power_lost_recently": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The phone was charging and lost external power within seconds of the event.",
+            "title": "External Power Lost Recently"
+          },
+          "gap_ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gap Ended At"
+          },
+          "gap_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GapReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gap_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gap Started At"
+          },
+          "home_network_match": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "True when the Wi-Fi network involved matched the home-network fingerprint kept on the device. The fingerprint itself never leaves the device.",
+            "title": "Home Network Match"
+          },
+          "internet_reachable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Result of an active reachability probe.",
+            "title": "Internet Reachable"
+          },
+          "last_wifi_rssi_dbm": {
+            "anyOf": [
+              {
+                "maximum": 0.0,
+                "minimum": -127.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Wifi Rssi Dbm"
+          },
+          "local_gateway_reachable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Local Gateway Reachable"
+          },
+          "network_changed_recently": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Network Changed Recently"
+          },
+          "user_initiated": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "True when the change followed an explicit user action.",
+            "title": "User Initiated"
+          },
+          "vpn_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vpn Active"
+          },
+          "wifi_associated": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wifi Associated"
+          },
+          "wifi_radio_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "False when the user switched Wi-Fi off.",
+            "title": "Wifi Radio Enabled"
+          },
+          "wifi_validated": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Internet works over the Wi-Fi network: reported by the OS on Android, measured by the app's own Wi-Fi-only probe on iOS.",
+            "title": "Wifi Validated"
+          }
+        },
+        "title": "Diagnostics",
+        "type": "object"
+      },
+      "ErrorBody": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorBody",
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "EventOutcome": {
+        "properties": {
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "result": {
+            "$ref": "#/components/schemas/EventResult"
+          }
+        },
+        "required": [
+          "event_id",
+          "result"
+        ],
+        "title": "EventOutcome",
+        "type": "object"
+      },
+      "EventResult": {
+        "enum": [
+          "accepted",
+          "duplicate",
+          "rejected"
+        ],
+        "title": "EventResult",
+        "type": "string"
+      },
+      "EventType": {
+        "enum": [
+          "WIFI_LOST",
+          "WIFI_RESTORED",
+          "DEFAULT_NETWORK_CHANGED",
+          "CELLULAR_AVAILABLE",
+          "CELLULAR_UNAVAILABLE",
+          "INTERNET_REACHABILITY_CHANGED",
+          "SIGNAL_STRENGTH_CHANGED",
+          "WIFI_ASSOCIATION_CHANGED",
+          "MONITORING_STARTED",
+          "MONITORING_RESUMED",
+          "MONITORING_STOPPED",
+          "MONITORING_DISABLED_BY_USER",
+          "MONITORING_GAP_DETECTED",
+          "PERMISSION_CHANGED",
+          "HEARTBEAT"
+        ],
+        "title": "EventType",
+        "type": "string"
+      },
+      "FailureMode": {
+        "enum": [
+          "wifi_lost",
+          "no_internet",
+          "all_connectivity_lost"
+        ],
+        "title": "FailureMode",
+        "type": "string"
+      },
+      "GapReason": {
+        "enum": [
+          "app_suspended",
+          "process_terminated",
+          "device_reboot",
+          "permission_revoked",
+          "background_restricted",
+          "unknown"
+        ],
+        "title": "GapReason",
+        "type": "string"
+      },
+      "HealthOut": {
+        "properties": {
+          "api": {
+            "title": "Api",
+            "type": "string"
+          },
+          "database": {
+            "title": "Database",
+            "type": "string"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "api",
+          "database",
+          "version",
+          "server_time"
+        ],
+        "title": "HealthOut",
+        "type": "object"
+      },
+      "HouseholdOut": {
+        "properties": {
+          "anonymous_reference": {
+            "description": "Label other residents may see; contains no address.",
+            "title": "Anonymous Reference",
+            "type": "string"
+          },
+          "device_count": {
+            "title": "Device Count",
+            "type": "integer"
+          },
+          "display_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Label"
+          },
+          "house_number": {
+            "title": "House Number",
+            "type": "string"
+          },
+          "household_id": {
+            "format": "uuid",
+            "title": "Household Id",
+            "type": "string"
+          },
+          "isp": {
+            "$ref": "#/components/schemas/Isp"
+          },
+          "member_count": {
+            "title": "Member Count",
+            "type": "integer"
+          },
+          "membership_status": {
+            "$ref": "#/components/schemas/HouseholdStatus"
+          },
+          "neighborhood_id": {
+            "format": "uuid",
+            "title": "Neighborhood Id",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/MemberRole"
+          },
+          "street_name": {
+            "title": "Street Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "household_id",
+          "neighborhood_id",
+          "anonymous_reference",
+          "display_label",
+          "house_number",
+          "street_name",
+          "isp",
+          "membership_status",
+          "role",
+          "member_count",
+          "device_count"
+        ],
+        "title": "HouseholdOut",
+        "type": "object"
+      },
+      "HouseholdStatus": {
+        "enum": [
+          "approved",
+          "active",
+          "suspended",
+          "removed"
+        ],
+        "title": "HouseholdStatus",
+        "type": "string"
+      },
+      "IncidentDetailOut": {
+        "properties": {
+          "active_household_count": {
+            "title": "Active Household Count",
+            "type": "integer"
+          },
+          "affected_household_count": {
+            "title": "Affected Household Count",
+            "type": "integer"
+          },
+          "alert_level": {
+            "$ref": "#/components/schemas/AlertLevel"
+          },
+          "approximate_scope": {
+            "description": "Approximate geographic extent in words; never an address.",
+            "title": "Approximate Scope",
+            "type": "string"
+          },
+          "classification": {
+            "$ref": "#/components/schemas/Classification"
+          },
+          "correlation_window_s": {
+            "title": "Correlation Window S",
+            "type": "integer"
+          },
+          "delayed_report_count": {
+            "title": "Delayed Report Count",
+            "type": "integer"
+          },
+          "explanation": {
+            "title": "Explanation",
+            "type": "string"
+          },
+          "failure_modes": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/FailureMode"
+            },
+            "title": "Failure Modes",
+            "type": "object"
+          },
+          "incident_id": {
+            "format": "uuid",
+            "title": "Incident Id",
+            "type": "string"
+          },
+          "isp_diversity": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Affected household count per known provider.",
+            "title": "Isp Diversity",
+            "type": "object"
+          },
+          "last_event_at": {
+            "format": "date-time",
+            "title": "Last Event At",
+            "type": "string"
+          },
+          "missing_evidence": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Evidence",
+            "type": "array"
+          },
+          "my_household_affected": {
+            "title": "My Household Affected",
+            "type": "boolean"
+          },
+          "recommended_actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recommended Actions",
+            "type": "array"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/IncidentScope"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "score_breakdown": {
+            "items": {
+              "$ref": "#/components/schemas/ScoreComponent"
+            },
+            "title": "Score Breakdown",
+            "type": "array"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IncidentStatus"
+          },
+          "status_color": {
+            "$ref": "#/components/schemas/StatusColor"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "supporting_evidence": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Supporting Evidence",
+            "type": "array"
+          },
+          "time_spread_s": {
+            "title": "Time Spread S",
+            "type": "number"
+          }
+        },
+        "required": [
+          "incident_id",
+          "scope",
+          "classification",
+          "alert_level",
+          "status",
+          "status_color",
+          "started_at",
+          "last_event_at",
+          "resolved_at",
+          "affected_household_count",
+          "active_household_count",
+          "approximate_scope",
+          "correlation_window_s",
+          "time_spread_s",
+          "isp_diversity",
+          "my_household_affected",
+          "summary",
+          "score",
+          "score_breakdown",
+          "explanation",
+          "supporting_evidence",
+          "missing_evidence",
+          "recommended_actions",
+          "delayed_report_count",
+          "failure_modes"
+        ],
+        "title": "IncidentDetailOut",
+        "type": "object"
+      },
+      "IncidentListOut": {
+        "properties": {
+          "incidents": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentOut"
+            },
+            "title": "Incidents",
+            "type": "array"
+          }
+        },
+        "required": [
+          "incidents"
+        ],
+        "title": "IncidentListOut",
+        "type": "object"
+      },
+      "IncidentOut": {
+        "properties": {
+          "active_household_count": {
+            "title": "Active Household Count",
+            "type": "integer"
+          },
+          "affected_household_count": {
+            "title": "Affected Household Count",
+            "type": "integer"
+          },
+          "alert_level": {
+            "$ref": "#/components/schemas/AlertLevel"
+          },
+          "approximate_scope": {
+            "description": "Approximate geographic extent in words; never an address.",
+            "title": "Approximate Scope",
+            "type": "string"
+          },
+          "classification": {
+            "$ref": "#/components/schemas/Classification"
+          },
+          "correlation_window_s": {
+            "title": "Correlation Window S",
+            "type": "integer"
+          },
+          "incident_id": {
+            "format": "uuid",
+            "title": "Incident Id",
+            "type": "string"
+          },
+          "isp_diversity": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Affected household count per known provider.",
+            "title": "Isp Diversity",
+            "type": "object"
+          },
+          "last_event_at": {
+            "format": "date-time",
+            "title": "Last Event At",
+            "type": "string"
+          },
+          "my_household_affected": {
+            "title": "My Household Affected",
+            "type": "boolean"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/IncidentScope"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IncidentStatus"
+          },
+          "status_color": {
+            "$ref": "#/components/schemas/StatusColor"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "time_spread_s": {
+            "title": "Time Spread S",
+            "type": "number"
+          }
+        },
+        "required": [
+          "incident_id",
+          "scope",
+          "classification",
+          "alert_level",
+          "status",
+          "status_color",
+          "started_at",
+          "last_event_at",
+          "resolved_at",
+          "affected_household_count",
+          "active_household_count",
+          "approximate_scope",
+          "correlation_window_s",
+          "time_spread_s",
+          "isp_diversity",
+          "my_household_affected",
+          "summary"
+        ],
+        "title": "IncidentOut",
+        "type": "object"
+      },
+      "IncidentScope": {
+        "enum": [
+          "household",
+          "neighborhood"
+        ],
+        "title": "IncidentScope",
+        "type": "string"
+      },
+      "IncidentStatus": {
+        "enum": [
+          "open",
+          "resolved",
+          "expired",
+          "merged"
+        ],
+        "title": "IncidentStatus",
+        "type": "string"
+      },
+      "InvitationStatus": {
+        "enum": [
+          "active",
+          "used",
+          "revoked"
+        ],
+        "title": "InvitationStatus",
+        "type": "string"
+      },
+      "Isp": {
+        "enum": [
+          "att",
+          "xfinity",
+          "spectrum",
+          "verizon",
+          "tmobile_home",
+          "google_fiber",
+          "other",
+          "unknown"
+        ],
+        "title": "Isp",
+        "type": "string"
+      },
+      "JoinHouseholdRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "display_label": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Label"
+          },
+          "house_number": {
+            "maxLength": 16,
+            "minLength": 1,
+            "title": "House Number",
+            "type": "string"
+          },
+          "invitation_token": {
+            "maxLength": 128,
+            "minLength": 20,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Invitation Token",
+            "type": "string"
+          },
+          "isp": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Isp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "privacy_acknowledged": {
+            "title": "Privacy Acknowledged",
+            "type": "boolean"
+          },
+          "street_name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Street Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitation_token",
+          "house_number",
+          "street_name",
+          "privacy_acknowledged"
+        ],
+        "title": "JoinHouseholdRequest",
+        "type": "object"
+      },
+      "MemberRole": {
+        "enum": [
+          "resident",
+          "admin"
+        ],
+        "title": "MemberRole",
+        "type": "string"
+      },
+      "MonitoringStatus": {
+        "enum": [
+          "CONFIRMED_ACTIVE",
+          "KNOWN_GAP",
+          "PAUSED",
+          "NO_RECENT_TELEMETRY",
+          "FAILURE_REPORTED",
+          "NEVER_REPORTED"
+        ],
+        "title": "MonitoringStatus",
+        "type": "string"
+      },
+      "NeighborhoodOut": {
+        "properties": {
+          "confirmed_active_households": {
+            "description": "Households with telemetry inside the active window. Others are unknown, not safe.",
+            "title": "Confirmed Active Households",
+            "type": "integer"
+          },
+          "correlation_radius_m": {
+            "title": "Correlation Radius M",
+            "type": "integer"
+          },
+          "correlation_window_s": {
+            "title": "Correlation Window S",
+            "type": "integer"
+          },
+          "highest_alert_level": {
+            "$ref": "#/components/schemas/AlertLevel"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "neighborhood_id": {
+            "format": "uuid",
+            "title": "Neighborhood Id",
+            "type": "string"
+          },
+          "open_incident_count": {
+            "title": "Open Incident Count",
+            "type": "integer"
+          },
+          "participating_households": {
+            "title": "Participating Households",
+            "type": "integer"
+          },
+          "status_color": {
+            "$ref": "#/components/schemas/StatusColor"
+          },
+          "status_explanation": {
+            "title": "Status Explanation",
+            "type": "string"
+          }
+        },
+        "required": [
+          "neighborhood_id",
+          "name",
+          "participating_households",
+          "confirmed_active_households",
+          "open_incident_count",
+          "highest_alert_level",
+          "status_color",
+          "status_explanation",
+          "correlation_radius_m",
+          "correlation_window_s"
+        ],
+        "title": "NeighborhoodOut",
+        "type": "object"
+      },
+      "NotificationPreferences": {
+        "additionalProperties": false,
+        "properties": {
+          "household_alerts": {
+            "default": true,
+            "title": "Household Alerts",
+            "type": "boolean"
+          },
+          "neighborhood_alerts": {
+            "default": true,
+            "title": "Neighborhood Alerts",
+            "type": "boolean"
+          },
+          "quiet_hours_enabled": {
+            "default": false,
+            "title": "Quiet Hours Enabled",
+            "type": "boolean"
+          },
+          "quiet_hours_end": {
+            "default": "07:00:00",
+            "format": "time",
+            "title": "Quiet Hours End",
+            "type": "string"
+          },
+          "quiet_hours_start": {
+            "default": "22:00:00",
+            "format": "time",
+            "title": "Quiet Hours Start",
+            "type": "string"
+          },
+          "timezone": {
+            "default": "UTC",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "title": "NotificationPreferences",
+        "type": "object"
+      },
+      "ObservationConfidence": {
+        "description": "How the device learned about the event.\n\nOBSERVED: seen live through an operating-system callback; the timestamp is the callback time.\nRECONCILED: derived after a monitoring gap by comparing state before and after; the true time\nof the change is unknown and lies somewhere inside the gap.",
+        "enum": [
+          "OBSERVED",
+          "RECONCILED"
+        ],
+        "title": "ObservationConfidence",
+        "type": "string"
+      },
+      "OkResponse": {
+        "properties": {
+          "ok": {
+            "default": true,
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "title": "OkResponse",
+        "type": "object"
+      },
+      "Platform": {
+        "enum": [
+          "android",
+          "ios"
+        ],
+        "title": "Platform",
+        "type": "string"
+      },
+      "PushProvider": {
+        "enum": [
+          "fcm",
+          "apns"
+        ],
+        "title": "PushProvider",
+        "type": "string"
+      },
+      "RegisterDeviceRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "app_version": {
+            "maxLength": 32,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9._ ()+-]+$",
+            "title": "App Version",
+            "type": "string"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/DeviceCapabilities"
+          },
+          "device_id": {
+            "description": "Random UUID generated by the app at install time. Not a hardware identifier.",
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "os_version": {
+            "maxLength": 32,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9._ ()+-]+$",
+            "title": "Os Version",
+            "type": "string"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/Platform"
+          }
+        },
+        "required": [
+          "device_id",
+          "platform",
+          "os_version",
+          "app_version",
+          "capabilities"
+        ],
+        "title": "RegisterDeviceRequest",
+        "type": "object"
+      },
+      "RegisterPushTokenRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "apns_environment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApnsEnvironment"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/PushProvider"
+          },
+          "token": {
+            "maxLength": 4096,
+            "minLength": 16,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id",
+          "provider",
+          "token"
+        ],
+        "title": "RegisterPushTokenRequest",
+        "type": "object"
+      },
+      "RegisterRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "display_label": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Label"
+          },
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "house_number": {
+            "maxLength": 16,
+            "minLength": 1,
+            "title": "House Number",
+            "type": "string"
+          },
+          "invitation_token": {
+            "maxLength": 128,
+            "minLength": 20,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Invitation Token",
+            "type": "string"
+          },
+          "isp": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Isp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "privacy_acknowledged": {
+            "description": "Must be true: the resident read the privacy summary.",
+            "title": "Privacy Acknowledged",
+            "type": "boolean"
+          },
+          "street_name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Street Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitation_token",
+          "email",
+          "house_number",
+          "street_name",
+          "privacy_acknowledged"
+        ],
+        "title": "RegisterRequest",
+        "type": "object"
+      },
+      "RegisterResponse": {
+        "properties": {
+          "android_install_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Android Install Url"
+          },
+          "ios_install_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ios Install Url"
+          },
+          "next_step": {
+            "default": "sign_in_with_email_code",
+            "title": "Next Step",
+            "type": "string"
+          },
+          "status": {
+            "default": "registered",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "RegisterResponse",
+        "type": "object"
+      },
+      "RevokeDeviceRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id"
+        ],
+        "title": "RevokeDeviceRequest",
+        "type": "object"
+      },
+      "ScoreComponent": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "indicator": {
+            "title": "Indicator",
+            "type": "string"
+          },
+          "max_points": {
+            "title": "Max Points",
+            "type": "number"
+          },
+          "points": {
+            "title": "Points",
+            "type": "number"
+          }
+        },
+        "required": [
+          "indicator",
+          "points",
+          "max_points",
+          "detail"
+        ],
+        "title": "ScoreComponent",
+        "type": "object"
+      },
+      "StatusColor": {
+        "enum": [
+          "GREEN",
+          "YELLOW",
+          "ORANGE",
+          "RED",
+          "GREY"
+        ],
+        "title": "StatusColor",
+        "type": "string"
+      },
+      "SubmitEventsRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectivityEventIn"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Events",
+            "type": "array"
+          },
+          "reported_via": {
+            "$ref": "#/components/schemas/Transport",
+            "description": "Network the device used for this upload, as far as it knows."
+          },
+          "sent_at": {
+            "format": "date-time",
+            "title": "Sent At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id",
+          "reported_via",
+          "sent_at",
+          "events"
+        ],
+        "title": "SubmitEventsRequest",
+        "type": "object"
+      },
+      "SubmitEventsResponse": {
+        "properties": {
+          "outcomes": {
+            "items": {
+              "$ref": "#/components/schemas/EventOutcome"
+            },
+            "title": "Outcomes",
+            "type": "array"
+          },
+          "retry_after_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when events were rejected by a rate limit.",
+            "title": "Retry After Seconds"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "server_time",
+          "outcomes"
+        ],
+        "title": "SubmitEventsResponse",
+        "type": "object"
+      },
+      "Transport": {
+        "enum": [
+          "wifi",
+          "cellular",
+          "ethernet",
+          "vpn",
+          "other",
+          "none",
+          "unknown"
+        ],
+        "title": "Transport",
+        "type": "string"
+      },
+      "UpdateHouseholdRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "display_label": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Label"
+          },
+          "isp": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Isp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "UpdateHouseholdRequest",
+        "type": "object"
+      },
+      "VerifyInvitationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "invitation_token": {
+            "maxLength": 128,
+            "minLength": 20,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Invitation Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitation_token"
+        ],
+        "title": "VerifyInvitationRequest",
+        "type": "object"
+      },
+      "VerifyInvitationResponse": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "household_bound": {
+            "description": "True when the invitation was issued for one specific household.",
+            "title": "Household Bound",
+            "type": "boolean"
+          },
+          "neighborhood_name": {
+            "title": "Neighborhood Name",
+            "type": "string"
+          },
+          "valid": {
+            "default": true,
+            "title": "Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "neighborhood_name",
+          "expires_at",
+          "household_bound"
+        ],
+        "title": "VerifyInvitationResponse",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "description": "Access token from the identity provider",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "\nPrivate, invitation-only API for the Neighborhood Watchdog apps.\n\nThis is a wireless **anomaly** detection system, not a certified jammer detector. Classifications are\noperational inferences from connectivity reports and are never proof of deliberate interference.\n",
+    "title": "Neighborhood Watchdog API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/account": {
+      "delete": {
+        "operationId": "delete_account_api_v1_account_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Account",
+        "tags": [
+          "household"
+        ]
+      }
+    },
+    "/api/v1/admin/audit-logs": {
+      "get": {
+        "operationId": "audit_logs_api_v1_admin_audit_logs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdminAuditLogOut"
+                  },
+                  "title": "Response Audit Logs Api V1 Admin Audit Logs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Audit Logs",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/configuration": {
+      "get": {
+        "operationId": "get_configuration_api_v1_admin_configuration_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminConfigurationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Configuration",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "update_configuration_api_v1_admin_configuration_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUpdateConfigurationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminConfigurationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Configuration",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/devices/revoke": {
+      "post": {
+        "operationId": "revoke_device_api_v1_admin_devices_revoke_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminRevokeDeviceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Revoke Device",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/households": {
+      "get": {
+        "operationId": "list_households_api_v1_admin_households_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdminHouseholdOut"
+                  },
+                  "title": "Response List Households Api V1 Admin Households Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Households",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "create_household_api_v1_admin_households_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCreateHouseholdRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminHouseholdOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Household",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/households/reinstate": {
+      "post": {
+        "operationId": "reinstate_household_api_v1_admin_households_reinstate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminHouseholdActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reinstate Household",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/households/remove": {
+      "post": {
+        "operationId": "remove_household_api_v1_admin_households_remove_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminHouseholdActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Remove Household",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/households/suspend": {
+      "post": {
+        "operationId": "suspend_household_api_v1_admin_households_suspend_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminHouseholdActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Suspend Household",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/incidents": {
+      "get": {
+        "operationId": "incident_history_api_v1_admin_incidents_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Incident History",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/incidents/export": {
+      "get": {
+        "operationId": "export_incidents_api_v1_admin_incidents_export_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Export Incidents Api V1 Admin Incidents Export Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Export Incidents",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/invitations": {
+      "get": {
+        "operationId": "list_invitations_api_v1_admin_invitations_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdminInvitationOut"
+                  },
+                  "title": "Response List Invitations Api V1 Admin Invitations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Invitations",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "create_invitation_api_v1_admin_invitations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCreateInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInvitationCreatedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Invitation",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/invitations/revoke": {
+      "post": {
+        "operationId": "revoke_invitation_api_v1_admin_invitations_revoke_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminRevokeInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Revoke Invitation",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/neighborhood/summary": {
+      "get": {
+        "operationId": "neighborhood_summary_api_v1_admin_neighborhood_summary_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminNeighborhoodSummaryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Neighborhood Summary",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/notifications/failures": {
+      "get": {
+        "operationId": "notification_failures_api_v1_admin_notifications_failures_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdminDeliveryFailureOut"
+                  },
+                  "title": "Response Notification Failures Api V1 Admin Notifications Failures Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Notification Failures",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "operationId": "register_api_v1_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "summary": "Register",
+        "tags": [
+          "onboarding"
+        ]
+      }
+    },
+    "/api/v1/auth/verify-invitation": {
+      "post": {
+        "operationId": "verify_invitation_api_v1_auth_verify_invitation_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyInvitationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "summary": "Verify Invitation",
+        "tags": [
+          "onboarding"
+        ]
+      }
+    },
+    "/api/v1/connectivity/events": {
+      "post": {
+        "operationId": "submit_events_api_v1_connectivity_events_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitEventsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmitEventsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Submit Events",
+        "tags": [
+          "connectivity"
+        ]
+      }
+    },
+    "/api/v1/connectivity/status": {
+      "get": {
+        "operationId": "connectivity_status_api_v1_connectivity_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectivityStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Connectivity Status",
+        "tags": [
+          "connectivity"
+        ]
+      }
+    },
+    "/api/v1/devices": {
+      "get": {
+        "operationId": "list_devices_api_v1_devices_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceOut"
+                  },
+                  "title": "Response List Devices Api V1 Devices Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Devices",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/api/v1/devices/register": {
+      "post": {
+        "operationId": "register_device_api_v1_devices_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDeviceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Register Device",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/api/v1/devices/revoke": {
+      "post": {
+        "operationId": "revoke_device_api_v1_devices_revoke_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeDeviceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Revoke Device",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/api/v1/households/join": {
+      "post": {
+        "operationId": "join_household_api_v1_households_join_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinHouseholdRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Join Household",
+        "tags": [
+          "household"
+        ]
+      }
+    },
+    "/api/v1/households/leave": {
+      "post": {
+        "operationId": "leave_neighborhood_api_v1_households_leave_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Leave Neighborhood",
+        "tags": [
+          "household"
+        ]
+      }
+    },
+    "/api/v1/households/me": {
+      "get": {
+        "operationId": "my_household_api_v1_households_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "My Household",
+        "tags": [
+          "household"
+        ]
+      },
+      "patch": {
+        "operationId": "update_my_household_api_v1_households_me_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateHouseholdRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update My Household",
+        "tags": [
+          "household"
+        ]
+      }
+    },
+    "/api/v1/incidents": {
+      "get": {
+        "operationId": "list_incidents_api_v1_incidents_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "open",
+              "enum": [
+                "open",
+                "all"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Incidents",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/api/v1/incidents/{incident_id}": {
+      "get": {
+        "operationId": "get_incident_api_v1_incidents__incident_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Incident",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/api/v1/monitoring/health": {
+      "get": {
+        "operationId": "health_api_v1_monitoring_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "monitoring"
+        ]
+      }
+    },
+    "/api/v1/neighborhoods/me": {
+      "get": {
+        "operationId": "my_neighborhood_api_v1_neighborhoods_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NeighborhoodOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "My Neighborhood",
+        "tags": [
+          "neighborhood"
+        ]
+      }
+    },
+    "/api/v1/notifications/preferences": {
+      "get": {
+        "operationId": "get_preferences_api_v1_notifications_preferences_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreferences"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Preferences",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "put": {
+        "operationId": "put_preferences_api_v1_notifications_preferences_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationPreferences"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreferences"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Put Preferences",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/register": {
+      "post": {
+        "operationId": "register_push_token_api_v1_notifications_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterPushTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Register Push Token",
+        "tags": [
+          "notifications"
+        ]
+      }
+    }
+  }
+}

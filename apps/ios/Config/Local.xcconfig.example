@@ -1,0 +1,9 @@
+// Copy to Config/Local.xcconfig (git-ignored) and adjust. Remember: write URLs as https:/$()/host
+// DEVELOPMENT_TEAM = ABCDE12345
+// API_BASE_URL = https:/$()/api.your-domain.org
+// AUTH_BASE_URL = https:/$()/your-project.supabase.co/auth/v1
+// AUTH_PUBLIC_KEY = your-publishable-key
+// SOURCE_REPO_URL = https:/$()/github.com/your-org/your-repo
+// PRIVACY_URL = https:/$()/your-domain.org/privacy
+// SECURITY_REVIEW_URL = https:/$()/your-domain.org/security-review
+// SECURITY_CONTACT = security@your-domain.org

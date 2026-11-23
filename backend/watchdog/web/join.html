@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Join Neighborhood Watchdog</title>
+<style nonce="{{NONCE}}">:root { --bg:#f6f4ef; --card:#ffffff; --ink:#1d2433; --muted:#5b6475; --line:#d9d5cb; --accent:#1f5f4a; --accent-ink:#ffffff; --warn-bg:#fff4d6; --warn-ink:#5c4400; --err:#9c1c1c; }
+@media (prefers-color-scheme: dark) { :root { --bg:#12161d; --card:#1b212b; --ink:#e9ecf1; --muted:#a3adbd; --line:#313a48; --accent:#6fcfae; --accent-ink:#0d1a15; --warn-bg:#3a3118; --warn-ink:#f3dc9a; --err:#ff9c9c; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:17px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+main { max-width: 38rem; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+h1 { font-size: 1.55rem; line-height:1.25; margin: 1rem 0 .25rem; }
+h2 { font-size: 1.1rem; margin: 1.6rem 0 .4rem; }
+p, li { color: var(--ink); } .muted { color: var(--muted); font-size:.95rem; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:1.1rem 1.1rem 1.25rem; margin-top:1rem; }
+label { display:block; font-weight:600; margin:.9rem 0 .3rem; }
+input[type=text], input[type=email], select { width:100%; padding:.7rem .75rem; font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:10px; }
+input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+.row { display:grid; grid-template-columns: 7rem 1fr; gap:.75rem; }
+.check { display:flex; gap:.6rem; align-items:flex-start; margin-top:1rem; font-weight:400; }
+.check input { margin-top:.3rem; width:1.15rem; height:1.15rem; }
+button, .button { display:inline-block; width:100%; margin-top:1.1rem; padding:.85rem 1rem; font:inherit; font-weight:650; color:var(--accent-ink); background:var(--accent); border:0; border-radius:10px; cursor:pointer; text-align:center; text-decoration:none; }
+button[disabled] { opacity:.55; cursor:default; }
+.notice { background:var(--warn-bg); color:var(--warn-ink); border-radius:10px; padding:.75rem .9rem; margin-top:1rem; }
+.error { color:var(--err); font-weight:600; margin-top:.8rem; }
+.hidden { display:none; }
+ul { padding-left:1.2rem; } li { margin:.25rem 0; }
+a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Neighborhood Watchdog</h1>
+  <p class="muted">A private, invitation-only network that watches for unusual Wi-Fi disruptions across your neighborhood.</p>
+
+  <section id="checking" class="card" aria-live="polite"><p>Checking your invitation&hellip;</p></section>
+
+  <section id="invalid" class="card hidden" aria-live="polite">
+    <h2>This invitation cannot be used</h2>
+    <p>It may have expired, been used already, or been withdrawn. Ask your neighborhood organizer for a new invitation link.</p>
+  </section>
+
+  <section id="form-card" class="card hidden">
+    <h2>You are invited to join <span id="hood"></span></h2>
+    <p>The app on your phone notices when your home Wi-Fi drops. If several nearby homes report the same thing at about the same time, everyone taking part gets an alert so they can check their cameras and alarms.</p>
+    <p class="notice">This is an anomaly detector. A phone app cannot prove that someone is deliberately blocking radio signals, and it does not replace your alarm system.</p>
+
+    <h2>What is and is not collected</h2>
+    <ul>
+      <li><strong>Collected:</strong> your house number and street (to confirm you live in this neighborhood), an e-mail address for sign-in, and connectivity events from your phone: when Wi-Fi, internet or cellular service was lost or restored.</li>
+      <li><strong>Never collected:</strong> browsing history, Wi-Fi or router passwords, GPS location, camera footage, microphone audio, messages, or logins for your camera, alarm or internet provider.</li>
+      <li>Other residents never see your address. They see only counts such as &ldquo;4 households affected&rdquo;.</li>
+      <li>You can switch monitoring off, leave, or delete your account at any time in the app.</li>
+    </ul>
+    <p><a href="/privacy">Read the full privacy summary</a></p>
+
+    <form id="form" novalidate>
+      <div class="row">
+        <div><label for="house">House number</label><input id="house" type="text" inputmode="text" autocomplete="off" maxlength="16" required></div>
+        <div><label for="street">Street name</label><input id="street" type="text" autocomplete="off" maxlength="80" required></div>
+      </div>
+      <label for="email">E-mail address</label>
+      <input id="email" type="email" autocomplete="email" maxlength="254" required>
+      <p class="muted">Used only to sign in with a one-time code. No password, no full name needed.</p>
+      <label for="label">Household label <span class="muted">(optional, only you see it)</span></label>
+      <input id="label" type="text" maxlength="40" autocomplete="off">
+      <label for="isp">Home internet provider <span class="muted">(optional)</span></label>
+      <select id="isp">
+        <option value="">Prefer not to say</option>
+        <option value="att">AT&amp;T</option><option value="xfinity">Xfinity (Comcast)</option>
+        <option value="spectrum">Spectrum</option><option value="verizon">Verizon</option>
+        <option value="tmobile_home">T-Mobile Home Internet</option><option value="google_fiber">Google Fiber</option>
+        <option value="other">Other</option>
+      </select>
+      <p class="muted">Knowing providers helps tell an internet outage apart from something unusual.</p>
+      <label class="check"><input id="ack" type="checkbox" required><span>I have read what is collected and agree to take part. Monitoring starts only after I also agree inside the app.</span></label>
+      <p id="error" class="error hidden" role="alert"></p>
+      <button id="submit" type="submit">Register this household</button>
+    </form>
+  </section>
+
+  <section id="done" class="card hidden" aria-live="polite">
+    <h2>You are registered</h2>
+    <p>Next, install the app and sign in with the same e-mail address. You will get a one-time code by e-mail.</p>
+    <a id="android" class="button hidden" rel="noopener">Install on Android</a>
+    <a id="ios" class="button hidden" rel="noopener">Install on iPhone (TestFlight)</a>
+    <p id="no-links" class="muted hidden">Your neighborhood organizer will send you the install link for your phone.</p>
+    <h2>Installing</h2>
+    <ul>
+      <li><strong>Android:</strong> open the link, accept the tester invitation, and install. You may be asked to allow installs from the testing app.</li>
+      <li><strong>iPhone:</strong> install Apple&rsquo;s TestFlight app first, then open the link and tap Install.</li>
+      <li>Open Neighborhood Watchdog, read the short introduction, and sign in with your e-mail address.</li>
+    </ul>
+    <p class="muted hidden" id="support-line">Need help? <a id="support" rel="noopener">Support information</a></p>
+  </section>
+
+  <p class="muted">The source code of this service is public<span id="source-wrap" class="hidden">: <a id="source" rel="noopener">view it</a></span>. Security concerns: {{SECURITY_CONTACT}}.</p>
+</main>
+<script nonce="{{NONCE}}">
+(function () {
+  "use strict";
+  var links = { android: "{{ANDROID_URL}}", ios: "{{IOS_URL}}", source: "{{SOURCE_URL}}", support: "{{SUPPORT_URL}}" };
+  function $(id) { return document.getElementById(id); }
+  function show(id) { ["checking", "invalid", "form-card", "done"].forEach(function (s) { $(s).classList.toggle("hidden", s !== id); }); }
+  function link(id, url, wrap) { if (/^https:\/\//.test(url)) { $(id).href = url; $(wrap || id).classList.remove("hidden"); return true; } return false; }
+  link("source", links.source, "source-wrap"); link("support", links.support, "support-line");
+
+  // The token is in the URL fragment, which is never sent to a server. Remove it from the address bar at once.
+  var match = /(?:^|[#&])t=([A-Za-z0-9_-]{20,128})/.exec(window.location.hash || "");
+  var token = match ? match[1] : "";
+  if (window.history && history.replaceState) { history.replaceState(null, "", window.location.pathname); }
+  if (!token) { show("invalid"); return; }
+
+  function post(path, body) {
+    return fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), credentials: "omit", cache: "no-store", referrerPolicy: "no-referrer" })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j }; }); });
+  }
+
+  post("/api/v1/auth/verify-invitation", { invitation_token: token }).then(function (r) {
+    if (!r.ok) { show("invalid"); return; }
+    $("hood").textContent = r.body.neighborhood_name;
+    show("form-card"); $("house").focus();
+  }).catch(function () { show("invalid"); });
+
+  $("form").addEventListener("submit", function (event) {
+    event.preventDefault();
+    var error = $("error"); error.classList.add("hidden");
+    function fail(message) { error.textContent = message; error.classList.remove("hidden"); $("submit").disabled = false; }
+    var house = $("house").value.trim(), street = $("street").value.trim(), email = $("email").value.trim();
+    if (!house || !street) { return fail("Enter your house number and street name."); }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { return fail("Enter a valid e-mail address."); }
+    if (!$("ack").checked) { return fail("Please confirm that you have read what is collected."); }
+    $("submit").disabled = true;
+    var body = { invitation_token: token, email: email, house_number: house, street_name: street, privacy_acknowledged: true };
+    if ($("label").value.trim()) { body.display_label = $("label").value.trim(); }
+    if ($("isp").value) { body.isp = $("isp").value; }
+    post("/api/v1/auth/register", body).then(function (r) {
+      if (r.ok) {
+        token = "";
+        var any = link("android", r.body.android_install_url || links.android);
+        any = link("ios", r.body.ios_install_url || links.ios) || any;
+        if (!any) { $("no-links").classList.remove("hidden"); }
+        show("done"); return;
+      }
+      var code = r.body && r.body.error ? r.body.error.code : "";
+      if (code === "invitation_invalid") { show("invalid"); }
+      else if (r.body && r.body.error && r.body.error.message) { fail(r.body.error.message); }
+      else { fail("Something went wrong. Please try again in a minute."); }
+    }).catch(function () { fail("Could not reach the server. Check your connection and try again."); });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,442 @@
+import Foundation
+
+// Request and response bodies of /api/v1. Field names match backend/watchdog/schemas.py exactly.
+
+struct APIErrorBody: Codable, Sendable, Equatable {
+    let code: String
+    let message: String
+    let requestID: String?
+
+    enum CodingKeys: String, CodingKey {
+        case code, message
+        case requestID = "request_id"
+    }
+}
+
+struct APIErrorEnvelope: Codable, Sendable {
+    let error: APIErrorBody
+}
+
+struct OkResponse: Codable, Sendable {
+    let ok: Bool
+}
+
+// MARK: Invitations and households
+
+struct VerifyInvitationRequest: Codable, Sendable {
+    let invitationToken: String
+    enum CodingKeys: String, CodingKey { case invitationToken = "invitation_token" }
+}
+
+struct VerifyInvitationResponse: Codable, Sendable {
+    let valid: Bool
+    let neighborhoodName: String
+    let expiresAt: Date
+    let householdBound: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case valid
+        case neighborhoodName = "neighborhood_name"
+        case expiresAt = "expires_at"
+        case householdBound = "household_bound"
+    }
+}
+
+struct JoinHouseholdRequest: Codable, Sendable {
+    let invitationToken: String
+    let houseNumber: String
+    let streetName: String
+    let displayLabel: String?
+    let isp: Isp?
+    let privacyAcknowledged: Bool
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case invitationToken = "invitation_token"
+        case houseNumber = "house_number"
+        case streetName = "street_name"
+        case displayLabel = "display_label"
+        case isp
+        case privacyAcknowledged = "privacy_acknowledged"
+    }
+}
+
+struct HouseholdOut: Codable, Sendable, Equatable {
+    let householdID: UUID
+    let neighborhoodID: UUID
+    /// Label other residents may see; contains no address.
+    let anonymousReference: String
+    let displayLabel: String?
+    let houseNumber: String
+    let streetName: String
+    let isp: Isp
+    let membershipStatus: HouseholdStatus
+    let role: MemberRole
+    let memberCount: Int
+    let deviceCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case householdID = "household_id"
+        case neighborhoodID = "neighborhood_id"
+        case anonymousReference = "anonymous_reference"
+        case displayLabel = "display_label"
+        case houseNumber = "house_number"
+        case streetName = "street_name"
+        case isp
+        case membershipStatus = "membership_status"
+        case role
+        case memberCount = "member_count"
+        case deviceCount = "device_count"
+    }
+}
+
+struct UpdateHouseholdRequest: Codable, Sendable {
+    var displayLabel: String?
+    var isp: Isp?
+
+    enum CodingKeys: String, CodingKey {
+        case displayLabel = "display_label"
+        case isp
+    }
+}
+
+struct NeighborhoodOut: Codable, Sendable, Equatable {
+    let neighborhoodID: UUID
+    let name: String
+    let participatingHouseholds: Int
+    /// Households with telemetry inside the active window. The others are unknown, not safe.
+    let confirmedActiveHouseholds: Int
+    let openIncidentCount: Int
+    let highestAlertLevel: AlertLevel
+    let statusColor: StatusColor
+    let statusExplanation: String
+    let correlationRadiusM: Int
+    let correlationWindowS: Int
+
+    enum CodingKeys: String, CodingKey {
+        case neighborhoodID = "neighborhood_id"
+        case name
+        case participatingHouseholds = "participating_households"
+        case confirmedActiveHouseholds = "confirmed_active_households"
+        case openIncidentCount = "open_incident_count"
+        case highestAlertLevel = "highest_alert_level"
+        case statusColor = "status_color"
+        case statusExplanation = "status_explanation"
+        case correlationRadiusM = "correlation_radius_m"
+        case correlationWindowS = "correlation_window_s"
+    }
+}
+
+// MARK: Devices
+
+struct DeviceCapabilities: Codable, Sendable, Equatable {
+    var canMeasureRssi: Bool
+    var canDetectBand: Bool
+    var canProbeGateway: Bool
+    var canRouteOverCellular: Bool
+    var canDetectPowerSource: Bool
+    var canDetectWifiRadioState: Bool
+    var canIdentifyHomeNetwork: Bool
+    var backgroundMonitoring: BackgroundMonitoring
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case canMeasureRssi = "can_measure_rssi"
+        case canDetectBand = "can_detect_band"
+        case canProbeGateway = "can_probe_gateway"
+        case canRouteOverCellular = "can_route_over_cellular"
+        case canDetectPowerSource = "can_detect_power_source"
+        case canDetectWifiRadioState = "can_detect_wifi_radio_state"
+        case canIdentifyHomeNetwork = "can_identify_home_network"
+        case backgroundMonitoring = "background_monitoring"
+    }
+
+    /// What this iOS app can honestly do.
+    /// - No RSSI, band or Wi-Fi radio state: iOS does not expose them to ordinary apps.
+    /// - No gateway probe: it would need the Local Network permission, which the app does not request.
+    /// - No forced cellular routing: URLSession lets the system choose the interface.
+    /// - Background monitoring only when iOS chooses to wake the app.
+    static let iOS = DeviceCapabilities(
+        canMeasureRssi: false,
+        canDetectBand: false,
+        canProbeGateway: false,
+        canRouteOverCellular: false,
+        canDetectPowerSource: true,
+        canDetectWifiRadioState: false,
+        canIdentifyHomeNetwork: true,
+        backgroundMonitoring: .opportunistic
+    )
+}
+
+struct RegisterDeviceRequest: Codable, Sendable {
+    /// Random UUID generated by the app at install time. Not a hardware identifier.
+    let deviceID: UUID
+    let platform: Platform
+    let osVersion: String
+    let appVersion: String
+    let capabilities: DeviceCapabilities
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case deviceID = "device_id"
+        case platform
+        case osVersion = "os_version"
+        case appVersion = "app_version"
+        case capabilities
+    }
+}
+
+struct DeviceOut: Codable, Sendable, Equatable, Identifiable {
+    let deviceID: UUID
+    let platform: Platform
+    let osVersion: String
+    let appVersion: String
+    let status: DeviceStatus
+    let monitoringEnabled: Bool
+    let lastSeenAt: Date?
+    let createdAt: Date
+
+    var id: UUID { deviceID }
+
+    enum CodingKeys: String, CodingKey {
+        case deviceID = "device_id"
+        case platform
+        case osVersion = "os_version"
+        case appVersion = "app_version"
+        case status
+        case monitoringEnabled = "monitoring_enabled"
+        case lastSeenAt = "last_seen_at"
+        case createdAt = "created_at"
+    }
+}
+
+struct RevokeDeviceRequest: Codable, Sendable {
+    let deviceID: UUID
+    enum CodingKeys: String, CodingKey { case deviceID = "device_id" }
+}
+
+// MARK: Status
+
+struct DeviceMonitoringOut: Codable, Sendable, Equatable, Identifiable {
+    let deviceID: UUID
+    let platform: Platform
+    let monitoringStatus: MonitoringStatus
+    let connectivityState: ConnectivityState
+    let lastEventAt: Date?
+    let lastReceivedAt: Date?
+
+    var id: UUID { deviceID }
+
+    enum CodingKeys: String, CodingKey {
+        case deviceID = "device_id"
+        case platform
+        case monitoringStatus = "monitoring_status"
+        case connectivityState = "connectivity_state"
+        case lastEventAt = "last_event_at"
+        case lastReceivedAt = "last_received_at"
+    }
+}
+
+struct ConnectivityStatusOut: Codable, Sendable, Equatable {
+    let householdMonitoringStatus: MonitoringStatus
+    let statusColor: StatusColor
+    let statusExplanation: String
+    let highestAlertLevel: AlertLevel
+    let openIncidentIDs: [UUID]
+    let devices: [DeviceMonitoringOut]
+    let serverTime: Date
+
+    enum CodingKeys: String, CodingKey {
+        case householdMonitoringStatus = "household_monitoring_status"
+        case statusColor = "status_color"
+        case statusExplanation = "status_explanation"
+        case highestAlertLevel = "highest_alert_level"
+        case openIncidentIDs = "open_incident_ids"
+        case devices
+        case serverTime = "server_time"
+    }
+}
+
+// MARK: Incidents
+
+struct ScoreComponent: Codable, Sendable, Equatable, Identifiable {
+    let indicator: String
+    let points: Double
+    let maxPoints: Double
+    let detail: String
+
+    var id: String { indicator }
+
+    enum CodingKeys: String, CodingKey {
+        case indicator, points, detail
+        case maxPoints = "max_points"
+    }
+}
+
+struct IncidentOut: Codable, Sendable, Equatable, Identifiable {
+    let incidentID: UUID
+    let scope: IncidentScope
+    let classification: Classification
+    let alertLevel: AlertLevel
+    let status: IncidentStatus
+    let statusColor: StatusColor
+    let startedAt: Date
+    let lastEventAt: Date
+    let resolvedAt: Date?
+    let affectedHouseholdCount: Int
+    let activeHouseholdCount: Int
+    /// Approximate geographic extent in words; never an address.
+    let approximateScope: String
+    let correlationWindowS: Int
+    let timeSpreadS: Double
+    /// Affected household count per known provider.
+    let ispDiversity: [String: Int]
+    let myHouseholdAffected: Bool
+    let summary: String
+
+    var id: UUID { incidentID }
+
+    enum CodingKeys: String, CodingKey {
+        case incidentID = "incident_id"
+        case scope, classification
+        case alertLevel = "alert_level"
+        case status
+        case statusColor = "status_color"
+        case startedAt = "started_at"
+        case lastEventAt = "last_event_at"
+        case resolvedAt = "resolved_at"
+        case affectedHouseholdCount = "affected_household_count"
+        case activeHouseholdCount = "active_household_count"
+        case approximateScope = "approximate_scope"
+        case correlationWindowS = "correlation_window_s"
+        case timeSpreadS = "time_spread_s"
+        case ispDiversity = "isp_diversity"
+        case myHouseholdAffected = "my_household_affected"
+        case summary
+    }
+}
+
+/// IncidentDetailOut: every IncidentOut field plus the explanation fields, in one flat JSON object.
+struct IncidentDetailOut: Codable, Sendable, Equatable, Identifiable {
+    let incident: IncidentOut
+    let score: Double?
+    let scoreBreakdown: [ScoreComponent]
+    let explanation: String
+    let supportingEvidence: [String]
+    let missingEvidence: [String]
+    let recommendedActions: [String]
+    let delayedReportCount: Int
+    /// Keys are FailureMode raw values ("wifi_lost", "no_internet", "all_connectivity_lost").
+    let failureModes: [String: Int]
+
+    var id: UUID { incident.incidentID }
+
+    enum CodingKeys: String, CodingKey {
+        case score
+        case scoreBreakdown = "score_breakdown"
+        case explanation
+        case supportingEvidence = "supporting_evidence"
+        case missingEvidence = "missing_evidence"
+        case recommendedActions = "recommended_actions"
+        case delayedReportCount = "delayed_report_count"
+        case failureModes = "failure_modes"
+    }
+
+    init(from decoder: Decoder) throws {
+        incident = try IncidentOut(from: decoder)
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        score = try c.decodeIfPresent(Double.self, forKey: .score)
+        scoreBreakdown = try c.decode([ScoreComponent].self, forKey: .scoreBreakdown)
+        explanation = try c.decode(String.self, forKey: .explanation)
+        supportingEvidence = try c.decode([String].self, forKey: .supportingEvidence)
+        missingEvidence = try c.decode([String].self, forKey: .missingEvidence)
+        recommendedActions = try c.decode([String].self, forKey: .recommendedActions)
+        delayedReportCount = try c.decode(Int.self, forKey: .delayedReportCount)
+        failureModes = try c.decode([String: Int].self, forKey: .failureModes)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try incident.encode(to: encoder)
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(score, forKey: .score)
+        try c.encode(scoreBreakdown, forKey: .scoreBreakdown)
+        try c.encode(explanation, forKey: .explanation)
+        try c.encode(supportingEvidence, forKey: .supportingEvidence)
+        try c.encode(missingEvidence, forKey: .missingEvidence)
+        try c.encode(recommendedActions, forKey: .recommendedActions)
+        try c.encode(delayedReportCount, forKey: .delayedReportCount)
+        try c.encode(failureModes, forKey: .failureModes)
+    }
+}
+
+struct IncidentListOut: Codable, Sendable, Equatable {
+    let incidents: [IncidentOut]
+}
+
+// MARK: Notifications
+
+struct RegisterPushTokenRequest: Codable, Sendable {
+    let deviceID: UUID
+    let provider: PushProvider
+    let token: String
+    let apnsEnvironment: ApnsEnvironment?
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case deviceID = "device_id"
+        case provider, token
+        case apnsEnvironment = "apns_environment"
+    }
+}
+
+struct NotificationPreferences: Codable, Sendable, Equatable {
+    var householdAlerts: Bool = true
+    var neighborhoodAlerts: Bool = true
+    var quietHoursEnabled: Bool = false
+    var quietHoursStart: TimeOfDay = TimeOfDay(hour: 22, minute: 0)
+    var quietHoursEnd: TimeOfDay = TimeOfDay(hour: 7, minute: 0)
+    var timezone: String = "UTC"
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case householdAlerts = "household_alerts"
+        case neighborhoodAlerts = "neighborhood_alerts"
+        case quietHoursEnabled = "quiet_hours_enabled"
+        case quietHoursStart = "quiet_hours_start"
+        case quietHoursEnd = "quiet_hours_end"
+        case timezone
+    }
+}
+
+// MARK: Health
+
+struct HealthOut: Codable, Sendable {
+    let status: String
+    let api: String
+    let database: String
+    let version: String
+    let serverTime: Date
+
+    enum CodingKeys: String, CodingKey {
+        case status, api, database, version
+        case serverTime = "server_time"
+    }
+}
+
+// MARK: Auth (GoTrue)
+
+struct AuthUser: Codable, Sendable, Equatable {
+    let id: String
+    let email: String?
+}
+
+struct AuthSessionResponse: Codable, Sendable {
+    let accessToken: String
+    let refreshToken: String
+    let expiresIn: Double
+    let tokenType: String?
+    let user: AuthUser?
+
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case refreshToken = "refresh_token"
+        case expiresIn = "expires_in"
+        case tokenType = "token_type"
+        case user
+    }
+}

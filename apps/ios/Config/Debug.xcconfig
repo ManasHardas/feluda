@@ -1,0 +1,10 @@
+#include "Base.xcconfig"
+
+// Local development: the backend also emulates the auth service under /auth/v1.
+API_BASE_URL = http:/$()/localhost:8000
+AUTH_BASE_URL = http:/$()/localhost:8000/auth/v1
+// Publishable (anon) key. Public by design; never the service-role key.
+AUTH_PUBLIC_KEY = local-development-publishable-key
+APNS_ENVIRONMENT = sandbox
+
+#include? "Local.xcconfig"

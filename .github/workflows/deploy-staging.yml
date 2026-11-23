@@ -1,0 +1,39 @@
+name: Deploy staging
+
+# Manual on purpose: nothing is deployed automatically, and production is never deployed from CI
+# without a person approving the "production" environment. See docs/DEPLOYMENT.md.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [staging, production]
+        default: staging
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment }}
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refuse to run without credentials
+        run: |
+          [ -n "$FLY_API_TOKEN" ] || { echo "::error::FLY_API_TOKEN is not configured for this environment"; exit 1; }
+          [ -n "$MIGRATION_DATABASE_URL" ] || { echo "::error::MIGRATION_DATABASE_URL is not configured for this environment"; exit 1; }
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.14"
+      - name: Apply database migrations
+        working-directory: backend
+        run: uv sync --frozen --no-dev && DATABASE_URL="$MIGRATION_DATABASE_URL" uv run python -m watchdog.migrate
+      - uses: superfly/flyctl-actions/setup-flyctl@v1
+      - name: Deploy
+        run: flyctl deploy backend --config infrastructure/deployment/fly.${{ inputs.environment }}.toml --remote-only
+      - name: Smoke test
+        run: infrastructure/scripts/smoke_test.sh "${{ vars.PUBLIC_BASE_URL }}"

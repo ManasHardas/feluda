@@ -1,0 +1,19 @@
+name: Uptime check
+
+# A free external probe of the deployed API. It does nothing until the PUBLIC_BASE_URL repository
+# variable is set. Failures show up as failed workflow runs (GitHub e-mails the repository owner).
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    if: vars.PUBLIC_BASE_URL != ''
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: infrastructure/scripts/smoke_test.sh "${{ vars.PUBLIC_BASE_URL }}"

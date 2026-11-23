@@ -1,17 +1,36 @@
 # To do, in priority order
 
-Last updated 2026-11-21. Source brief: `neighborhood_watchdog_master_build_prompt_v2.md`.
+Last updated 2026-11-22. Source brief: `neighborhood_watchdog_master_build_prompt_v2.md`. What has and has not been verified: `docs/STATUS.md`. Summary for whoever picks this up: `docs/HANDOFF.md`.
 
-## Build phases (in progress, 2026-11-21)
-1. **Repository and architecture.** Done when: structure, decisions, API contract, local dev environment and CI files exist and the first tests pass.
-2. **Backend foundation.** Done when: migrations run on a local PostgreSQL, invitation, registration, device registration and event ingestion work and are tested.
-3. **Android app.** Done when: `./gradlew assembleDebug testDebugUnitTest` passes locally.
-4. **iOS app.** Done when: `xcodebuild build test` passes on a simulator locally.
-5. **Detection engine.** Done when: scenarios A to J have passing automated tests.
-6. **Notifications.** Done when: FCM and APNs senders are implemented and tested against fake transports, with delivery tracking.
-7. **Security hardening.** Done when: authorization, row-level-security and abuse tests pass and the threat model is written.
-8. **Deployment.** Done when: deployment files and instructions exist for staging and production.
-9. **Private beta distribution.** Done when: release workflows and instructions exist for Firebase App Distribution and TestFlight.
+## Verification still owed (agent can do these)
+4. **Run each app as an app against a local backend** (Android emulator, iOS simulator): tap through sign-in, join, an event upload and an incident screen. The networking layer is verified (`make live-ios`, `make live-android`); the screens and the monitoring service have never run against a server. Needs an Android emulator image installed; the iOS simulator works again. Done when: both complete the flow on screen.
 
 ## Needs the owner (cannot be done by the agent)
-(filled in at hand-off)
+6. **Publishing, remaining part.** The repository is private at `ManasHardas/feluda`, pull request 1 is open and CI is green. Still open: the owner says whether to make it public (dependency review and CodeQL result upload only work when public), the pull request is merged, and branch protection is set as in `CONTRIBUTING.md`. Done when: all three are settled.
+8. **Security contact in deployments.** `SECURITY.md` has the address; the `SECURITY_CONTACT` setting of the backend and the app builds is set when staging is created (item 10). Done when: the registration page and both apps show it.
+9. **Confirm decision 0010** (a lone phone losing Wi-Fi is shown in the app but not pushed). 0012 (paid always-on host) was confirmed 2026-11-22. Done when: 0010 is confirmed or changed.
+10. **Accounts and credentials:** Supabase (staging and production projects), a host (Fly.io recommended), Firebase project, an SMTP sender for sign-in codes. The owner already has the Apple Developer Program. The owner fills in `.env.staging` (ignored by git; a blank template is written there) and puts key files in `secrets/`. Steps: `docs/DEPLOYMENT.md`, `infrastructure/supabase/README.md`, `docs/APP_DISTRIBUTION.md`. Done when: staging answers the smoke test and one real push reaches each platform.
+11. **Physical-device tests:** `apps/android/TESTING.md` (16 scenarios) and `apps/ios/TESTING.md` (11 scenarios). Done when: each scenario has a recorded result.
+12. **TestFlight first-build review** by Apple. Done when: an external tester can install.
+13. **Independent security review** before going beyond a small pilot (`docs/SECURITY_REVIEW.md`). Done when: a summary with scope, date, findings and remediation is published.
+14. **Legal check of the privacy text** for where the pilot runs. Done when: the operator is named in the notice and the owner is satisfied.
+
+## Staging set-up in progress (Supabase project `feluda`)
+10d. **Still missing for staging** (owner): Fly.io login (`fly auth login`); Firebase service-account key file in `secrets/firebase-service-account.json` (needed for Android push); SMTP sender for sign-in codes. Done when: all three are in place.
+10a. **Backend database login.** Create `nw_app_login` with `infrastructure/scripts/create_app_login.sql` and store its password only in the host's secret store. Waiting for the host account (the password has nowhere safe to go yet). Done when: the deployed backend connects with it.
+10b. **Sign-in settings in the Supabase dashboard** (owner): e-mail template showing the 6-digit code, own SMTP sender, session lifetimes, as in `infrastructure/supabase/README.md`. Done when: a real sign-in code arrives by e-mail.
+10c. **Supabase advisor warning:** `nw.set_updated_at` and `nw.current_user_id` have no fixed `search_path`. Low risk (neither is SECURITY DEFINER, both call built-ins only); fixing `current_user_id` may stop PostgreSQL inlining it in row-level-security policies. Done when: fixed in a new migration with the policy timing checked, or accepted in a decision record.
+
+## Not built yet
+15. **Administrator multi-factor enrolment.** The backend enforces it when `ADMIN_REQUIRE_MFA=true`, but there is no way to enrol. Done when: an administrator can add a second factor and sign in with it.
+16. **Android SBOM task** (CycloneDX Gradle plugin). Done when: `release.yml` attaches `sbom-android.cdx.json`.
+17. **iOS app icon.** Done when: the asset catalog has one.
+18. **Pin CI actions by commit hash and base images by digest; Gradle dependency verification metadata.** Done when: `docs/RELEASE_VERIFICATION.md` "Known gaps" is empty.
+19. **Reproducible-build check for Android** on two machines. Done when: the comparison in `docs/RELEASE_VERIFICATION.md` has been carried out and the result written down.
+20. **Scheduled database backups** (the Supabase free plan has none). Done when: a dump runs on a schedule and one restore has been tested.
+21. **UI tests** for both apps (only logic is tested). Done when: the main flows have automated UI coverage.
+22. **Crash reporting decision** (none is included; adding one sends device data to a third party). Done when: decided and documented.
+23. **SMS alerts** (optional in the brief, off by default, not built). Done when: the owner asks for it.
+
+## After the first field test
+24. **Revisit score weights, thresholds and the household push rule** with real data (`docs/DETECTION_PROTOCOL.md`). Done when: changes, if any, are recorded as a decision.

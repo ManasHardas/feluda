@@ -1,0 +1,42 @@
+name: iOS
+
+on:
+  pull_request:
+    paths: ["apps/ios/**", "shared/**", ".github/workflows/ios.yml"]
+  push:
+    branches: [main]
+    paths: ["apps/ios/**", "shared/**", ".github/workflows/ios.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and unit tests (simulator)
+    # macOS runner minutes are billed at a higher rate on private repositories; this job only runs when iOS files change.
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain versions (recorded for build provenance)
+        run: xcodebuild -version && swift --version
+      - name: Core logic tests, natively (no simulator)
+        run: swift test
+      - name: Build for the simulator
+        run: |
+          xcodebuild -project NeighborhoodWatchdog.xcodeproj -scheme NeighborhoodWatchdog \
+            -destination 'generic/platform=iOS Simulator' -configuration Debug \
+            -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build
+      - name: Unit tests
+        run: |
+          device=$(xcrun simctl list devices available | grep -m1 -oE 'iPhone [0-9]+[^(]*' | sed 's/ *$//')
+          echo "Testing on: $device"
+          xcodebuild -project NeighborhoodWatchdog.xcodeproj -scheme NeighborhoodWatchdog \
+            -destination "platform=iOS Simulator,name=$device" \
+            -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO test

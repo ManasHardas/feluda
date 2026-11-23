@@ -1,0 +1,22 @@
+// Shared build configuration. No secrets belong in this file or in any xcconfig.
+//
+// URLs: xcconfig treats "//" as the start of a comment, so "https://host" would be cut off after
+// "https:". The empty substitution $() between the two slashes prevents that:
+//     https:/$()/host   ->   https://host
+
+PRODUCT_BUNDLE_IDENTIFIER = app.feluda
+MARKETING_VERSION = 0.1.0
+CURRENT_PROJECT_VERSION = 1
+
+// Leave empty to build for the simulator without signing. Set your Apple team id in
+// Config/Local.xcconfig (git-ignored) to run on a device.
+DEVELOPMENT_TEAM =
+
+// Shown on the Transparency screen. Empty means "not configured in this build" and the app says so.
+SOURCE_REPO_URL =
+PRIVACY_URL =
+SECURITY_REVIEW_URL =
+SECURITY_CONTACT =
+
+// Second, independent reachability probe target (used only when the health endpoint does not answer).
+PROBE_FALLBACK_URL = https:/$()/www.apple.com/library/test/success.html

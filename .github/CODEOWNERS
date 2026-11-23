@@ -1,0 +1,15 @@
+# Review is required from an owner for security-sensitive paths.
+/backend/migrations/                 @ManasHardas
+/backend/watchdog/authentication/    @ManasHardas
+/backend/watchdog/services/          @ManasHardas
+/backend/watchdog/correlation/       @ManasHardas
+/backend/watchdog/notifications/     @ManasHardas
+/backend/watchdog/db.py              @ManasHardas
+/backend/watchdog/settings.py        @ManasHardas
+/apps/android/app/src/main/AndroidManifest.xml  @ManasHardas
+/apps/ios/NeighborhoodWatchdog/Info.plist       @ManasHardas
+/apps/ios/NeighborhoodWatchdog/*.entitlements   @ManasHardas
+/.github/                            @ManasHardas
+/infrastructure/                     @ManasHardas
+/docs/SECURITY.md /docs/PRIVACY.md /docs/THREAT_MODEL.md  @ManasHardas
+/SECURITY.md                         @ManasHardas
