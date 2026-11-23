@@ -15,6 +15,9 @@ Last updated 2026-11-22. Source brief: `neighborhood_watchdog_master_build_promp
 13. **Independent security review** before going beyond a small pilot (`docs/SECURITY_REVIEW.md`). Done when: a summary with scope, date, findings and remediation is published.
 14. **Legal check of the privacy text** for where the pilot runs. Done when: the operator is named in the notice and the owner is satisfied.
 
+## Owner change of direction, 2026-11-23: no sign-in
+0. **Remove sign-in entirely.** Owner: no user signs in, no codes are ever sent, only notifications. A phone is enrolled by tapping a private invite link (owner's choice over a shared code or open entry). Joining asks only for the street (mandatory) and house number (optional), nothing else. Covers backend, API contract, both apps, admin tool, docs, decision record. Done when: both apps enrol with an invite link and no e-mail anywhere, all tests pass, and Supabase Auth is no longer used.
+
 ## Staging set-up in progress (Supabase project `feluda`)
 10d. **Still missing for staging** (owner): Fly.io login (`fly auth login`); Firebase service-account key file in `secrets/firebase-service-account.json` (needed for Android push); SMTP sender for sign-in codes. Done when: all three are in place.
 10a. **Backend database login.** Create `nw_app_login` with `infrastructure/scripts/create_app_login.sql` and store its password only in the host's secret store. Waiting for the host account (the password has nowhere safe to go yet). Done when: the deployed backend connects with it.

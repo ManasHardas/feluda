@@ -1,5 +1,7 @@
 # 0004 Sign-in through Supabase Auth; the backend only verifies tokens
 
+**Superseded on 2026-11-23 by 0014 (no sign-in). Kept for history; none of this is in the code any more.**
+
 **Decision.** The apps call Supabase Auth's REST endpoints directly for e-mail one-time codes,
 access tokens and rotating refresh tokens. The backend verifies the access token (JWKS, or the
 legacy shared secret) and maps its subject to an account. Accounts are created only by redeeming an

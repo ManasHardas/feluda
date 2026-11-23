@@ -16,10 +16,6 @@ def unauthorized(message: str = "Authentication is required.") -> ApiError:
     return ApiError(401, "unauthorized", message, {"WWW-Authenticate": "Bearer"})
 
 
-def not_a_member() -> ApiError:
-    return ApiError(403, "not_a_member", "This account is not a member of a neighborhood. Use an invitation to join.")
-
-
 def forbidden(message: str = "You are not allowed to do this.") -> ApiError:
     return ApiError(403, "forbidden", message)
 

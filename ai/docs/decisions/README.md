@@ -9,7 +9,7 @@ simplest reliable approach and document it. None has been reviewed by the owner 
 | 0001 | Monorepo with a modular-monolith backend |
 | 0002 | Plain SQL with psycopg and a small migration runner; no ORM |
 | 0003 | Great-circle distance in the application instead of PostGIS |
-| 0004 | Sign-in through Supabase Auth; the backend only verifies tokens; local emulator for development |
+| 0004 | Superseded by 0014. (Was: sign-in through Supabase Auth; the backend only verifies tokens) |
 | 0005 | Three database roles and row-level security as a second line of defence |
 | 0006 | Correlation recomputes a bounded window from stored events |
 | 0007 | Deterministic, additive suspicion score; high priority needs persistence |
@@ -19,3 +19,4 @@ simplest reliable approach and document it. None has been reviewed by the owner 
 | 0011 | PostgreSQL as the queue; no Redis, Kafka or Kubernetes |
 | 0012 | Fly.io as the documented host; one small always-on machine |
 | 0013 | Invitation token in the URL fragment |
+| 0014 | No sign-in: a phone is enrolled by an invitation link (owner's decision, 2026-11-23) |

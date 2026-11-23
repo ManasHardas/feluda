@@ -6,8 +6,8 @@ BACKEND := backend
 ANDROID := apps/android
 IOS := apps/ios
 DEV_DB := postgresql://watchdog:watchdog_local_dev_only@localhost:54329/watchdog
-DEV_ENV := ENVIRONMENT=development DATABASE_URL=$(DEV_DB) DEV_AUTH_ENABLED=true \
-	AUTH_JWT_SECRET=local-development-secret-not-for-production-use
+DEV_ADMIN_TOKEN := local-development-admin-token-not-for-production
+DEV_ENV := ENVIRONMENT=development DATABASE_URL=$(DEV_DB) ADMIN_API_TOKEN=$(DEV_ADMIN_TOKEN)
 # macOS with Homebrew: JDK 17 and the Android command-line tools. Override in your environment if different.
 export JAVA_HOME ?= /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
 export ANDROID_HOME ?= /opt/homebrew/share/android-commandlinetools
@@ -35,7 +35,7 @@ migrate: ## Apply database migrations to the local database
 seed: ## Seed the simulated 24-household neighborhood (use `make seed ARGS=--reset` to recreate)
 	cd $(BACKEND) && $(DEV_ENV) uv run python -m watchdog.seed $(ARGS)
 
-run: ## Start the backend locally on http://localhost:8000 (local sign-in emulator enabled)
+run: ## Start the backend locally on http://localhost:8000
 	cd $(BACKEND) && $(DEV_ENV) uv run uvicorn watchdog.asgi:app --host 0.0.0.0 --port 8000
 
 simulate: ## Play a scenario against the local backend, e.g. `make simulate SCENARIO=C`
@@ -53,15 +53,14 @@ backend-test: docker-up ## All backend tests (unit, integration, security, scena
 backend-test-docker: ## All backend tests inside containers (no local Python needed)
 	docker compose --profile test run --rm --build test
 
-LIVE_CODE := 424242
-live-backend: ## Backend for the apps' live contract tests (fixed local sign-in code; run in its own terminal)
-	cd $(BACKEND) && $(DEV_ENV) DEV_AUTH_FIXED_CODE=$(LIVE_CODE) uv run uvicorn watchdog.asgi:app --host 127.0.0.1 --port 8000
+live-backend: ## Backend for the apps' live contract tests (run in its own terminal)
+	cd $(BACKEND) && $(DEV_ENV) uv run uvicorn watchdog.asgi:app --host 127.0.0.1 --port 8000
 
 live-ios: ## iOS networking code against the live local backend (needs `make live-backend` running and `make seed`)
-	DEV_AUTH_FIXED_CODE=$(LIVE_CODE) scripts/live_contract.sh ios
+	scripts/live_contract.sh ios
 
 live-android: ## Android networking code against the live local backend (same prerequisites)
-	DEV_AUTH_FIXED_CODE=$(LIVE_CODE) scripts/live_contract.sh android
+	scripts/live_contract.sh android
 
 ios-core-test: ## iOS core logic tests run natively on the Mac (no simulator needed)
 	cd $(IOS) && swift test

@@ -5,16 +5,15 @@ from __future__ import annotations
 import re
 import subprocess
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 import psycopg
 import pytest
 
-from watchdog.seed import seed_neighborhood
 from watchdog.settings import Settings
 
-from .conftest import Actor, make_settings, token_for
+from .conftest import Actor, Admin, enroll_body, make_settings
 
 pytestmark = pytest.mark.db
 REPO = Path(__file__).resolve().parents[2]
@@ -49,7 +48,7 @@ def test_every_route_except_the_public_ones_declares_authentication(app):
         "/health",
         "/api/v1/monitoring/health",
         "/api/v1/auth/verify-invitation",
-        "/api/v1/auth/register",
+        "/api/v1/enroll",
         "/join",
         "/privacy",
         "/robots.txt",
@@ -61,7 +60,7 @@ def test_every_route_except_the_public_ones_declares_authentication(app):
     from fastapi.routing import APIRoute
 
     for route in app.routes:
-        if not isinstance(route, APIRoute) or route.path in public or route.path.startswith("/auth/v1/"):
+        if not isinstance(route, APIRoute) or route.path in public:
             continue
         flat: set[str] = set()
         stack = list(route.dependant.dependencies)
@@ -69,7 +68,9 @@ def test_every_route_except_the_public_ones_declares_authentication(app):
             dep = stack.pop()
             flat.add(getattr(dep.call, "__name__", type(dep.call).__name__))
             stack.extend(dep.dependencies)
-        assert "get_principal" in flat, route.path  # every non-public route verifies an access token
+        # Every non-public route checks a device secret, or the operator secret for administration.
+        expected = "get_operator" if "/admin/" in route.path or route.path.endswith("/metrics") else "get_member_any"
+        assert expected in flat, route.path
 
 
 def test_internal_tick_needs_its_secret(db, clock, senders, world):
@@ -86,47 +87,47 @@ def test_internal_tick_needs_its_secret(db, clock, senders, world):
         assert scheduled.post("/internal/tick").status_code == 404
         assert scheduled.post("/internal/tick", headers={"Authorization": "Bearer wrong"}).status_code == 404
         resident = world.hood.households[3]
-        token = token_for(resident.auth_subject, resident.email, now=datetime.now(UTC))
-        assert scheduled.post("/internal/tick", headers={"Authorization": f"Bearer {token}"}).status_code == 404
+        for other in (resident.device_secret, world.admin.token):
+            assert scheduled.post("/internal/tick", headers={"Authorization": f"Bearer {other}"}).status_code == 404
         ok = scheduled.post("/internal/tick", headers={"Authorization": f"Bearer {secret}"})
         assert ok.status_code == 200 and ok.json() == {"ran": True}
     with pytest.raises(ValueError, match="INTERNAL_TICK_TOKEN"):
-        make_settings(environment="production", dev_auth_enabled=False, internal_tick_token="short")
+        make_settings(environment="production", internal_tick_token="short")
 
 
-def test_tokens_with_wrong_signature_audience_or_algorithm_are_rejected(client, world):
-    h = world.hood.households[1]
-    now = datetime.now(UTC)
-    bad = [
-        token_for(h.auth_subject, h.email, now=now, secret="another-secret-another-secret-123456"),
-        token_for(h.auth_subject, h.email, now=now, audience="someone-else"),
-    ]
-    import jwt
-
-    bad.append(
-        jwt.encode({"sub": h.auth_subject, "aud": "authenticated", "exp": int(now.timestamp()) + 600}, "", algorithm="none")
-    )
-    for token in bad:
-        assert client.get("/api/v1/households/me", headers={"Authorization": f"Bearer {token}"}).status_code == 401
+def test_device_secrets_and_the_operator_secret_are_not_interchangeable(client, world):
+    resident = world.hood.households[1]
+    # A phone's secret opens nothing in administration, and the operator secret is not a phone.
+    r = client.get("/api/v1/admin/households", headers={"Authorization": f"Bearer {resident.device_secret}"})
+    assert r.status_code == 401
+    assert client.get("/api/v1/households/me", headers={"Authorization": f"Bearer {world.admin.token}"}).status_code == 401
+    # Near misses and other schemes are refused.
+    for header in (f"Bearer {resident.device_secret}x", f"Basic {resident.device_secret}", resident.device_secret):
+        assert client.get("/api/v1/households/me", headers={"Authorization": header}).status_code == 401
 
 
-def test_email_claim_cannot_take_over_an_account_that_already_signed_in(client, world):
-    victim = world.hood.households[2]
-    attacker_token = token_for("attacker-subject", victim.email, now=datetime.now(UTC))
-    r = client.get("/api/v1/households/me", headers={"Authorization": f"Bearer {attacker_token}"})
-    assert r.status_code == 403 and r.json()["error"]["code"] == "not_a_member"
+def test_administration_is_disabled_without_an_operator_secret(db, clock, senders, world):
+    from fastapi.testclient import TestClient
+
+    from watchdog.main import create_app
+
+    app = create_app(make_settings(admin_api_token=""), clock=clock, senders=senders, database=db)
+    with TestClient(app) as closed:
+        for secret in ("", "anything", world.admin.token):
+            r = closed.get("/api/v1/admin/households", headers={"Authorization": f"Bearer {secret}"})
+            assert r.status_code == 401
 
 
 def test_production_settings_refuse_unsafe_configuration():
-    with pytest.raises(ValueError, match="DEV_AUTH_ENABLED"):
-        make_settings(environment="production")
-    with pytest.raises(ValueError, match="AUTH_JWT_SECRET or AUTH_JWKS_URL"):
-        Settings(_env_file=None, environment="production", ip_hash_salt="x", public_base_url="https://a.example")
+    with pytest.raises(ValueError, match="ADMIN_API_TOKEN"):
+        make_settings(environment="production", admin_api_token="short")
     with pytest.raises(ValueError, match="https"):
-        make_settings(environment="staging", dev_auth_enabled=False, public_base_url="http://insecure.example")
+        make_settings(environment="staging", public_base_url="http://insecure.example")
     with pytest.raises(ValueError, match="IP_HASH_SALT"):
-        make_settings(environment="production", dev_auth_enabled=False, ip_hash_salt="change-me")
-    ok = make_settings(environment="production", dev_auth_enabled=False)
+        make_settings(environment="production", ip_hash_salt="change-me")
+    with pytest.raises(ValueError, match="IP_HASH_SALT"):
+        Settings(_env_file=None, environment="production", public_base_url="https://a.example")
+    ok = make_settings(environment="production")
     assert ok.is_production_like
 
 
@@ -135,10 +136,10 @@ def test_api_documentation_is_not_served_in_production(db, clock, senders):
 
     from watchdog.main import create_app
 
-    app = create_app(make_settings(environment="production", dev_auth_enabled=False), clock=clock, senders=senders, database=db)
+    app = create_app(make_settings(environment="production"), clock=clock, senders=senders, database=db)
     with TestClient(app) as production:
         assert production.get("/docs").status_code == 404 and production.get("/openapi.json").status_code == 404
-        assert production.post("/auth/v1/otp", json={"email": "a@example.org"}).status_code == 404  # no dev sign-in
+        assert production.post("/auth/v1/otp", json={"email": "a@example.org"}).status_code == 404  # no sign-in exists
         assert "max-age" in production.get("/health").headers["strict-transport-security"]
 
 
@@ -202,7 +203,7 @@ def test_incident_responses_never_contain_addresses_or_household_identifiers(wor
             str(household.household_id),
             str(household.device_id),
             str(household.user_id),
-            household.email,
+            household.device_secret,
             household.street_name.lower(),
         ):
             assert secret not in listing and secret not in detail
@@ -211,7 +212,7 @@ def test_incident_responses_never_contain_addresses_or_household_identifiers(wor
 
 
 def test_admin_of_one_neighborhood_cannot_touch_another(world, second_hood, client, clock):
-    foreign_admin = Actor(client, clock, second_hood.admin)
+    foreign_admin = Admin(client, second_hood.neighborhood_id)
     target = world.hood.households[5]
     for path in ("/api/v1/admin/households/suspend", "/api/v1/admin/households/remove", "/api/v1/admin/households/reinstate"):
         assert foreign_admin.post(path, {"household_id": str(target.household_id)}).status_code == 404
@@ -220,42 +221,33 @@ def test_admin_of_one_neighborhood_cannot_touch_another(world, second_hood, clie
     listed = {h["household_id"] for h in foreign_admin.get("/api/v1/admin/households").json()}
     assert listed == {str(h.household_id) for h in second_hood.households}
     assert world.actor(target).get("/api/v1/households/me").json()["membership_status"] == "active"
+    # With more than one neighborhood the operator must name one, and it must exist.
+    unnamed = {"Authorization": f"Bearer {world.admin.token}"}
+    assert client.get("/api/v1/admin/households", headers=unnamed).status_code == 404
+    for bogus in (str(uuid.uuid4()), "not-a-uuid"):
+        assert client.get("/api/v1/admin/households", headers={**unnamed, "X-Neighborhood-Id": bogus}).status_code == 404
 
 
 def test_residents_cannot_use_admin_endpoints(world):
     resident = world.actor(7)
-    assert resident.get("/api/v1/admin/households").status_code == 403
-    assert resident.get("/api/v1/admin/configuration").status_code == 403
-    assert resident.post("/api/v1/admin/invitations", {}).status_code == 403
+    assert resident.get("/api/v1/admin/households").status_code == 401
+    assert resident.get("/api/v1/admin/configuration").status_code == 401
+    assert resident.post("/api/v1/admin/invitations", {}).status_code == 401
     assert (
         resident.post(
             "/api/v1/admin/households/suspend", {"household_id": str(world.hood.households[8].household_id)}
         ).status_code
-        == 403
+        == 401
     )
     assert (
         resident.client.put(
             "/api/v1/admin/configuration", headers=resident.headers, json={"values": {"min_affected_households": 2}}
         ).status_code
-        == 403
+        == 401
     )
-    assert resident.get("/api/v1/monitoring/metrics").status_code == 403
-
-
-def test_admin_endpoints_can_require_multi_factor_sign_in(db, clock, senders):
-    from fastapi.testclient import TestClient
-
-    from watchdog.main import create_app
-
-    hood = seed_neighborhood(db)
-    app = create_app(make_settings(admin_require_mfa=True), clock=clock, senders=senders, database=db)
-    with TestClient(app) as strict:
-        admin = hood.admin
-        single = {"Authorization": f"Bearer {token_for(admin.auth_subject, admin.email, now=datetime.now(UTC))}"}
-        multi = {"Authorization": f"Bearer {token_for(admin.auth_subject, admin.email, now=datetime.now(UTC), aal='aal2')}"}
-        assert strict.get("/api/v1/admin/households", headers=single).status_code == 403
-        assert strict.get("/api/v1/admin/households", headers=multi).status_code == 200
-        assert strict.get("/api/v1/households/me", headers=single).status_code == 200  # ordinary use is unaffected
+    assert resident.get("/api/v1/monitoring/metrics").status_code == 401
+    assert world.hood.households[8].household_id  # untouched
+    assert world.actor(8).get("/api/v1/households/me").json()["membership_status"] == "active"
 
 
 def test_suspended_household_loses_access(world):
@@ -369,7 +361,8 @@ def test_correlation_role_cannot_read_personal_data(world, database_urls):
             "SELECT normalized_house_number FROM nw.households",
             "SELECT display_label FROM nw.households",
             "SELECT * FROM nw.households",
-            "SELECT email FROM nw.users",
+            "SELECT * FROM nw.users",
+            "SELECT * FROM nw.device_credentials",
             "SELECT * FROM nw.notification_tokens",
             "SELECT * FROM nw.invitations",
             "SELECT user_id FROM nw.devices",
@@ -508,34 +501,21 @@ def test_household_hourly_event_budget_is_enforced(world, owner_conn):
 # ------------------------------------------------------------------ secrets and logging
 
 
-def test_logs_never_contain_tokens_addresses_or_emails(world, client, caplog):
+def test_logs_never_contain_secrets_or_addresses(world, client, caplog):
     import logging
 
     caplog.set_level(logging.DEBUG)
-    household_id = world.admin.post(
-        "/api/v1/admin/households", {"house_number": "4242", "street_name": "Secretive Crescent"}
-    ).json()["household_id"]
-    url = world.admin.post("/api/v1/admin/invitations", {"household_id": household_id}).json()["invitation_url"]
-    token = url.split("#t=")[1]
-    client.post(
-        "/api/v1/auth/register",
-        json={
-            "invitation_token": token,
-            "email": "private.person@example.org",
-            "house_number": "4242",
-            "street_name": "Secretive Crescent",
-            "privacy_acknowledged": True,
-        },
-    )
-    client.post(
-        "/api/v1/auth/register",
-        json={"invitation_token": token, "email": "oops", "house_number": "1", "street_name": "x", "privacy_acknowledged": True},
-    )
+    token = world.admin.invite(max_uses=2)
+    enrolled = client.post("/api/v1/enroll", json=enroll_body(token, "Secretive Crescent", "4242"))
+    assert enrolled.status_code == 201
+    device_secret = enrolled.json()["device_token"]
+    assert client.get("/api/v1/households/me", headers={"Authorization": f"Bearer {device_secret}"}).status_code == 200
+    client.post("/api/v1/enroll", json={**enroll_body(token, "Secretive Crescent", "4242"), "unexpected": "field"})
     resident = world.actor(3)
     resident.submit([resident.wifi_lost()])
-    access_token = resident.headers["Authorization"].split()[1]
-    text = "\n".join(str(r.__dict__) for r in caplog.records if r.name.startswith("watchdog") and not r.__dict__.get("dev_only"))
-    for secret in (token, "private.person@example.org", "secretive", "4242", access_token):
+    world.admin.get("/api/v1/admin/households")
+    text = "\n".join(str(r.__dict__) for r in caplog.records if r.name.startswith("watchdog"))
+    for secret in (token, device_secret, resident.household.device_secret, world.admin.token, "secretive", "4242"):
         assert secret not in text.lower() and secret not in text
 
 

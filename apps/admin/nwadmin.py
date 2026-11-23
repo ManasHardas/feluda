@@ -3,27 +3,26 @@
 
 Standard library only, so it runs anywhere Python 3.10+ is installed.
 
-    python nwadmin.py --api https://api.example.org --auth https://<ref>.supabase.co/auth/v1 --key <publishable key> login
+    export NWADMIN_API=https://api.example.org
+    export NWADMIN_TOKEN=...        # the ADMIN_API_TOKEN secret of that deployment
+    python nwadmin.py invite        # prints a private link to send to one home
     python nwadmin.py households
-    python nwadmin.py invite --household <id>
 
-`login` asks for your e-mail address and the one-time code sent to it, then stores the session in
-~/.config/nwadmin/session.json (readable only by you). Run `nwadmin.py logout` to remove it.
+There is no sign-in. The administrator secret is read from the environment (never from the command
+line, where it would end up in shell history). With more than one neighborhood on a deployment,
+name it with --neighborhood or NWADMIN_NEIGHBORHOOD.
 """
 
 from __future__ import annotations
 
 import argparse
-import getpass
 import json
 import os
 import sys
-import time
 import urllib.error
 import urllib.request
-from pathlib import Path
 
-SESSION = Path(os.environ.get("NWADMIN_SESSION", Path.home() / ".config" / "nwadmin" / "session.json"))
+_OPTIONS: dict[str, str] = {}
 
 
 def call(method: str, url: str, body: dict | None = None, headers: dict | None = None) -> tuple[int, dict | list]:
@@ -47,34 +46,18 @@ def call(method: str, url: str, body: dict | None = None, headers: dict | None =
         raise SystemExit(f"Could not reach {url}: {error.reason}") from error
 
 
-def load() -> dict:
-    if not SESSION.exists():
-        raise SystemExit("Not signed in. Run: nwadmin.py --api <url> --auth <url> --key <key> login")
-    return json.loads(SESSION.read_text())
-
-
-def save(session: dict) -> None:
-    SESSION.parent.mkdir(parents=True, exist_ok=True)
-    SESSION.touch(mode=0o600, exist_ok=True)
-    os.chmod(SESSION, 0o600)
-    SESSION.write_text(json.dumps(session))
-
-
-def token(session: dict) -> str:
-    if session["expires_at"] - time.time() < 60:
-        status, data = call("POST", f"{session['auth']}/token?grant_type=refresh_token",
-                            {"refresh_token": session["refresh_token"]}, {"apikey": session["key"]})
-        if status != 200:
-            raise SystemExit("Your session expired. Run `nwadmin.py login` again.")
-        session.update(access_token=data["access_token"], refresh_token=data["refresh_token"],
-                       expires_at=time.time() + data["expires_in"])
-        save(session)
-    return session["access_token"]
-
-
 def api(method: str, path: str, body: dict | None = None):
-    session = load()
-    status, data = call(method, f"{session['api']}/api/v1{path}", body, {"Authorization": f"Bearer {token(session)}"})
+    base = _OPTIONS.get("api") or os.environ.get("NWADMIN_API", "")
+    secret = os.environ.get("NWADMIN_TOKEN", "")
+    if not base:
+        raise SystemExit("Set NWADMIN_API (or pass --api) to the backend origin, e.g. https://api.example.org")
+    if not secret:
+        raise SystemExit("Set NWADMIN_TOKEN to the deployment's administrator secret (ADMIN_API_TOKEN).")
+    headers = {"Authorization": f"Bearer {secret}"}
+    neighborhood = _OPTIONS.get("neighborhood") or os.environ.get("NWADMIN_NEIGHBORHOOD", "")
+    if neighborhood:
+        headers["X-Neighborhood-Id"] = neighborhood
+    status, data = call(method, f"{base.rstrip('/')}/api/v1{path}", body, headers)
     if status >= 400:
         error = data.get("error", {}) if isinstance(data, dict) else {}
         raise SystemExit(f"Error {status} {error.get('code', '')}: {error.get('message', data)}")
@@ -93,12 +76,9 @@ def table(rows: list[dict], columns: list[str]) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Neighborhood Watchdog administrator tool")
-    parser.add_argument("--api", help="backend origin, e.g. https://api.example.org")
-    parser.add_argument("--auth", help="auth origin ending in /auth/v1 (defaults to <api>/auth/v1 for local development)")
-    parser.add_argument("--key", default="", help="identity provider publishable key (not needed locally)")
+    parser.add_argument("--api", help="backend origin, e.g. https://api.example.org (or set NWADMIN_API)")
+    parser.add_argument("--neighborhood", help="neighborhood id, needed only when the deployment has several")
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("login")
-    sub.add_parser("logout")
     sub.add_parser("summary")
     sub.add_parser("households")
     add = sub.add_parser("household-add")
@@ -112,9 +92,9 @@ def main() -> int:
         action.add_argument("household_id")
         action.add_argument("--reason")
     invite = sub.add_parser("invite")
-    invite.add_argument("--household")
+    invite.add_argument("--household", help="add phones to this existing household")
     invite.add_argument("--hours", type=int, default=72)
-    invite.add_argument("--admin", action="store_true", help="the invited person becomes an administrator")
+    invite.add_argument("--phones", type=int, default=4, help="how many phones this link can enrol (default 4)")
     sub.add_parser("invitations")
     revoke = sub.add_parser("invite-revoke")
     revoke.add_argument("invitation_id")
@@ -130,57 +110,34 @@ def main() -> int:
     config_set.add_argument("pairs", nargs="+", metavar="key=value")
     args = parser.parse_args()
 
-    if args.command == "login":
-        if not args.api:
-            raise SystemExit("--api is required for login")
-        api_base = args.api.rstrip("/")
-        auth = (args.auth or f"{api_base}/auth/v1").rstrip("/")
-        email = input("E-mail address: ").strip().lower()
-        status, data = call("POST", f"{auth}/otp", {"email": email, "create_user": False}, {"apikey": args.key})
-        if status >= 400:
-            raise SystemExit(f"Could not request a code: {data}")
-        code = getpass.getpass("One-time code from the e-mail (hidden): ").strip()
-        status, data = call("POST", f"{auth}/verify", {"type": "email", "email": email, "token": code}, {"apikey": args.key})
-        if status != 200:
-            raise SystemExit("The code was not accepted.")
-        save({"api": api_base, "auth": auth, "key": args.key, "access_token": data["access_token"],
-              "refresh_token": data["refresh_token"], "expires_at": time.time() + data["expires_in"]})
-        me = api("GET", "/households/me")
-        print(f"Signed in. Role: {me['role']}.")
-        if me["role"] != "admin":
-            print("This account is not an administrator; admin commands will be refused.")
-        return 0
-    if args.command == "logout":
-        SESSION.unlink(missing_ok=True)
-        print("Signed out.")
-        return 0
+    _OPTIONS.update({k: v for k, v in (("api", args.api), ("neighborhood", args.neighborhood)) if v})
 
     if args.command == "summary":
         print(json.dumps(api("GET", "/admin/neighborhood/summary"), indent=2))
     elif args.command == "households":
         table(api("GET", "/admin/households"),
-              ["household_id", "house_number", "street_name", "isp", "membership_status", "member_count", "device_count", "has_location"])
+              ["household_id", "house_number", "street_name", "isp", "membership_status", "device_count", "has_location"])
     elif args.command == "household-add":
         body = {"house_number": args.number, "street_name": args.street, "isp": args.isp}
         if args.lat is not None and args.lon is not None:
             body.update(latitude=args.lat, longitude=args.lon)
         created = api("POST", "/admin/households", body)
-        print(f"Approved {created['house_number']} {created['street_name']}  id {created['household_id']}")
+        print(f"Added {created['house_number']} {created['street_name']}  id {created['household_id']}")
     elif args.command in ("suspend", "reinstate", "remove"):
         if args.command == "remove" and input("This deletes the household's devices and events. Type 'remove' to continue: ") != "remove":
             return 1
         api("POST", f"/admin/households/{args.command}", {"household_id": args.household_id, **({"reason": args.reason} if args.reason else {})})
         print("Done.")
     elif args.command == "invite":
-        body = {"expires_in_hours": args.hours, "role": "admin" if args.admin else "resident"}
+        body = {"expires_in_hours": args.hours, "max_uses": args.phones}
         if args.household:
             body["household_id"] = args.household
         created = api("POST", "/admin/invitations", body)
-        print("Invitation link (shown only now; send it privately to one resident):\n")
+        print("Invitation link (shown only now; send it privately to one home):\n")
         print(f"  {created['invitation_url']}\n")
-        print(f"Expires {created['expires_at']}. Id {created['invitation_id']}.")
+        print(f"Enrols up to {created['max_uses']} phone(s). Expires {created['expires_at']}. Id {created['invitation_id']}.")
     elif args.command == "invitations":
-        table(api("GET", "/admin/invitations"), ["invitation_id", "status", "household_bound", "role", "expires_at", "used_at"])
+        table(api("GET", "/admin/invitations"), ["invitation_id", "status", "household_bound", "use_count", "max_uses", "expires_at", "used_at"])
     elif args.command == "invite-revoke":
         api("POST", "/admin/invitations/revoke", {"invitation_id": args.invitation_id})
         print("Revoked.")
@@ -207,11 +164,7 @@ def main() -> int:
         for pair in args.pairs:
             key, _, raw = pair.partition("=")
             values[key] = float(raw) if "." in raw else int(raw)
-        session = load()
-        status, data = call("PUT", f"{session['api']}/api/v1/admin/configuration", {"values": values},
-                            {"Authorization": f"Bearer {token(session)}"})
-        if status >= 400:
-            raise SystemExit(f"Refused: {data.get('error', {}).get('message', data)}")
+        data = api("PUT", "/admin/configuration", {"values": values})
         print("Updated:", ", ".join(f"{k}={data['values'][k]}" for k in values))
     return 0
 

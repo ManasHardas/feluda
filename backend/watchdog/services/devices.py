@@ -12,10 +12,8 @@ from ..db import Database
 from ..errors import ApiError, not_found
 from ..schemas import DeviceOut, RegisterDeviceRequest
 
-MAX_DEVICES_PER_USER = 5
 
-
-def _out(row) -> DeviceOut:
+def device_out(row) -> DeviceOut:
     return DeviceOut(
         device_id=row["id"],
         platform=row["platform"],
@@ -29,44 +27,39 @@ def _out(row) -> DeviceOut:
 
 
 def register(db: Database, member: Member, body: RegisterDeviceRequest) -> DeviceOut:
+    """Update what the calling phone reports about itself (new OS or app version, capabilities).
+
+    A phone is created only by enrolment; this never creates one and only ever touches the caller's own.
+    """
+    if body.device_id != member.device_id:
+        raise ApiError(409, "device_conflict", "A phone can only update its own registration.")
     capabilities = Jsonb(body.capabilities.model_dump(mode="json"))
     with db.api(member.user_id) as conn:
-        existing = conn.execute("SELECT * FROM nw.devices WHERE id = %s FOR UPDATE", [body.device_id]).fetchone()
-        if existing is not None:
-            if existing["status"] == "revoked":
-                raise ApiError(
-                    403, "device_revoked", "This device registration was revoked. Reinstall the app to register again."
-                )
-            if existing["household_id"] != member.household_id or existing["platform"] != body.platform:
-                raise ApiError(409, "device_conflict", "This device identifier cannot be registered. Reinstall the app.")
-            row = conn.execute(
-                "UPDATE nw.devices SET os_version = %s, app_version = %s, capabilities = %s WHERE id = %s RETURNING *",
-                [body.os_version, body.app_version, capabilities, body.device_id],
-            ).fetchone()
-            return _out(row)
-        count = conn.execute("SELECT count(*) AS n FROM nw.devices WHERE status = 'active'").fetchone()["n"]
-        if count >= MAX_DEVICES_PER_USER:
-            raise ApiError(
-                409, "device_limit", f"At most {MAX_DEVICES_PER_USER} devices can be registered per person. Revoke one first."
-            )
-        row = conn.execute(
-            "INSERT INTO nw.devices (id, user_id, household_id, platform, os_version, app_version, capabilities)"
-            " VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING RETURNING *",
-            [body.device_id, member.user_id, member.household_id, body.platform, body.os_version, body.app_version, capabilities],
-        ).fetchone()
-        if row is None:  # the identifier exists but belongs to someone else (invisible under row-level security)
+        existing = conn.execute("SELECT platform FROM nw.devices WHERE id = %s FOR UPDATE", [body.device_id]).fetchone()
+        if existing is None or existing["platform"] != body.platform:
             raise ApiError(409, "device_conflict", "This device identifier cannot be registered. Reinstall the app.")
-        return _out(row)
+        row = conn.execute(
+            "UPDATE nw.devices SET os_version = %s, app_version = %s, capabilities = %s WHERE id = %s RETURNING *",
+            [body.os_version, body.app_version, capabilities, body.device_id],
+        ).fetchone()
+        return device_out(row)
 
 
 def list_devices(db: Database, member: Member) -> list[DeviceOut]:
-    with db.api(member.user_id) as conn:
-        return [_out(r) for r in conn.execute("SELECT * FROM nw.devices ORDER BY created_at")]
+    """The phones of the caller's household (platform and versions only; never another household's)."""
+    with db.service() as conn:
+        rows = conn.execute(
+            "SELECT * FROM nw.devices WHERE household_id = %s AND status = 'active' ORDER BY created_at", [member.household_id]
+        ).fetchall()
+    return [device_out(r) for r in rows]
 
 
-def revoke(db: Database, user_id: UUID, device_id: UUID, now: datetime) -> None:
-    with db.api(user_id) as conn:
-        owned = conn.execute("SELECT id FROM nw.devices WHERE id = %s", [device_id]).fetchone()
+def revoke(db: Database, member: Member, device_id: UUID, now: datetime) -> None:
+    """A phone can remove itself or another phone of its own household."""
+    with db.service() as conn:
+        owned = conn.execute(
+            "SELECT id FROM nw.devices WHERE id = %s AND household_id = %s", [device_id, member.household_id]
+        ).fetchone()
     if owned is None:
         raise not_found("Device not found.")
     revoke_as_service(db, device_id, now)
@@ -80,6 +73,7 @@ def revoke_as_service(db: Database, device_id: UUID, now: datetime) -> bool:
         if row is None:
             return False
         conn.execute("DELETE FROM nw.notification_tokens WHERE device_id = %s", [device_id])
+        conn.execute("DELETE FROM nw.device_credentials WHERE device_id = %s", [device_id])
         conn.execute(
             "UPDATE nw.device_sessions SET ended_at = %s, end_reason = 'device_revoked' WHERE device_id = %s AND ended_at IS NULL",
             [now, device_id],

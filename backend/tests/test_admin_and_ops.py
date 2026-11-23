@@ -34,11 +34,10 @@ def test_admin_manages_households_and_everything_is_audited(world):
         "street_name",
         "isp",
         "membership_status",
-        "member_count",
         "device_count",
         "has_location",
         "created_at",
-    }  # no e-mail, no device details
+    }  # no device details, nothing personal
 
     target = world.hood.households[5]
     resident = world.actor(target)
@@ -49,7 +48,7 @@ def test_admin_manages_households_and_everything_is_audited(world):
         ).status_code
         == 200
     )
-    assert resident.get("/api/v1/households/me").json()["error"]["code"] == "not_a_member"
+    assert resident.get("/api/v1/households/me").status_code == 401
     with world.db.service() as conn:
         assert (
             conn.execute(
@@ -61,13 +60,12 @@ def test_admin_manages_households_and_everything_is_audited(world):
             conn.execute("SELECT count(*) AS n FROM nw.devices WHERE household_id = %s", [target.household_id]).fetchone()["n"]
             == 0
         )
-    assert admin.post("/api/v1/admin/households/suspend", {"household_id": str(world.hood.admin.household_id)}).status_code == 409
 
     actions = [entry["action"] for entry in admin.get("/api/v1/admin/audit-logs").json()]
     for expected in ("household_approved", "household_list_viewed", "household_removed"):
         assert expected in actions
     removal = next(e for e in admin.get("/api/v1/admin/audit-logs").json() if e["action"] == "household_removed")
-    assert removal["metadata"] == {"reason": "moved away"} and removal["actor_reference"].startswith("H-")
+    assert removal["metadata"] == {"reason": "moved away"} and removal["actor_reference"] == "admin"
 
 
 def test_admin_can_revoke_a_compromised_device(world):
@@ -78,7 +76,13 @@ def test_admin_can_revoke_a_compromised_device(world):
         ).status_code
         == 200
     )
-    assert target.submit([target.heartbeat()]).json()["error"]["code"] == "device_revoked"
+    refused = target.submit([target.heartbeat()])
+    assert refused.status_code == 401 and refused.json()["error"]["code"] == "unauthorized"
+    with world.db.service() as conn:
+        left = conn.execute(
+            "SELECT count(*) AS n FROM nw.device_credentials WHERE device_id = %s", [target.household.device_id]
+        ).fetchone()
+    assert left["n"] == 0  # the phone's secret is destroyed, not just flagged
 
 
 def test_detection_thresholds_can_be_changed_and_are_bounded(world):
@@ -127,7 +131,7 @@ def test_summary_history_and_anonymized_export(world):
     export = world.admin.get("/api/v1/admin/incidents/export")
     assert export.status_code == 200 and len(export.json()) == 2
     for h in world.hood.households:
-        for secret in (str(h.household_id), str(h.device_id), str(h.user_id), h.email):
+        for secret in (str(h.household_id), str(h.device_id), str(h.user_id), h.device_secret):
             assert secret not in export.text
     assert "latitude" not in export.text and "normalized_street_name" not in export.text
     assert "incidents_exported" in [e["action"] for e in world.admin.get("/api/v1/admin/audit-logs").json()]
