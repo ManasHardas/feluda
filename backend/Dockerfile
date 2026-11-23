@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Pinned base image tag; dependencies come from uv.lock, so builds are repeatable.
-FROM python:3.12.8-slim-bookworm AS build
+FROM python:3.15.2-slim-bookworm AS build
 COPY --from=ghcr.io/astral-sh/uv:0.5.14 /uv /usr/local/bin/uv
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PROJECT_ENVIRONMENT=/app/.venv
@@ -16,7 +16,7 @@ COPY tests ./tests
 ENV PATH="/app/.venv/bin:$PATH" PYTHONDONTWRITEBYTECODE=1
 CMD ["pytest", "-p", "no:cacheprovider"]
 
-FROM python:3.12.8-slim-bookworm AS runtime
+FROM python:3.15.2-slim-bookworm AS runtime
 RUN useradd --system --uid 10001 --home /app watchdog
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
