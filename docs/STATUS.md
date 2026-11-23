@@ -75,6 +75,7 @@ The production container image target (`runtime`) has not been built on its own 
 | Invitations, registration, membership, leaving, account deletion | AUTOMATED_TESTED |
 | Sign-in token verification (shared secret) | AUTOMATED_TESTED |
 | Sign-in token verification through JWKS (asymmetric keys) | IMPLEMENTED; not tested (needs a real issuer) |
+| Staging database (Supabase project `feluda`) | Schema applied and verified against a local database on 2026-11-22. No backend is deployed against it yet |
 | Supabase Auth itself (code e-mails, rotation settings) | EXTERNAL_CREDENTIAL_REQUIRED |
 | Deleting the identity record at the provider on account deletion | IMPLEMENTED; not tested; falls back to an operator task |
 | Row-level security and restricted roles | AUTOMATED_TESTED |

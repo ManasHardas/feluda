@@ -15,6 +15,11 @@ Last updated 2026-11-22. Source brief: `neighborhood_watchdog_master_build_promp
 13. **Independent security review** before going beyond a small pilot (`docs/SECURITY_REVIEW.md`). Done when: a summary with scope, date, findings and remediation is published.
 14. **Legal check of the privacy text** for where the pilot runs. Done when: the operator is named in the notice and the owner is satisfied.
 
+## Staging set-up in progress (Supabase project `feluda`)
+10a. **Backend database login.** Create `nw_app_login` with `infrastructure/scripts/create_app_login.sql` and store its password only in the host's secret store. Waiting for the host account (the password has nowhere safe to go yet). Done when: the deployed backend connects with it.
+10b. **Sign-in settings in the Supabase dashboard** (owner): e-mail template showing the 6-digit code, own SMTP sender, session lifetimes, as in `infrastructure/supabase/README.md`. Done when: a real sign-in code arrives by e-mail.
+10c. **Supabase advisor warning:** `nw.set_updated_at` and `nw.current_user_id` have no fixed `search_path`. Low risk (neither is SECURITY DEFINER, both call built-ins only); fixing `current_user_id` may stop PostgreSQL inlining it in row-level-security policies. Done when: fixed in a new migration with the policy timing checked, or accepted in a decision record.
+
 ## Not built yet
 15. **Administrator multi-factor enrolment.** The backend enforces it when `ADMIN_REQUIRE_MFA=true`, but there is no way to enrol. Done when: an administrator can add a second factor and sign in with it.
 16. **Android SBOM task** (CycloneDX Gradle plugin). Done when: `release.yml` attaches `sbom-android.cdx.json`.
