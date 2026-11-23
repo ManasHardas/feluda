@@ -110,5 +110,5 @@ says otherwise. Note the wall-clock time of each action.
    heartbeats.
 4. Repeat with Low Power Mode on.
 5. In Xcode, pause in the debugger and run
-   `e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWithIdentifier:@"com.manashardas.feluda.refresh"]`
+   `e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWithIdentifier:@"app.feluda.refresh"]`
    to force one refresh and confirm a `HEARTBEAT` is uploaded.

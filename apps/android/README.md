@@ -62,7 +62,7 @@ None of these is a secret. Each is read from a Gradle property (`-PKEY=value` or
 | `SOURCE_REPO_URL`, `PRIVACY_URL`, `SECURITY_CONTACT`, `SECURITY_REVIEW_URL` | Shown on the Transparency screen. | blank ("Not configured in this build") |
 | `INTERNET_PROBE_URL` | Second, independent HTTPS reachability target. | `https://connectivitycheck.gstatic.com/generate_204` |
 | `FIREBASE_PROJECT_ID`, `FIREBASE_APPLICATION_ID`, `FIREBASE_API_KEY`, `FIREBASE_SENDER_ID` | Firebase Cloud Messaging. | blank (push off) |
-| `APPLICATION_ID` | Android application id. | `org.neighborhoodwatchdog.android` |
+| `APPLICATION_ID` | Android application id. | `app.feluda` (the code package stays `org.neighborhoodwatchdog.android`) |
 | `VERSION_NAME`, `VERSION_CODE` | App version and build number. | `0.1.0`, `1` |
 | `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | Release signing. | absent (unsigned release) |
 

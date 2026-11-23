@@ -4,7 +4,7 @@
 // "https:". The empty substitution $() between the two slashes prevents that:
 //     https:/$()/host   ->   https://host
 
-PRODUCT_BUNDLE_IDENTIFIER = com.manashardas.feluda
+PRODUCT_BUNDLE_IDENTIFIER = app.feluda
 MARKETING_VERSION = 0.1.0
 CURRENT_PROJECT_VERSION = 1
 

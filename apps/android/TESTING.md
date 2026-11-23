@@ -104,7 +104,7 @@ monitoring resumed without opening the app.
 
 ## 8. App process termination — MANUAL_TEST_REQUIRED
 
-Steps (a): `adb shell am kill org.neighborhoodwatchdog.android` with the app in the background (or
+Steps (a): `adb shell am kill app.feluda` with the app in the background (or
 swipe it away from recents). Wait for the next heartbeat (up to 15 minutes) or open the app after
 3 minutes.
 
@@ -189,7 +189,7 @@ and Transparency all say "Push notifications are not configured in this build".
 ## 16. Privacy checks — MANUAL_TEST_REQUIRED
 
 - Settings, Apps, Neighborhood Watchdog, Permissions: no location permission is listed.
-- `adb shell dumpsys package org.neighborhoodwatchdog.android | grep permission`: compare with the
+- `adb shell dumpsys package app.feluda | grep permission`: compare with the
   list on the Transparency screen.
 - `adb backup` / device-to-device transfer: app data is not included.
 - Inspect a few event JSONs: no SSID, BSSID, IP address or gateway address appears.

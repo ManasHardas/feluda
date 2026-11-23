@@ -24,7 +24,7 @@ fun releaseUrl(name: String, fallback: String): String {
     return value
 }
 
-val appId = setting("APPLICATION_ID") ?: "org.neighborhoodwatchdog.android"
+val appId = setting("APPLICATION_ID") ?: "app.feluda"
 val appVersionCode = (setting("VERSION_CODE") ?: "1").toInt()
 val appVersionName = setting("VERSION_NAME") ?: "0.1.0"
 

@@ -56,7 +56,7 @@ immediately are recorded here.
    (`API_BASE_URL` and the others are compiled into the app; they are listed in the release notes),
    and build: `cd apps/android && ./gradlew --no-daemon assembleRelease`.
 2. Obtain the distributed APK (Firebase App Distribution download, or
-   `adb shell pm path org.neighborhoodwatchdog.android` then `adb pull`).
+   `adb shell pm path app.feluda` then `adb pull`).
 3. Compare contents, ignoring the signature:
 
    ```bash

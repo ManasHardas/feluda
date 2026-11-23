@@ -15,7 +15,7 @@ Reference: https://firebase.google.com/docs/app-distribution
 ### One-time setup
 
 1. Create a Firebase project (console.firebase.google.com). Add an Android app with the package
-   name `org.neighborhoodwatchdog.android` (or your own; then set the `APPLICATION_ID` Gradle
+   name `app.feluda` (or your own; then set the `APPLICATION_ID` Gradle
    property to match).
 2. Project settings → General: note the **Project ID**, **App ID**, **Web API key** and
    **Sender ID**. The app is configured from these four values at build time; no
@@ -82,7 +82,7 @@ https://developer.apple.com/help/app-store-connect/test-a-beta-version/invite-ex
 1. Enrol in the Apple Developer Program ($99 per year). An individual enrolment shows the owner's
    legal name as the seller.
 2. Certificates, Identifiers & Profiles → Identifiers: register the bundle id
-   `com.manashardas.feluda` (or your own) with the capabilities **Push Notifications** and
+   `app.feluda` (or your own) with the capabilities **Push Notifications** and
    **Time Sensitive Notifications**. Background modes (fetch, remote notifications) are in the app's
    Info.plist.
 3. Keys: create an **APNs key** (.p8). Give the backend `APNS_KEY_ID`, `APNS_TEAM_ID`,
