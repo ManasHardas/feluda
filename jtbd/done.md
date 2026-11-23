@@ -15,3 +15,4 @@
 - 2026-11-22: **License and security contact.** MIT `LICENSE` added; security contact set in `SECURITY.md`; `CODEOWNERS` names the owner. Owner confirmed decision 0012 (a few dollars a month for an always-on host).
 - 2026-11-22: **Android dependency audit.** 155 resolved release dependencies checked against the OSV database; no known advisories. Recorded in `docs/RELEASE_VERIFICATION.md`.
 - 2026-11-22: **Xcode updated to 27.2 by the owner.** `make ios-test` passes again on the simulator: 98 tests run, 1 skipped (the live test), 0 failures. GitHub repository renamed to `ManasHardas/feluda`.
+- 2026-11-22: **Repository published privately and first CI run green.** `ManasHardas/feluda`, pull request 1. All jobs pass on GitHub (backend, Android, iOS simulator, container, migrations, contract, audit, secret scan, CodeQL); dependency review is skipped while the repository is private. Three CI configuration faults fixed on the way (commits `8142720`, `7891998`).

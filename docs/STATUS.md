@@ -118,7 +118,7 @@ The production container image target (`runtime`) has not been built on its own 
 | Each app's networking code talking to the backend | AUTOMATED_TESTED (`make live-ios`, `make live-android`), on the Mac, not on a device |
 | Each app running as an app (screens, monitoring, background work) against the backend | **Never done.** Needs an emulator or simulator session, or phones |
 | Staging environment | NOT DONE (EXTERNAL_CREDENTIAL_REQUIRED). The brief asked for a functioning staging environment; it does not exist |
-| GitHub repository, branch protection | Private repository under `ManasHardas`; public or not is the owner's decision; branch protection NOT DONE |
+| GitHub repository, branch protection | Private repository `ManasHardas/feluda`; CI ran green on pull request 1 (2026-11-22); public or not is the owner's decision; branch protection NOT DONE |
 | Signed release tags, SBOM, provenance | Workflow IMPLEMENTED; never run |
 | Reproducible build demonstrated | NOT DONE |
 | Independent security review | EXTERNAL_REVIEW_REQUIRED |
