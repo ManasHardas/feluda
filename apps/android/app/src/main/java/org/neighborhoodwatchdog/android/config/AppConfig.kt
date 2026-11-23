@@ -6,8 +6,6 @@ import org.neighborhoodwatchdog.android.BuildConfig
 /** Build-time configuration. None of these values is a secret. Blank means "not configured". */
 data class AppConfig(
     val apiBaseUrl: String,
-    val authBaseUrl: String,
-    val authPublicKey: String,
     val sourceRepoUrl: String,
     val privacyUrl: String,
     val securityContact: String,
@@ -22,7 +20,6 @@ data class AppConfig(
     val debug: Boolean,
 ) {
     val apiRoot: String get() = apiBaseUrl.trimEnd('/') + "/api/v1/"
-    val authRoot: String get() = authBaseUrl.trimEnd('/') + "/"
     val healthUrl: String get() = apiRoot + "monitoring/health"
 
     /** Push needs all four Firebase values. Without them the app says push is not configured. */
@@ -37,8 +34,6 @@ data class AppConfig(
     companion object {
         fun fromBuildConfig(): AppConfig = AppConfig(
             apiBaseUrl = BuildConfig.API_BASE_URL,
-            authBaseUrl = BuildConfig.AUTH_BASE_URL,
-            authPublicKey = BuildConfig.AUTH_PUBLIC_KEY,
             sourceRepoUrl = BuildConfig.SOURCE_REPO_URL,
             privacyUrl = BuildConfig.PRIVACY_URL,
             securityContact = BuildConfig.SECURITY_CONTACT,

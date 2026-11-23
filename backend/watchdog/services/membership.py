@@ -59,10 +59,16 @@ def verify_invitation(db: Database, token: str, now: datetime) -> VerifyInvitati
 
 
 def _household_for(conn: Conn, invitation, number: str | None, street: str) -> UUID:
-    """Find or create the household this enrolment belongs to. Never trusts an identifier from the client."""
+    """Find or create the household this enrolment belongs to. Never trusts an identifier from the client.
+
+    One link is one home. The first phone that uses a link decides the household (by the street and
+    optional house number typed); the link is then bound to it, and every later phone using the same
+    link joins that household whatever it types. So a link can never create more than one household,
+    and several phones from one link cannot look like several homes to the correlation engine.
+    """
     neighborhood_id = invitation["neighborhood_id"]
     if invitation["household_id"] is not None:
-        # A link issued for one household: the phone joins it, whatever address was typed.
+        # A link bound to one household (by the organizer, or by its first use): the phone joins it.
         household = conn.execute(
             "SELECT id, membership_status FROM nw.households WHERE id = %s FOR UPDATE", [invitation["household_id"]]
         ).fetchone()
@@ -70,39 +76,32 @@ def _household_for(conn: Conn, invitation, number: str | None, street: str) -> U
             raise invitation_invalid()
         return household["id"]
 
-    if number is None:
-        # No house number: the phones enrolled with one link on one street form one household.
+    household = None
+    if number is not None:
         household = conn.execute(
-            "SELECT id, membership_status FROM nw.households WHERE invitation_id = %s AND normalized_street_name = %s"
-            " AND normalized_house_number IS NULL FOR UPDATE",
-            [invitation["id"], street],
-        ).fetchone()
-    else:
-        household = conn.execute(
-            "SELECT id, membership_status, invitation_id FROM nw.households WHERE neighborhood_id = %s"
+            "SELECT id, membership_status FROM nw.households WHERE neighborhood_id = %s"
             " AND normalized_house_number = %s AND normalized_street_name = %s FOR UPDATE",
             [neighborhood_id, number, street],
         ).fetchone()
-
     if household is None:
-        return conn.execute(
+        household_id = conn.execute(
             "INSERT INTO nw.households (neighborhood_id, anonymous_reference, normalized_house_number,"
             " normalized_street_name, membership_status, invitation_id) VALUES (%s, %s, %s, %s, 'active', %s) RETURNING id",
             [neighborhood_id, anonymous_reference(), number, street, invitation["id"]],
         ).fetchone()["id"]
-
-    if household["membership_status"] in ("suspended", "removed"):
-        raise _household_taken()
-    if number is not None:
+    else:
+        if household["membership_status"] in ("suspended", "removed"):
+            raise _household_taken()
         phones = conn.execute(
             "SELECT count(*) AS n FROM nw.household_members WHERE household_id = %s AND status = 'active'", [household["id"]]
         ).fetchone()["n"]
-        if phones and household["invitation_id"] != invitation["id"]:
-            # Someone else's link must not be able to attach a phone to a home that is already taking part:
+        if phones:
+            # Another link must not be able to attach a phone to a home that is already taking part:
             # that phone would see the household's status and alerts.
             raise _household_taken()
-        conn.execute("UPDATE nw.households SET invitation_id = %s WHERE id = %s", [invitation["id"], household["id"]])
-    return household["id"]
+        household_id = household["id"]  # an address the organizer added in advance
+    conn.execute("UPDATE nw.invitations SET household_id = %s WHERE id = %s", [household_id, invitation["id"]])
+    return household_id
 
 
 def _issue_credential(conn: Conn, device_id: UUID) -> str:
@@ -254,13 +253,21 @@ def leave(db: Database, member: Member, now: datetime) -> None:
             "SELECT count(*) AS n FROM nw.household_members WHERE household_id = %s AND status = 'active'", [member.household_id]
         ).fetchone()["n"]
         if remaining == 0:
-            # Last phone gone: keep the bare address so the home can join again, clear everything else.
-            conn.execute(
-                "UPDATE nw.households SET membership_status = CASE WHEN membership_status = 'active' THEN 'approved'"
-                " ELSE membership_status END, display_label = NULL WHERE id = %s",
-                [member.household_id],
-            )
             conn.execute("DELETE FROM nw.connectivity_events WHERE household_id = %s", [member.household_id])
+            # Last phone gone. A household that residents created by joining is deleted with the street and
+            # house number they typed. One the organizer added in advance (invitation_id is NULL) keeps only
+            # what the organizer entered; a household the organizer removed stays as a block on re-entry.
+            deleted = conn.execute(
+                "DELETE FROM nw.households WHERE id = %s AND invitation_id IS NOT NULL AND membership_status <> 'removed'"
+                " RETURNING id",
+                [member.household_id],
+            ).fetchone()
+            if deleted is None:
+                conn.execute(
+                    "UPDATE nw.households SET membership_status = CASE WHEN membership_status = 'active' THEN 'approved'"
+                    " ELSE membership_status END, display_label = NULL, isp = 'unknown' WHERE id = %s",
+                    [member.household_id],
+                )
         audit(
             conn,
             action="member_left",

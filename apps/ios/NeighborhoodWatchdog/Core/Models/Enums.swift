@@ -93,10 +93,6 @@ enum HouseholdStatus: String, Codable, Sendable {
     case approved, active, suspended, removed
 }
 
-enum MemberRole: String, Codable, Sendable {
-    case resident, admin
-}
-
 enum DeviceStatus: String, Codable, Sendable {
     case active, revoked
 }

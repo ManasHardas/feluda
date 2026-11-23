@@ -22,9 +22,9 @@ import org.neighborhoodwatchdog.android.MainActivity
 import org.neighborhoodwatchdog.android.R
 import org.neighborhoodwatchdog.android.config.AppConfig
 import org.neighborhoodwatchdog.android.data.api.ApiResult
-import org.neighborhoodwatchdog.android.data.auth.AuthRepository
 import org.neighborhoodwatchdog.android.data.local.LocalState
 import org.neighborhoodwatchdog.android.data.repository.DeviceRepository
+import org.neighborhoodwatchdog.android.domain.auth.DeviceCredentials
 import org.neighborhoodwatchdog.android.monitoring.PermissionStatus
 import javax.inject.Inject
 import kotlin.coroutines.resume
@@ -66,7 +66,7 @@ class PushManager(
     private val config: AppConfig,
     private val devices: DeviceRepository,
     private val localState: LocalState,
-    private val auth: AuthRepository,
+    private val credentials: DeviceCredentials,
 ) {
     val configured: Boolean get() = config.pushConfigured
 
@@ -102,7 +102,7 @@ class PushManager(
     }
 
     suspend fun register(token: String): PushSyncResult {
-        if (!auth.isSignedIn || !localState.deviceRegistered) return PushSyncResult.Failed("Device is not registered yet")
+        if (!credentials.isEnrolled) return PushSyncResult.Failed("This phone is not enrolled yet")
         if (token == localState.registeredPushToken) return PushSyncResult.Registered
         return when (val result = devices.registerPushToken(token)) {
             is ApiResult.Success -> PushSyncResult.Registered

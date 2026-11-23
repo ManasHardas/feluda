@@ -14,14 +14,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.neighborhoodwatchdog.android.data.api.ConnectivityStatusOut
 import org.neighborhoodwatchdog.android.data.api.DeviceCapabilities
+import org.neighborhoodwatchdog.android.data.api.EnrollRequest
+import org.neighborhoodwatchdog.android.data.api.EnrollResponse
 import org.neighborhoodwatchdog.android.data.api.HouseholdOut
 import org.neighborhoodwatchdog.android.data.api.IncidentDetailOut
-import org.neighborhoodwatchdog.android.data.api.JoinHouseholdRequest
 import org.neighborhoodwatchdog.android.data.api.NeighborhoodOut
 import org.neighborhoodwatchdog.android.data.api.NotificationPreferences
 import org.neighborhoodwatchdog.android.data.api.RegisterDeviceRequest
 import org.neighborhoodwatchdog.android.data.api.RegisterPushTokenRequest
-import org.neighborhoodwatchdog.android.data.api.SessionResponse
+import org.neighborhoodwatchdog.android.data.api.VerifyInvitationResponse
 import org.neighborhoodwatchdog.android.data.api.parseApiError
 import org.neighborhoodwatchdog.android.domain.model.BackgroundMonitoring
 import org.neighborhoodwatchdog.android.domain.model.BandEvidence
@@ -241,12 +242,32 @@ class ContractJsonTest {
         )
         assertEquals("callback", device["capabilities"]!!.jsonObject["background_monitoring"]!!.jsonPrimitive.content)
 
-        val join = json.encodeToJsonElement(
-            JoinHouseholdRequest.serializer(),
-            JoinHouseholdRequest("a".repeat(24), "12", "Elm Street", null, Isp.TMOBILE_HOME, true),
-        ).jsonObject
-        assertEquals(setOf("invitation_token", "house_number", "street_name", "isp", "privacy_acknowledged"), join.keys)
-        assertEquals("tmobile_home", join["isp"]!!.jsonPrimitive.content)
+        val enrolWithNumber = EnrollRequest(
+            invitationToken = "a".repeat(24),
+            streetName = "Elm Street",
+            houseNumber = "12",
+            privacyAcknowledged = true,
+            deviceId = "3f2b8a52-0c1d-4e7a-9b61-5d2f0a9c7e11",
+            platform = Platform.ANDROID,
+            osVersion = "Android 14 (API 34)",
+            appVersion = "0.1.0 (1)",
+            capabilities = DeviceCapabilities(canMeasureRssi = true, backgroundMonitoring = BackgroundMonitoring.CALLBACK),
+        )
+        val enrol = json.encodeToJsonElement(EnrollRequest.serializer(), enrolWithNumber).jsonObject
+        // The server rejects unknown fields, so the key set must be exactly the contract's.
+        assertEquals(
+            setOf(
+                "invitation_token", "street_name", "house_number", "privacy_acknowledged", "device_id", "platform", "os_version",
+                "app_version", "capabilities",
+            ),
+            enrol.keys,
+        )
+        assertEquals("12", enrol["house_number"]!!.jsonPrimitive.content)
+        assertEquals("true", enrol["privacy_acknowledged"]!!.jsonPrimitive.content)
+        assertEquals("android", enrol["platform"]!!.jsonPrimitive.content)
+        val withoutNumber = json.encodeToJsonElement(EnrollRequest.serializer(), enrolWithNumber.copy(houseNumber = null)).jsonObject
+        assertFalse("an empty house number is left out, not sent as a value", "house_number" in withoutNumber.keys)
+        assertEquals(enrol.keys - "house_number", withoutNumber.keys)
 
         val push = json.encodeToJsonElement(
             RegisterPushTokenRequest.serializer(),
@@ -312,11 +333,20 @@ class ContractJsonTest {
         val household = json.decodeFromString(
             HouseholdOut.serializer(),
             """{"household_id":"7e6d5c4b-3a29-4180-9f0e-1d2c3b4a5968","neighborhood_id":"0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
-                "anonymous_reference":"Household 7","display_label":null,"house_number":"12","street_name":"Elm Street",
-                "isp":"google_fiber","membership_status":"active","role":"resident","member_count":2,"device_count":3}""",
+                "anonymous_reference":"Household 7","display_label":null,"house_number":null,"street_name":"Elm Street",
+                "isp":"google_fiber","membership_status":"active","device_count":3}""",
         )
         assertEquals(Isp.GOOGLE_FIBER, household.isp)
         assertNull(household.displayLabel)
+        assertNull("the house number is optional", household.houseNumber)
+        assertEquals(3, household.deviceCount)
+
+        val invitation = json.decodeFromString(
+            VerifyInvitationResponse.serializer(),
+            """{"valid":true,"neighborhood_name":"Elm Park","expires_at":"2026-12-01T00:00:00Z"}""",
+        )
+        assertTrue(invitation.valid)
+        assertEquals("Elm Park", invitation.neighborhoodName)
 
         val neighborhood = json.decodeFromString(
             NeighborhoodOut.serializer(),
@@ -340,22 +370,30 @@ class ContractJsonTest {
     }
 
     @Test
-    fun errorBodyAndAuthSessionAreParsed() {
-        val error = parseApiError(403, """{"error":{"code":"not_a_member","message":"No household.","request_id":"r-1"}}""", null)
-        assertEquals("not_a_member", error.code)
-        assertEquals(403, error.httpCode)
+    fun errorBodyAndEnrolmentAnswerAreParsed() {
+        val error = parseApiError(409, """{"error":{"code":"household_already_registered","message":"Already taking part.","request_id":"r-1"}}""", null)
+        assertEquals("household_already_registered", error.code)
+        assertEquals("Already taking part.", error.message)
+        assertEquals(409, error.httpCode)
         assertFalse(error.isNetwork)
         val limited = parseApiError(429, """{"error":{"code":"rate_limited","message":"Slow down."}}""", "17")
         assertEquals(17, limited.retryAfterSeconds)
         assertNull("a body that is not the API error shape gives no code", parseApiError(502, "<html>Bad gateway</html>", null).code)
 
-        val session = json.decodeFromString(
-            SessionResponse.serializer(),
-            """{"access_token":"a.b.c","refresh_token":"r1","expires_in":3600,"token_type":"bearer",
-                "user":{"id":"u-1","email":"resident@example.org","aud":"authenticated"}}""",
+        val enrolled = json.decodeFromString(
+            EnrollResponse.serializer(),
+            """{"device_token":"s3cr3t-value",
+                "household":{"household_id":"7e6d5c4b-3a29-4180-9f0e-1d2c3b4a5968","neighborhood_id":"0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+                  "anonymous_reference":"Household 7","display_label":null,"house_number":"12","street_name":"Elm Street",
+                  "isp":"unknown","membership_status":"active","device_count":1},
+                "device":{"device_id":"3f2b8a52-0c1d-4e7a-9b61-5d2f0a9c7e11","platform":"android","os_version":"Android 14 (API 34)",
+                  "app_version":"0.1.0 (1)","status":"active","monitoring_enabled":true,"last_seen_at":null,
+                  "created_at":"2026-11-23T10:00:00Z"}}""",
         )
-        assertEquals(3600, session.expiresIn)
-        assertEquals("resident@example.org", session.user?.email)
+        assertEquals("s3cr3t-value", enrolled.deviceToken)
+        assertEquals("12", enrolled.household.houseNumber)
+        assertEquals(1, enrolled.household.deviceCount)
+        assertEquals("3f2b8a52-0c1d-4e7a-9b61-5d2f0a9c7e11", enrolled.device.deviceId)
         assertTrue(JsonObject(emptyMap()).isEmpty())
     }
 }

@@ -4,7 +4,8 @@ The pilot needs no public store listing. Android goes out through Firebase App D
 iOS through TestFlight external testing.
 
 **Status: EXTERNAL_CREDENTIAL_REQUIRED.** Workflows and steps are prepared; no build has been
-distributed, no Firebase project or Apple account exists for this project yet.
+distributed. The apps are being updated for the no-sign-in flow (decision 0014) and need no
+sign-in settings any more; the distribution workflows have never run.
 TestFlight external testing additionally needs Apple's review of the first build
 (EXTERNAL_REVIEW_REQUIRED); how long that takes is up to Apple.
 
@@ -42,7 +43,7 @@ Reference: https://firebase.google.com/docs/app-distribution
 | Kind | Name |
 | --- | --- |
 | Secrets | `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `FIREBASE_SERVICE_ACCOUNT_JSON` |
-| Variables | `API_BASE_URL`, `AUTH_BASE_URL`, `AUTH_PUBLIC_KEY`, `PRIVACY_URL`, `SECURITY_CONTACT`, `FIREBASE_PROJECT_ID`, `FIREBASE_ANDROID_APP_ID`, `FIREBASE_API_KEY`, `FIREBASE_SENDER_ID` |
+| Variables | `API_BASE_URL`, `PRIVACY_URL`, `SECURITY_CONTACT`, `FIREBASE_PROJECT_ID`, `FIREBASE_ANDROID_APP_ID`, `FIREBASE_API_KEY`, `FIREBASE_SENDER_ID` |
 
 ### Each release
 
@@ -53,7 +54,7 @@ it. By hand instead:
 ```bash
 cd apps/android
 ANDROID_KEYSTORE_PATH=/path/release.jks ANDROID_KEYSTORE_PASSWORD=... ANDROID_KEY_ALIAS=watchdog ANDROID_KEY_PASSWORD=... \
-API_BASE_URL=https://api.example.org AUTH_BASE_URL=https://<ref>.supabase.co/auth/v1 AUTH_PUBLIC_KEY=<publishable key> \
+API_BASE_URL=https://api.example.org \
 ./gradlew --no-daemon assembleRelease
 firebase appdistribution:distribute app/build/outputs/apk/release/app-release.apk \
   --app <FIREBASE_ANDROID_APP_ID> --groups neighborhood-pilot --release-notes "..."
@@ -61,9 +62,12 @@ firebase appdistribution:distribute app/build/outputs/apk/release/app-release.ap
 
 ### Inviting testers
 
-Add a resident's Google account e-mail to the group, or create an **invite link** for the group
-(App Distribution → Invite links) and set it as the backend's `ANDROID_INSTALL_URL`, so the
-registration page offers it. Testers accept the invitation, install the Firebase App Tester app or
+Create an **invite link** for the group (App Distribution → Invite links) and set it as the
+backend's `ANDROID_INSTALL_URL`, so the invitation page offers it. Adding a resident's Google
+account to the group by hand also works, but it means collecting an e-mail address the service
+itself never asks for. Either way Firebase asks the tester to sign in with a Google account to
+download: that is Google's requirement for App Distribution, outside this service, and worth
+telling residents in advance. Testers accept the invitation, install the Firebase App Tester app or
 download the APK directly, and may have to allow installs from that source once.
 
 ### Alternative
@@ -91,14 +95,17 @@ https://developer.apple.com/help/app-store-connect/test-a-beta-version/invite-ex
    needs; it is **not** a public App Store listing and nothing is published by doing this.
 5. App Store Connect → Users and Access → Integrations → App Store Connect API: create a key with
    the App Manager role for the upload workflow.
-6. Fill in TestFlight → Test Information: beta app description, feedback e-mail, privacy policy URL
-   (`https://<your host>/privacy`), and sign-in instructions for Apple's reviewer. The reviewer
-   needs a way in: create a demo neighborhood with one approved address and give them an invitation
-   link and a mailbox they can read, or review notes that explain the one-time-code sign-in.
+6. Fill in TestFlight → Test Information: beta app description, feedback e-mail (yours, as the
+   publisher; Apple requires it), privacy policy URL (`https://<your host>/privacy`), and
+   instructions for Apple's reviewer. The app has no sign-in, so say so in the review notes and
+   give the reviewer a way in: create a demo neighborhood and put an invitation link for it in the
+   notes, with the longest expiry (`nwadmin.py invite --hours 720 --phones 4`; 30 days is the
+   maximum, so renew it if the review takes longer), and tell them any street name will do.
 7. Answer the export-compliance question: the app uses only standard HTTPS encryption (exempt).
-8. App Privacy: declare what `docs/PRIVACY.md` lists (contact info: e-mail address; identifiers:
-   device id; diagnostics/other data: connectivity events; coarse address data: house number and
-   street), all linked to the user, none used for tracking. Keep it consistent with
+8. App Privacy: declare what `docs/PRIVACY.md` lists (identifiers: device id; diagnostics/other
+   data: connectivity events; address data: street and, if given, house number). No contact
+   information is collected. Declare the data as linked to the user, which is the cautious answer:
+   there is no account, but a street is stored next to the phone's id. None is used for tracking. Keep it consistent with
    `apps/ios/NeighborhoodWatchdog/PrivacyInfo.xcprivacy`.
 
 ### GitHub settings (environment `beta`)
@@ -106,7 +113,7 @@ https://developer.apple.com/help/app-store-connect/test-a-beta-version/invite-ex
 | Kind | Name |
 | --- | --- |
 | Secrets | `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_PRIVATE_KEY` |
-| Variables | `APPLE_TEAM_ID`, `IOS_BUNDLE_ID`, `API_BASE_URL`, `AUTH_BASE_URL`, `AUTH_PUBLIC_KEY` |
+| Variables | `APPLE_TEAM_ID`, `IOS_BUNDLE_ID` (`app.feluda`), `API_BASE_URL`, `PRIVACY_URL`, `SECURITY_CONTACT` |
 
 ### Each release
 
@@ -121,9 +128,10 @@ After processing (minutes to an hour), in TestFlight:
 1. Create an external group, for example "Neighborhood pilot", and add the build.
 2. The **first** build added to an external group goes to Beta App Review. Later builds of the same
    version usually do not need a full review. Do not promise residents a date.
-3. Invite testers by e-mail, or enable a **public link** for the group (limit the tester count) and
-   set it as the backend's `IOS_INSTALL_URL`. A public link can be forwarded; the app is useless
-   without a neighborhood invitation, but prefer e-mail invitations if that matters to you.
+3. Enable a **public link** for the group (limit the tester count) and set it as the backend's
+   `IOS_INSTALL_URL`. A public link can be forwarded; the app is useless without a neighborhood
+   invitation. Inviting testers one by one by e-mail is tighter, but it means collecting e-mail
+   addresses the service itself never asks for.
 
 External testing allows up to 10,000 testers; a build expires 90 days after upload. Residents
 install Apple's TestFlight app, open the invitation, and tap Install.

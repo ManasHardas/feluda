@@ -45,7 +45,7 @@ enum WatchdogSessions {
         return configuration
     }
 
-    /// Session for requests a person is waiting for on screen (sign-in, loading status). It fails
+    /// Session for requests a person is waiting for on screen (joining, loading status). It fails
     /// quickly when there is no connection instead of waiting, so the screen can say so.
     static func interactiveConfiguration() -> URLSessionConfiguration {
         let configuration = reportingConfiguration()
@@ -82,10 +82,11 @@ enum APIError: Error, Sendable, Equatable {
     /// The request did not complete (no network, timeout, TLS failure...).
     case transport(URLError.Code)
     case decoding(String)
-    /// No stored session: the resident has to sign in.
-    case notSignedIn
-    /// The stored session was refused by the auth service: the resident has to sign in again.
-    case sessionExpired
+    /// This phone is not enrolled: it holds no device secret, or the server answered 401
+    /// `unauthorized` for the one it had (removed, revoked or reinstalled). The join screen is next.
+    case notEnrolled
+    /// Enrolment succeeded but the device secret could not be written to the Keychain.
+    case credentialStorage
     case invalidConfiguration(String)
 
     var code: String? {
@@ -97,8 +98,6 @@ enum APIError: Error, Sendable, Equatable {
         if case let .server(status, _, _, _, _) = self { return status }
         return nil
     }
-
-    var isNotAMember: Bool { code == "not_a_member" }
 
     /// True when retrying later may succeed without the resident doing anything.
     var isTransient: Bool {
@@ -114,12 +113,13 @@ enum APIError: Error, Sendable, Equatable {
         switch self {
         case let .server(_, code, message, _, _):
             switch code {
-            case "not_a_member": return "This email is not registered with a household yet. Enter your invitation to continue."
-            case "invitation_invalid": return "This invitation is not valid. It may have expired, been used already or been withdrawn. Ask your neighborhood administrator for a new one."
-            case "address_not_recognized": return "This address is not on the list approved for this neighborhood. Check the house number and street name, or ask your neighborhood administrator."
-            case "household_already_registered": return "This household is already registered. Ask your neighborhood administrator for an invitation to join it."
-            case "household_suspended": return "This household has been suspended by the neighborhood administrator."
-            case "device_revoked": return "This phone's registration was withdrawn. Sign out and sign in again to register it."
+            case "invitation_invalid": return "This invitation is not valid. It may have expired, been used already or been withdrawn. Ask your neighborhood organizer for a new one."
+            case "household_already_registered":
+                // The server's own sentence says what to do; the fallback is only for an empty body.
+                return message.isEmpty ? "This home is already taking part. Ask your neighborhood organizer for a link for this household." : message
+            case "device_conflict": return "This phone cannot be enrolled with this link. Delete the app, install it again and open the link once more."
+            case "household_suspended": return "This household has been suspended by the neighborhood organizer."
+            case "validation_error": return message.isEmpty ? "The service did not accept what was entered. Check the street name and try again." : message
             case "rate_limited": return "Too many attempts. Please wait a little and try again."
             default: return message.isEmpty ? "The service returned an error (\(code))." : message
             }
@@ -127,8 +127,10 @@ enum APIError: Error, Sendable, Equatable {
             return "Could not reach the Neighborhood Watchdog service. Check your connection and try again."
         case .decoding:
             return "The service sent a response this version of the app does not understand."
-        case .notSignedIn, .sessionExpired:
-            return "Please sign in again."
+        case .notEnrolled:
+            return "This phone is not enrolled in a neighborhood. Open your invitation link to join."
+        case .credentialStorage:
+            return "This phone could not store its enrolment in the Keychain. Unlock the phone and tap Join again."
         case let .invalidConfiguration(detail):
             return "This build is not configured correctly: \(detail)"
         }
@@ -139,5 +141,26 @@ enum APIError: Error, Sendable, Equatable {
         if let url = error as? URLError { return .transport(url.code) }
         if error is CancellationError { return .transport(.cancelled) }
         return .transport(.unknown)
+    }
+}
+
+extension APIError {
+    /// Builds an error from a non-2xx response. Understands the API error envelope
+    /// `{"error": {"code", "message", "request_id"}}`; anything else becomes "http_<status>".
+    static func fromResponse(data: Data, response: HTTPURLResponse) -> APIError {
+        var code = "http_\(response.statusCode)"
+        var message = ""
+        var requestID: String?
+        if let envelope = try? WatchdogJSON.decoder().decode(APIErrorEnvelope.self, from: data) {
+            code = envelope.error.code
+            message = envelope.error.message
+            requestID = envelope.error.requestID
+        }
+        var retryAfter: TimeInterval?
+        if let header = response.value(forHTTPHeaderField: "Retry-After"), let seconds = TimeInterval(header.trimmingCharacters(in: .whitespaces)), seconds >= 0 {
+            retryAfter = seconds
+        }
+        if response.statusCode == 429, code.hasPrefix("http_") { code = "rate_limited" }
+        return .server(status: response.statusCode, code: code, message: message, requestID: requestID, retryAfter: retryAfter)
     }
 }

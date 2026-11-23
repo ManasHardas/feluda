@@ -13,9 +13,11 @@ This replaces decision 0004.
   platform keystore and on the server only as a SHA-256 hash (`nw.device_credentials`). The phone
   sends it as a bearer token. It does not expire; it ends when the phone leaves, is removed by its
   household or the organizer, or the app is reinstalled.
-- **Households.** With a house number, the household is that address. Without one, the phones
-  enrolled with the same link on the same street form one household. A different link cannot attach
-  a phone to a home that is already taking part; the organizer issues a link for that household.
+- **Households.** One link is one household. The first phone that uses a link creates it from the
+  street and optional house number typed, and the link is then bound to it; later phones with that
+  link join it whatever they type, so a link can never fake several homes. A different link cannot
+  attach a phone to a numbered address that is already taking part; the organizer issues a link for
+  that household. When the last phone leaves, a household residents created is deleted.
 - **Administration.** One operator secret (`ADMIN_API_TOKEN`) for `/api/v1/admin`, used by
   `apps/admin/nwadmin.py`. Residents have no administrator role.
 - **Leaving.** Deletes the phone, its secret and everything it reported. There is no account left

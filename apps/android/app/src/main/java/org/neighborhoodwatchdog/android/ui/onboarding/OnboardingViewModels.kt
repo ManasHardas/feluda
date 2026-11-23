@@ -9,240 +9,161 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.neighborhoodwatchdog.android.R
+import org.neighborhoodwatchdog.android.config.AppConfig
 import org.neighborhoodwatchdog.android.data.api.ApiResult
-import org.neighborhoodwatchdog.android.data.auth.AuthRepository
 import org.neighborhoodwatchdog.android.data.local.LocalState
 import org.neighborhoodwatchdog.android.data.repository.DeviceRepository
 import org.neighborhoodwatchdog.android.data.repository.WatchdogRepository
 import org.neighborhoodwatchdog.android.domain.home.InvitationToken
-import org.neighborhoodwatchdog.android.domain.model.Isp
 import org.neighborhoodwatchdog.android.monitoring.HomeNetworkManager
 import org.neighborhoodwatchdog.android.monitoring.MonitoringController
 import org.neighborhoodwatchdog.android.monitoring.PermissionStatus
 import org.neighborhoodwatchdog.android.push.PushManager
 import org.neighborhoodwatchdog.android.push.PushSyncResult
+import org.neighborhoodwatchdog.android.session.InvitationInbox
 import org.neighborhoodwatchdog.android.session.SessionCoordinator
 import org.neighborhoodwatchdog.android.ui.common.errorMessage
 import javax.inject.Inject
 
 @HiltViewModel
-class ConsentViewModel @Inject constructor(
+class IntroViewModel @Inject constructor(
     private val localState: LocalState,
     private val session: SessionCoordinator,
 ) : ViewModel() {
-    /** Recorded only after the resident ticked the box and pressed the button. */
-    fun giveConsent() {
+    /** The introduction was read. Nothing is monitored or sent until the phone has also joined. */
+    fun continueToJoin() {
         localState.consentGiven = true
         session.signal.bump()
     }
 }
 
-data class SignInState(
-    val email: String = "",
-    val code: String = "",
-    val codeRequested: Boolean = false,
+data class JoinState(
+    /** What the resident pasted: the whole invitation link or only the token. */
+    val link: String = "",
+    /** Set once the server said the invitation is valid; then the street is asked. */
+    val token: String? = null,
+    val neighborhoodName: String? = null,
+    val streetName: String = "",
+    val houseNumber: String = "",
     val busy: Boolean = false,
     @StringRes val error: Int? = null,
+    /** An explanation written by the server, shown as it is (for example: this address already takes part). */
+    val serverMessage: String? = null,
+    /** This phone was enrolled before and the server no longer accepts it. */
+    val enrolmentEnded: Boolean = false,
 )
 
+/**
+ * Joining needs an invitation link, the street and, if the resident wishes, a house number.
+ * Nothing else is asked. The link arrives from the web join page (`feluda://join#t=...`) or is pasted.
+ */
 @HiltViewModel
-class SignInViewModel @Inject constructor(
-    private val auth: AuthRepository,
+class JoinViewModel @Inject constructor(
+    private val repository: WatchdogRepository,
+    private val devices: DeviceRepository,
+    private val invitations: InvitationInbox,
     private val session: SessionCoordinator,
+    localState: LocalState,
+    val config: AppConfig,
 ) : ViewModel() {
-    private val _state = MutableStateFlow(SignInState())
-    val state: StateFlow<SignInState> = _state
+    private val _state = MutableStateFlow(JoinState(enrolmentEnded = localState.enrolmentEndedNotice))
+    val state: StateFlow<JoinState> = _state
 
-    fun setEmail(value: String) = _state.update { it.copy(email = value, error = null) }
-    fun setCode(value: String) = _state.update { it.copy(code = value.filter(Char::isLetterOrDigit).take(10), error = null) }
-    fun changeEmail() = _state.update { it.copy(codeRequested = false, code = "", error = null) }
-
-    fun requestCode() {
-        val email = _state.value.email.trim()
-        if (!email.contains('@') || email.length < 5) {
-            _state.update { it.copy(error = R.string.sign_in_error_email) }
-            return
-        }
-        _state.update { it.copy(busy = true, error = null) }
+    init {
+        // A link that opened the app (also while this screen is already shown) is checked at once.
         viewModelScope.launch {
-            when (val result = auth.requestCode(email)) {
-                is ApiResult.Success -> _state.update { it.copy(busy = false, codeRequested = true) }
-                is ApiResult.Failure -> _state.update {
-                    it.copy(
-                        busy = false,
-                        error = when {
-                            result.error.isNetwork -> R.string.error_network
-                            result.error.httpCode == 429 -> R.string.error_rate_limited
-                            else -> R.string.sign_in_error_send
-                        },
-                    )
-                }
+            invitations.pending.collect { pending ->
+                if (pending != null) invitations.take()?.let { verify(it) }
             }
         }
     }
 
-    fun verify() {
+    fun setLink(value: String) = _state.update { it.copy(link = value.take(MAX_LINK_LENGTH), error = null, serverMessage = null) }
+    fun setStreet(value: String) = _state.update { it.copy(streetName = value.take(MAX_STREET_LENGTH), error = null, serverMessage = null) }
+    fun setHouseNumber(value: String) = _state.update { it.copy(houseNumber = value.take(MAX_HOUSE_NUMBER_LENGTH), error = null, serverMessage = null) }
+
+    /** Back to the paste field, to use another link. */
+    fun changeLink() = _state.update { it.copy(token = null, neighborhoodName = null, link = "", error = null, serverMessage = null) }
+
+    fun submitLink() {
+        val token = InvitationToken.parse(_state.value.link)
+        if (token == null) {
+            _state.update { it.copy(error = R.string.join_error_invitation_format) }
+            return
+        }
+        viewModelScope.launch { verify(token) }
+    }
+
+    /** POST /auth/verify-invitation: shows the neighborhood name before the street is asked. */
+    private suspend fun verify(token: String) {
+        _state.update { it.copy(busy = true, error = null, serverMessage = null) }
+        when (val result = repository.verifyInvitation(token)) {
+            is ApiResult.Success -> _state.update {
+                it.copy(busy = false, token = token, neighborhoodName = result.value.neighborhoodName, link = "")
+            }
+            is ApiResult.Failure -> _state.update {
+                it.copy(busy = false, token = null, neighborhoodName = null, error = errorMessage(result.error))
+            }
+        }
+    }
+
+    /** POST /enroll. Pressing "Join" is the acknowledgement of the privacy summary shown above the button. */
+    fun join() {
         val current = _state.value
-        if (current.code.isBlank()) return
-        _state.update { it.copy(busy = true, error = null) }
+        val token = current.token ?: return
+        if (current.busy) return
+        if (current.streetName.isBlank()) {
+            _state.update { it.copy(error = R.string.join_error_street) }
+            return
+        }
+        _state.update { it.copy(busy = true, error = null, serverMessage = null) }
         viewModelScope.launch {
-            when (val result = auth.verifyCode(current.email, current.code)) {
+            when (val result = devices.enroll(token, current.streetName, current.houseNumber)) {
                 is ApiResult.Success -> {
                     _state.update { it.copy(busy = false) }
                     session.signal.bump()
                 }
-                is ApiResult.Failure -> _state.update {
-                    it.copy(
-                        busy = false,
-                        error = when {
-                            result.error.isNetwork -> R.string.error_network
-                            result.error.httpCode == 429 -> R.string.error_rate_limited
-                            else -> R.string.sign_in_error_code
-                        },
-                    )
-                }
-            }
-        }
-    }
-}
-
-data class MembershipState(
-    /** Asking the server whether this account already belongs to a household. */
-    val checking: Boolean = true,
-    val showJoinForm: Boolean = false,
-    val invitation: String = "",
-    val houseNumber: String = "",
-    val streetName: String = "",
-    val displayLabel: String = "",
-    val isp: Isp? = null,
-    val privacyAcknowledged: Boolean = false,
-    val neighborhoodName: String? = null,
-    val busy: Boolean = false,
-    @StringRes val error: Int? = null,
-)
-
-@HiltViewModel
-class MembershipViewModel @Inject constructor(
-    private val repository: WatchdogRepository,
-    private val session: SessionCoordinator,
-) : ViewModel() {
-    private val _state = MutableStateFlow(MembershipState())
-    val state: StateFlow<MembershipState> = _state
-
-    init {
-        check()
-    }
-
-    /** GET /households/me: a member continues; `not_a_member` shows the invitation form. */
-    fun check() {
-        _state.update { it.copy(checking = true, error = null) }
-        viewModelScope.launch {
-            when (val result = repository.household()) {
-                is ApiResult.Success -> session.signal.bump()
-                is ApiResult.Failure -> _state.update {
-                    if (result.error.code == "not_a_member") {
-                        it.copy(checking = false, showJoinForm = true)
-                    } else {
-                        it.copy(checking = false, showJoinForm = false, error = errorMessage(result.error))
+                is ApiResult.Failure -> {
+                    val error = result.error
+                    val fromServer = error.message?.takeIf { error.code == "household_already_registered" && it.isNotBlank() }
+                    _state.update {
+                        it.copy(busy = false, error = if (fromServer == null) errorMessage(error) else null, serverMessage = fromServer)
                     }
                 }
             }
         }
     }
 
-    fun edit(transform: (MembershipState) -> MembershipState) = _state.update { transform(it).copy(error = null) }
-
-    fun join() {
-        val current = _state.value
-        val token = InvitationToken.parse(current.invitation)
-        val problem = when {
-            token == null -> R.string.join_error_invitation_format
-            current.houseNumber.isBlank() || current.streetName.isBlank() -> R.string.join_error_address
-            !current.privacyAcknowledged -> R.string.join_error_privacy
-            else -> null
-        }
-        if (token == null || problem != null) {
-            _state.update { it.copy(error = problem) }
-            return
-        }
-        _state.update { it.copy(busy = true, error = null) }
-        viewModelScope.launch {
-            when (val verified = repository.verifyInvitation(token)) {
-                is ApiResult.Failure -> {
-                    _state.update { it.copy(busy = false, error = errorMessage(verified.error)) }
-                    return@launch
-                }
-                is ApiResult.Success -> _state.update { it.copy(neighborhoodName = verified.value.neighborhoodName) }
-            }
-            val result = repository.join(
-                token = token,
-                houseNumber = current.houseNumber,
-                streetName = current.streetName,
-                displayLabel = current.displayLabel,
-                isp = current.isp,
-                privacyAcknowledged = current.privacyAcknowledged,
-            )
-            when (result) {
-                is ApiResult.Success -> {
-                    _state.update { it.copy(busy = false) }
-                    session.signal.bump()
-                }
-                is ApiResult.Failure -> _state.update { it.copy(busy = false, error = errorMessage(result.error)) }
-            }
-        }
-    }
-
-    fun signOut() {
-        viewModelScope.launch { session.signOut() }
+    private companion object {
+        const val MAX_LINK_LENGTH = 512
+        const val MAX_STREET_LENGTH = 80
+        const val MAX_HOUSE_NUMBER_LENGTH = 16
     }
 }
 
 enum class PushSetup { NOT_TRIED, NOT_CONFIGURED, REGISTERED, FAILED }
 
-data class DeviceSetupState(
-    val registering: Boolean = true,
-    val registered: Boolean = false,
-    @StringRes val error: Int? = null,
+data class NotificationSetupState(
     val notificationsGranted: Boolean = false,
     val push: PushSetup = PushSetup.NOT_TRIED,
     val pushConfigured: Boolean = false,
 )
 
+/** The phone is already enrolled here; this step only explains notifications and asks for the permission. */
 @HiltViewModel
-class DeviceSetupViewModel @Inject constructor(
-    private val devices: DeviceRepository,
+class NotificationSetupViewModel @Inject constructor(
     private val pushManager: PushManager,
     private val permissions: PermissionStatus,
     private val localState: LocalState,
     private val session: SessionCoordinator,
 ) : ViewModel() {
     private val _state = MutableStateFlow(
-        DeviceSetupState(notificationsGranted = permissions.notificationsGranted, pushConfigured = pushManager.configured),
+        NotificationSetupState(notificationsGranted = permissions.notificationsGranted, pushConfigured = pushManager.configured),
     )
-    val state: StateFlow<DeviceSetupState> = _state
+    val state: StateFlow<NotificationSetupState> = _state
 
     init {
-        register()
-    }
-
-    /** POST /devices/register with the random install id and the real capability flags. */
-    fun register() {
-        _state.update { it.copy(registering = true, error = null) }
-        viewModelScope.launch {
-            when (val result = devices.register()) {
-                is ApiResult.Success -> {
-                    _state.update { it.copy(registering = false, registered = true) }
-                    syncPush()
-                }
-                is ApiResult.Failure -> {
-                    if (result.error.code == "not_a_member") {
-                        session.membershipLost()
-                    } else {
-                        _state.update { it.copy(registering = false, error = errorMessage(result.error)) }
-                    }
-                }
-            }
-        }
+        viewModelScope.launch { syncPush() }
     }
 
     /** Called after the system permission dialog closed, whatever the answer was. */

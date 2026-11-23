@@ -12,6 +12,10 @@ import org.neighborhoodwatchdog.android.domain.home.NetworkIdentity
 import org.neighborhoodwatchdog.android.domain.model.WatchdogJson
 import org.neighborhoodwatchdog.android.domain.home.StoredFingerprint
 
+
+/** A made-up invitation token used only as test input (not a credential). */
+private const val SAMPLE_INVITATION = "Zx9_-abcdefghijklmnopqrstuv0123456789"
+
 class HomeNetworkFingerprintTest {
     private val salt = ByteArray(32) { it.toByte() }
     private val home = NetworkIdentity(
@@ -80,12 +84,34 @@ class HomeNetworkFingerprintTest {
 
     @Test
     fun invitationAcceptsFullLinkOrBareToken() {
-        val token = "Zx9_-abcdefghijklmnopqrstuv0123456789"
+        val token = SAMPLE_INVITATION
         assertEquals(token, InvitationToken.parse(token))
         assertEquals(token, InvitationToken.parse("  $token \n"))
         assertEquals(token, InvitationToken.parse("https://join.example.org/join#t=$token"))
         assertEquals(token, InvitationToken.parse("https://join.example.org/join#x=1&t=$token"))
         assertNotNull(InvitationToken.parse("a".repeat(20)))
+    }
+
+    @Test
+    fun appLinkFromTheWebJoinPageCarriesTheToken() {
+        val token = SAMPLE_INVITATION
+        assertEquals(token, InvitationToken.fromAppLink("feluda://join#t=$token"))
+        assertEquals(token, InvitationToken.fromAppLink("feluda://join/#t=$token"))
+        assertEquals(token, InvitationToken.fromAppLink("FELUDA://join#x=1&t=$token"))
+        assertEquals(token, InvitationToken.fromAppLink("feluda://join?t=$token"))
+    }
+
+    @Test
+    fun otherAddressesAreNotInvitationAppLinks() {
+        val token = SAMPLE_INVITATION
+        assertNull(InvitationToken.fromAppLink(null))
+        assertNull(InvitationToken.fromAppLink(""))
+        assertNull(InvitationToken.fromAppLink("feluda://join"))
+        assertNull(InvitationToken.fromAppLink("feluda://join#t=short"))
+        assertNull(InvitationToken.fromAppLink("feluda://joiner#t=$token"))
+        assertNull(InvitationToken.fromAppLink("feluda://other#t=$token"))
+        assertNull("a web link is pasted, not opened as an app link", InvitationToken.fromAppLink("https://join.example.org/join#t=$token"))
+        assertNull(InvitationToken.fromAppLink(token))
     }
 
     @Test

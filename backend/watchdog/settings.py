@@ -53,6 +53,8 @@ class Settings(BaseSettings):
         if self.is_production_like:
             if self.admin_api_token and len(self.admin_api_token) < 32:
                 raise ValueError("ADMIN_API_TOKEN must be at least 32 characters")
+            if "not-for-production" in self.admin_api_token or "local-development" in self.admin_api_token:
+                raise ValueError("ADMIN_API_TOKEN is the local development placeholder; generate a real secret")
             if self.ip_hash_salt == "change-me":
                 raise ValueError("IP_HASH_SALT must be set in staging and production")
             if self.internal_tick_token and len(self.internal_tick_token) < 32:

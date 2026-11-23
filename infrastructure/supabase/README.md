@@ -1,10 +1,13 @@
-# Supabase setup (managed PostgreSQL and sign-in)
+# Supabase setup (managed PostgreSQL only)
 
-Supabase is used for two things only: a managed PostgreSQL database and e-mail one-time-code
-sign-in (Supabase Auth). The backend uses plain PostgreSQL features, so any PostgreSQL 13+ and any
-identity provider that issues standard JWTs can replace it (see `ai/docs/decisions/`).
+Supabase is used for one thing: a managed PostgreSQL database. There is no sign-in (decision 0014),
+so Supabase Auth, its e-mail templates, its keys and an SMTP sender are not used and need no
+configuration. The backend uses plain PostgreSQL features, so any PostgreSQL 13+ can replace it
+(see `ai/docs/decisions/`).
 
-Status: EXTERNAL_CREDENTIAL_REQUIRED. Nothing below has been done; it needs a Supabase account.
+Status: EXTERNAL_CREDENTIAL_REQUIRED for anything not listed here. A staging project exists and
+migration `0001_initial_schema.sql` is applied to it. Migration `0002_no_sign_in.sql` is **not**
+applied there yet. No production project exists. No backend is deployed against either.
 
 ## One project per environment
 
@@ -18,6 +21,8 @@ check the current limits at https://supabase.com/pricing before relying on it fo
    This is `MIGRATION_DATABASE_URL`. It is used only to run migrations.
 2. Apply migrations from your machine or the deploy workflow:
    `DATABASE_URL="$MIGRATION_DATABASE_URL" uv run python -m watchdog.migrate` (in `backend/`).
+   Migration 0002 removes the e-mail and identity columns and is not compatible with a backend
+   from before it (`docs/DEPLOYMENT.md`, "Migrations").
 3. Create the restricted login role for the backend:
    `psql "$MIGRATION_DATABASE_URL" -v app_password="$(openssl rand -hex 24)" -f infrastructure/scripts/create_app_login.sql`
 4. The backend's `DATABASE_URL` uses role `nw_app_login` with that password, through the
@@ -27,31 +32,23 @@ check the current limits at https://supabase.com/pricing before relying on it fo
    through Supabase's REST API. Row-level security is enabled on every table with no policy for the
    `anon` and `authenticated` roles, so they would see nothing even if the schema were exposed.
 
-## Sign-in (Supabase Auth)
+## Parts of Supabase that are not used
 
-1. Authentication → Providers → Email: enable. Turn **Confirm email** on.
-2. Authentication → Email templates → Magic Link: change the body so it shows the code:
-   `Your Neighborhood Watchdog sign-in code is {{ .Token }}`. The apps ask for this 6-digit code.
-3. Authentication → Sessions: access token lifetime 3600 seconds or less; refresh-token rotation on
-   (the default), reuse interval 10 seconds.
-4. Authentication → Rate limits: keep the defaults or lower them. Configure your own SMTP sender
-   (the built-in one allows only a few e-mails per hour and is meant for testing).
-5. For administrators in production: Authentication → Multi-factor → enable TOTP, and set
-   `ADMIN_REQUIRE_MFA=true` on the backend. (Enrolling a second factor needs a small web or app
-   flow that is not built yet; see `jtbd/todo.md`.)
+- **Authentication.** Nothing in the backend or the apps calls it. Leave it unconfigured, and if
+  the dashboard offers it, switch off new sign-ups so the unused service accepts nobody.
+- **The project's API keys** (publishable / anon, service-role, signing secret). None is needed by
+  the backend or by the apps. Do not copy them anywhere.
 
 ## Values the backend needs
 
 | Backend variable | Where it comes from |
 | --- | --- |
-| `AUTH_JWKS_URL` | `https://<project-ref>.supabase.co/auth/v1/.well-known/jwks.json` (projects with asymmetric signing keys) |
-| `AUTH_JWT_SECRET` | Project settings → API → JWT secret (only for projects still on the legacy shared secret) |
-| `AUTH_JWT_ISSUER` | `https://<project-ref>.supabase.co/auth/v1` |
-| `AUTH_ADMIN_URL`, `AUTH_SERVICE_ROLE_KEY` | Optional; lets account deletion remove the sign-in record too. Server-side secret. |
+| `DATABASE_URL` | Step 4 above. A secret |
 
-## Values the apps need (public by design)
+Everything else the backend needs (`ADMIN_API_TOKEN`, `IP_HASH_SALT`, push credentials) does not
+come from Supabase; see `docs/DEPLOYMENT.md`.
 
-| App setting | Value |
-| --- | --- |
-| `AUTH_BASE_URL` | `https://<project-ref>.supabase.co/auth/v1` |
-| `AUTH_PUBLIC_KEY` | The **publishable / anon** key. Never the service-role or secret key. |
+## Values the apps need
+
+None from Supabase. The apps are configured with the backend's address only
+(`shared/documentation/CLIENT_PROTOCOL.md`, section 1).

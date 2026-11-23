@@ -1,22 +1,27 @@
 # Deployment
 
-**Status: nothing is deployed.** No Supabase project, hosting account, Firebase project or Apple
-account was available to the build. Everything below is prepared configuration and exact steps,
-marked EXTERNAL_CREDENTIAL_REQUIRED in `docs/STATUS.md`.
+**Status: nothing is deployed.** A staging Supabase database exists with migration 0001 applied;
+migration 0002 (no sign-in) has not been applied to it yet. No backend runs anywhere and no hosting
+account exists. Everything below is prepared configuration and exact steps, marked
+EXTERNAL_CREDENTIAL_REQUIRED in `docs/STATUS.md`. The steps have never been followed end to end.
 
 ## Environments
 
 | | Development | Staging | Production |
 | --- | --- | --- | --- |
 | Database | Docker PostgreSQL on localhost | Supabase project `watchdog-staging` | Supabase project `watchdog-production` |
-| Sign-in | Local emulator (`DEV_AUTH_ENABLED`) | Staging Supabase Auth | Production Supabase Auth |
+| Operator secret (`ADMIN_API_TOKEN`) | Fixed placeholder from the `Makefile` | Its own random value | Its own random value |
 | Backend | `make run` | Fly.io app `neighborhood-watchdog-staging` | Fly.io app `neighborhood-watchdog-production` |
 | Push | Not configured (deliveries recorded as such) | FCM project and APNs sandbox | FCM and APNs production |
 | Data | Simulated seed | Simulated seed or volunteers | Real residents |
 
+There is no sign-in in any environment: phones are enrolled by invitation link (decision 0014).
 Credentials are never shared between environments. The backend refuses to start in staging or
-production with the sign-in emulator on, without token verification settings, with a short JWT
-secret, with the default IP salt, or with a non-HTTPS public URL.
+production with an `ADMIN_API_TOKEN` shorter than 32 characters, with the default IP salt, with a
+short `INTERNAL_TICK_TOKEN`, or with a non-HTTPS public URL. An empty `ADMIN_API_TOKEN` is allowed
+and switches the administrator API off, which also means no invitation can be created. The
+development placeholder for `ADMIN_API_TOKEN` is published in this repository and is long enough
+to pass that check: never use it outside your own machine.
 
 ## Local development
 
@@ -30,13 +35,21 @@ make simulate SCENARIO=C
 make backend-test   # all backend tests
 ```
 
-Sign in locally as `resident01@example.org` (administrator) to `resident24@example.org`; the
-one-time code is printed in the backend log.
+There is nothing to sign in to. `make seed` creates 24 simulated households, each with one
+simulated phone, and `make simulate` reports as those phones. To administer the local backend, or
+to create an invitation link for an app running in an emulator or simulator:
+
+```bash
+export NWADMIN_API=http://localhost:8000
+export NWADMIN_TOKEN=local-development-admin-token-not-for-production   # the Makefile's local placeholder
+python apps/admin/nwadmin.py households
+python apps/admin/nwadmin.py invite
+```
 
 ## First deployment of an environment
 
-1. **Supabase**: follow `infrastructure/supabase/README.md` (project, migrations, login role,
-   sign-in settings).
+1. **Supabase** (database only): follow `infrastructure/supabase/README.md` (project, migrations,
+   login role).
 2. **Fly.io**: install `flyctl`, `fly auth login`, then
    `fly apps create neighborhood-watchdog-staging` (choose your own unique name and put it, and the
    resulting URL, into `infrastructure/deployment/fly.staging.toml`).
@@ -45,8 +58,7 @@ one-time code is printed in the backend log.
    ```bash
    fly secrets set --app neighborhood-watchdog-staging \
      DATABASE_URL='postgresql://nw_app_login:<password>@<pooler-host>:5432/postgres?sslmode=require' \
-     AUTH_JWKS_URL='https://<ref>.supabase.co/auth/v1/.well-known/jwks.json' \
-     AUTH_JWT_ISSUER='https://<ref>.supabase.co/auth/v1' \
+     ADMIN_API_TOKEN='<operator secret>' \
      IP_HASH_SALT="$(openssl rand -hex 24)" \
      ANDROID_INSTALL_URL='<Firebase App Distribution invite link>' \
      IOS_INSTALL_URL='<TestFlight link>' \
@@ -56,19 +68,22 @@ one-time code is printed in the backend log.
      APNS_KEY_ID='<id>' APNS_TEAM_ID='<id>' APNS_BUNDLE_ID='<bundle id>' APNS_PRIVATE_KEY="$(cat AuthKey_XXXX.p8)"
    ```
 
+   Generate the operator secret with `openssl rand -hex 32` and keep it in a password manager: the
+   organizer needs it for `apps/admin/nwadmin.py`, and it is the only protection of the
+   administrator API.
+
 4. **Deploy**: `MIGRATION_DATABASE_URL='<owner url>' infrastructure/scripts/deploy.sh staging`
    (migrations, then the image, then a smoke test). Or run the "Deploy staging" workflow after
    adding `FLY_API_TOKEN` and `MIGRATION_DATABASE_URL` as secrets of a GitHub environment named
    `staging`, and `PUBLIC_BASE_URL` as a variable.
-5. **Create the neighborhood and first administrator** (run with the owner connection):
+5. **Create the neighborhood** (run with the owner connection). It starts empty; there is no
+   administrator account to create:
 
    ```bash
-   cd backend && DATABASE_URL='<owner url>' uv run python -m watchdog.ops create-neighborhood \
-     --name "Oak Ridge" --admin-email organizer@example.org --house-number 12 --street "Oak Ridge Road" \
-     --latitude 33.05 --longitude -97.05
+   cd backend && DATABASE_URL='<owner url>' uv run python -m watchdog.ops create-neighborhood --name "Oak Ridge"
    ```
 
-6. Follow `docs/ONBOARDING.md` to approve addresses and invite residents.
+6. Follow `docs/ONBOARDING.md` to create invitation links and send them to residents.
 
 Production is the same with `production` in place of `staging`. The deploy script asks for typed
 confirmation, and the GitHub environment `production` should require a reviewer. Nothing deploys
@@ -82,10 +97,8 @@ The full list with comments is `.env.example`.
 | --- | --- | --- |
 | `ENVIRONMENT`, `PUBLIC_BASE_URL` | yes | no |
 | `DATABASE_URL` | yes | yes |
-| `AUTH_JWKS_URL` or `AUTH_JWT_SECRET`; `AUTH_JWT_ISSUER`; `AUTH_JWT_AUDIENCE` | yes | the secret variant is |
+| `ADMIN_API_TOKEN` | yes, at least 32 characters (empty disables the administrator API) | yes |
 | `IP_HASH_SALT` | yes | yes |
-| `ADMIN_REQUIRE_MFA` | recommended `true` in production | no |
-| `AUTH_ADMIN_URL`, `AUTH_SERVICE_ROLE_KEY` | optional | the key is |
 | `FCM_PROJECT_ID`, `FCM_SERVICE_ACCOUNT_JSON` | for Android push | the JSON is |
 | `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`, `APNS_PRIVATE_KEY` | for iOS push | the key is |
 | `ANDROID_INSTALL_URL`, `IOS_INSTALL_URL`, `SOURCE_REPO_URL`, `SUPPORT_URL`, `SECURITY_CONTACT` | shown to residents | no |
@@ -101,6 +114,11 @@ The full list with comments is `.env.example`.
 - Never change a production schema by hand.
 - Write migrations so the previous backend version still works with the new schema (add first,
   remove in a later release). That is what makes rollback by image possible.
+- **Exception: `0002_no_sign_in.sql` breaks this rule.** It drops the e-mail and identity columns
+  in the same release that stops using them, so a backend from before it does not work against a
+  database that has it, and rollback by image across it is not possible. This was accepted because
+  nothing was deployed. A phone or household created under the old flow has no device secret after
+  0002 and has to be enrolled again.
 
 ## Rollback
 
@@ -149,9 +167,6 @@ Where free tiers stop being enough:
 - **Supabase free plan has no backups** and pauses projects after about a week without activity
   (an always-on backend keeps it active). For real residents' data, paid backups or the backup
   script on a schedule are needed from day one.
-- **Sign-in e-mail**: Supabase's built-in sender allows only a few messages per hour. Onboarding
-  more than a handful of residents a day needs your own SMTP provider (several have free tiers of
-  about 100 messages a day).
 - **GitHub Actions**: free for public repositories; macOS minutes are charged at a multiple on
   private ones.
 - **A zero-cost backend** is possible on a scale-to-zero host with the external tick (decision

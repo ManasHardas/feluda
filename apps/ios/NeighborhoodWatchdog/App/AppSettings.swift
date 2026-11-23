@@ -1,6 +1,6 @@
 import Foundation
 
-/// Small app-private flags in UserDefaults. No tokens and no addresses are stored here.
+/// Small app-private flags in UserDefaults. No secrets and no addresses are stored here.
 final class AppSettings: @unchecked Sendable {
     private let defaults: UserDefaults
 
@@ -10,6 +10,7 @@ final class AppSettings: @unchecked Sendable {
 
     private enum Key: String, CaseIterable {
         case hasLaunchedBefore = "watchdog.hasLaunchedBefore"
+        case introSeen = "watchdog.introSeen"
         case consentGivenAt = "watchdog.consentGivenAt"
         case onboardingComplete = "watchdog.onboardingComplete"
         case installID = "watchdog.installID"
@@ -27,7 +28,14 @@ final class AppSettings: @unchecked Sendable {
         set { defaults.set(newValue, forKey: Key.hasLaunchedBefore.rawValue) }
     }
 
-    /// When the resident gave explicit consent. Monitoring never starts while this is nil.
+    /// The resident has read the introduction and privacy summary and tapped "Continue".
+    var introSeen: Bool {
+        get { defaults.bool(forKey: Key.introSeen.rawValue) }
+        set { defaults.set(newValue, forKey: Key.introSeen.rawValue) }
+    }
+
+    /// When the resident tapped "Join" under the privacy summary, which is the acknowledgement.
+    /// Monitoring never starts while this is nil.
     var consentGivenAt: Date? {
         get { defaults.object(forKey: Key.consentGivenAt.rawValue) as? Date }
         set { defaults.set(newValue, forKey: Key.consentGivenAt.rawValue) }
@@ -48,8 +56,8 @@ final class AppSettings: @unchecked Sendable {
         set { defaults.set(newValue, forKey: Key.homeStepDone.rawValue) }
     }
 
-    /// Random UUID generated once per install. Not a hardware identifier; removed on sign-out,
-    /// on leaving and when the app is deleted.
+    /// Random UUID generated once per install. Not a hardware identifier; removed on leaving,
+    /// when the phone is no longer enrolled and when the app is deleted.
     var installID: UUID? {
         get { defaults.string(forKey: Key.installID.rawValue).flatMap(UUID.init(uuidString:)) }
         set { defaults.set(newValue?.uuidString, forKey: Key.installID.rawValue) }
@@ -62,7 +70,8 @@ final class AppSettings: @unchecked Sendable {
         return fresh
     }
 
-    /// "<install id>|<os version>|<app version>" of the last successful device registration.
+    /// "<install id>|<os version>|<app version>" the backend last received, at enrolment or with a
+    /// later device update. Nil while this phone is not enrolled.
     var registeredSignature: String? {
         get { defaults.string(forKey: Key.registeredSignature.rawValue) }
         set { defaults.set(newValue, forKey: Key.registeredSignature.rawValue) }
@@ -89,9 +98,11 @@ final class AppSettings: @unchecked Sendable {
         set { defaults.set(newValue, forKey: Key.backgroundRefreshAvailable.rawValue) }
     }
 
-    /// Removes everything except the "launched before" marker (used when leaving or signing out).
-    func resetForSignOut() {
-        for key in Key.allCases where key != .hasLaunchedBefore {
+    /// Removes everything except the "launched before" marker (used when leaving, and when the
+    /// server says this phone is no longer enrolled). `keepIntroSeen` skips the introduction the
+    /// next time, for a phone that did not choose to leave.
+    func resetForLeaving(keepIntroSeen: Bool = false) {
+        for key in Key.allCases where key != .hasLaunchedBefore && !(keepIntroSeen && key == .introSeen) {
             defaults.removeObject(forKey: key.rawValue)
         }
     }

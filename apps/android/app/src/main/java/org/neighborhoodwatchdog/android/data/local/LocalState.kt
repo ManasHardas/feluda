@@ -13,8 +13,8 @@ import org.neighborhoodwatchdog.android.domain.reporting.SequenceSource
 import java.util.UUID
 
 /**
- * Small local state in app-private SharedPreferences. Nothing here is a credential: tokens and the
- * home-network fingerprint are kept in [EncryptedFileStore].
+ * Small local state in app-private SharedPreferences. Nothing here is a credential: the device
+ * secret and the home-network fingerprint are kept in [EncryptedFileStore].
  */
 class LocalState(context: Context) : SequenceSource {
     private val prefs: SharedPreferences = context.getSharedPreferences("watchdog_state", Context.MODE_PRIVATE)
@@ -36,14 +36,15 @@ class LocalState(context: Context) : SequenceSource {
             _monitoringEnabled.value = value
         }
 
-    /** The household membership was confirmed by the server at least once. */
-    var memberConfirmed: Boolean
-        get() = prefs.getBoolean(K_MEMBER, false)
-        set(value) = prefs.edit().putBoolean(K_MEMBER, value).apply()
+    /** The server stopped accepting this phone's secret; the join screen says so once. */
+    var enrolmentEndedNotice: Boolean
+        get() = prefs.getBoolean(K_ENROLMENT_ENDED, false)
+        set(value) = prefs.edit().putBoolean(K_ENROLMENT_ENDED, value).apply()
 
-    var deviceRegistered: Boolean
-        get() = prefs.getBoolean(K_DEVICE_REGISTERED, false)
-        set(value) = prefs.edit().putBoolean(K_DEVICE_REGISTERED, value).apply()
+    /** OS and app version last sent to the server, so the device record is updated only after a change. */
+    var reportedDeviceVersion: String?
+        get() = prefs.getString(K_REPORTED_VERSION, null)
+        set(value) = prefs.edit().putString(K_REPORTED_VERSION, value).apply()
 
     /** The notification step of onboarding was shown (whatever the resident answered). */
     var notificationStepDone: Boolean
@@ -121,17 +122,18 @@ class LocalState(context: Context) : SequenceSource {
         return value
     }
 
-    /** Sign-out: forget the session-bound state but keep the consent and the install id. */
-    fun clearSession() {
+    /**
+     * The server no longer accepts this phone: forget everything except that the introduction was
+     * read. The install id goes too, because the server refuses to enrol a removed device id again.
+     */
+    fun clearAfterEnrolmentEnded() {
         val consent = consentGiven
-        val installId = prefs.getString(K_INSTALL_ID, null)
-        val sequence = prefs.getLong(K_SEQUENCE, 0)
-        prefs.edit().clear().putBoolean(K_CONSENT, consent).putString(K_INSTALL_ID, installId).putLong(K_SEQUENCE, sequence).commit()
+        prefs.edit().clear().putBoolean(K_CONSENT, consent).putBoolean(K_ENROLMENT_ENDED, true).commit()
         _lastReportAtMs.value = null
         _monitoringEnabled.value = true
     }
 
-    /** Leave / delete account: forget everything, including the install id. */
+    /** Leave: forget everything, including the install id. */
     fun clearAll() {
         prefs.edit().clear().commit()
         _lastReportAtMs.value = null
@@ -141,8 +143,8 @@ class LocalState(context: Context) : SequenceSource {
     private companion object {
         const val K_CONSENT = "consent_given"
         const val K_MONITORING = "monitoring_enabled"
-        const val K_MEMBER = "member_confirmed"
-        const val K_DEVICE_REGISTERED = "device_registered"
+        const val K_ENROLMENT_ENDED = "enrolment_ended_notice"
+        const val K_REPORTED_VERSION = "reported_device_version"
         const val K_NOTIFICATION_STEP = "notification_step_done"
         const val K_HOME_STEP = "home_step_done"
         const val K_EVER_STARTED = "monitoring_ever_started"

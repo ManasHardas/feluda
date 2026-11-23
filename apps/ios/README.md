@@ -5,12 +5,17 @@ connection state of the phone, reports changes to the Neighborhood Watchdog back
 household and neighborhood status. It is an anomaly detector: it never states the cause of an
 interruption.
 
-The behaviour contract is `shared/documentation/CLIENT_PROTOCOL.md`; field names and enums come
-from `backend/watchdog/schemas.py` and `enums.py`.
+There is no sign-in: no e-mail address, no one-time code, no account and no token refresh
+(`ai/docs/decisions/0014-no-sign-in-device-enrolment.md`). A phone is enrolled once with an
+invitation link and then holds one device secret in the Keychain.
 
-Status of this app: IMPLEMENTED and AUTOMATED_TESTED (unit tests on the iOS simulator). Everything
-that needs a real iPhone, an Apple developer team or a running backend is MANUAL_TEST_REQUIRED or
-EXTERNAL_CREDENTIAL_REQUIRED; see `TESTING.md` and "Not verified" below.
+The behaviour contract is `shared/documentation/CLIENT_PROTOCOL.md`; request and response shapes
+come from `shared/api-contracts/openapi.json`, which is generated from the backend.
+
+Status of this app: IMPLEMENTED and AUTOMATED_TESTED (unit tests on the iOS simulator, and the
+networking code against a local backend with `make live-ios`). Everything that needs a real iPhone
+or an Apple developer team is MANUAL_TEST_REQUIRED or EXTERNAL_CREDENTIAL_REQUIRED; see
+`TESTING.md` and "Not verified" below.
 
 ## Layout
 
@@ -19,7 +24,7 @@ EXTERNAL_CREDENTIAL_REQUIRED; see `TESTING.md` and "Not verified" below.
 | `project.yml` | XcodeGen spec, the source of truth for the project |
 | `NeighborhoodWatchdog.xcodeproj` | Generated project (regenerate with `xcodegen generate`) |
 | `Config/` | `Base`, `Debug`, `Release` xcconfig, `Local.xcconfig.example` |
-| `NeighborhoodWatchdog/Core/` | Pure logic, Foundation and CryptoKit only: models, JSON, state machine, gap detection, queue, backoff, reporter, fingerprint, API client, auth, monitoring coordinator |
+| `NeighborhoodWatchdog/Core/` | Pure logic, Foundation and CryptoKit only: models, JSON, state machine, gap detection, queue, backoff, reporter, fingerprint, API client (enrolment and the device secret), monitoring coordinator |
 | `NeighborhoodWatchdog/Platform/` | Keychain, `NWPathMonitor` service, system info |
 | `NeighborhoodWatchdog/App/` | App entry, app delegate (push, background refresh), configuration, composition root, app model |
 | `NeighborhoodWatchdog/UI/` | SwiftUI screens and their view models |
@@ -52,16 +57,54 @@ xcodebuild -project NeighborhoodWatchdog.xcodeproj -scheme NeighborhoodWatchdog 
 
 `build/` is git-ignored.
 
+From the repository root: `make ios-test` (simulator), `make ios-core-test` (the `Core` logic as a
+Swift package on the Mac, no simulator) and `make live-ios` (runs `LiveBackendTests` against a
+development backend on `http://localhost:8000`: health, verify invitation, enrol two phones, the
+authenticated calls, event upload with duplicates, status, incidents, leave, and the 401 after
+leaving). Without `WATCHDOG_LIVE_API` in the environment that test is skipped.
+
+## Joining (no sign-in)
+
+1. **Introduction.** What the app watches and sends, and what it cannot do. "Continue" only moves
+   on; nothing is monitored or sent yet.
+2. **Join.** The invitation reaches the app in one of two ways:
+   - the web join page opens `feluda://join#t=<token>` (the `feluda` URL scheme is registered in
+     `Info.plist` under `CFBundleURLTypes` and handled with `onOpenURL` in `RootView`);
+   - the resident pastes the link (`https://…/join#t=<token>`) or the bare token into the field
+     that the join screen shows when the app was opened without a link.
+
+   The app checks the invitation (`POST /api/v1/auth/verify-invitation`) and shows the name of the
+   neighborhood. Then it asks for exactly two things: the **street** (required) and the **house
+   number** (optional; left out of the request when empty). Under them is the short privacy
+   summary with a link to the full text. Tapping "Join" is the acknowledgement
+   (`privacy_acknowledged: true`) and calls `POST /api/v1/enroll` with a random installation id,
+   the iOS and app version and the capability flags.
+3. The response contains the **device secret**. It is stored only in the Keychain
+   (`KeychainDeviceTokenStore`, readable after first unlock, this device only) and sent as
+   `Authorization: Bearer <secret>` on every later request. It never expires and is never
+   refreshed.
+4. Notification permission and the home-network step follow, as before.
+
+If the server answers **401 `unauthorized`** to any request (the phone was removed or revoked),
+the app removes the secret, the queue, the home-network fingerprint and the installation id, and
+shows the join screen. A new invitation link is needed. Enrolling again with the same link after a
+lost answer is safe: the server issues a fresh secret without using the link a second time.
+
+**Leave neighborhood** (Settings) calls `POST /api/v1/households/leave`: the server deletes this
+phone and everything it reported, and the app empties itself. There is no account, so there is no
+"delete account".
+
+The household label and internet provider are not asked when joining. They can be set later under
+Settings > Household membership (`PATCH /api/v1/households/me`).
+
 ## Configuration
 
 Build settings in `Config/*.xcconfig` are injected into Info.plist and read by `AppConfig`. No
-secrets belong there; the auth key is the publishable key.
+secrets belong there. There is no auth service to configure.
 
 | Setting | Meaning | Debug default | Release default |
 | --- | --- | --- | --- |
 | `API_BASE_URL` | Backend origin | `http://localhost:8000` | `https://api.example.org` (replace) |
-| `AUTH_BASE_URL` | Auth origin plus `/auth/v1` | `http://localhost:8000/auth/v1` | `https://auth.example.org/auth/v1` (replace) |
-| `AUTH_PUBLIC_KEY` | Publishable key, sent as `apikey` | local placeholder | empty (set it) |
 | `APNS_ENVIRONMENT` | Sent with the push token | `sandbox` | `production` |
 | `SOURCE_REPO_URL`, `PRIVACY_URL`, `SECURITY_REVIEW_URL`, `SECURITY_CONTACT` | Transparency screen | empty | empty |
 | `PROBE_FALLBACK_URL` | Second reachability target | Apple's success page | same |
@@ -161,8 +204,8 @@ timeout. What iOS does with that:
   `can_route_over_cellular` is registered as `false`.
 
 Investigated alternative: `NWConnection` with `requiredInterfaceType = .cellular` does pin a
-connection to cellular. Using it for uploads would mean writing an HTTP/1.1 client with TLS, auth
-headers, response parsing and timeouts by hand on top of a raw connection, and it could not be
+connection to cellular. Using it for uploads would mean writing an HTTP/1.1 client with TLS, the
+bearer header, response parsing and timeouts by hand on top of a raw connection, and it could not be
 tested without a device with a SIM. `URLSession` was kept. A cellular-pinned `NWConnection` upload
 path is a possible later improvement and is not implemented.
 
@@ -196,18 +239,24 @@ simulator); then the match is null. An IPv4-only match is weak because addresses
   invisible; a loss that is still present on resume is reported with the resume time.
 - `MONITORING_PERMISSION_REQUIRED` is never produced: path monitoring needs no permission on iOS.
   `PERMISSION_CHANGED` is sent when notification permission or Background App Refresh changes.
-- If the app is launched before the first unlock after a restart, its settings cannot be read and it
-  behaves as not set up until the next launch.
-- Sign-in state lives in the Keychain; flags live in UserDefaults. A new install clears leftover
-  Keychain items on first launch.
+- The device secret lives in the Keychain; flags live in UserDefaults. A new install clears leftover
+  Keychain items on first launch, so reinstalling the app means asking for a new invitation link.
+- If the app is launched in the background before the first unlock after a restart, the Keychain
+  cannot be read. The app then decides nothing and removes nothing until it is opened.
+- The `feluda://` scheme is a custom URL scheme, not a universal link: any app could register the
+  same scheme. The token it carries is only useful together with the server's checks (expiry, use
+  count, revocation).
 - No UI tests. Screens other than the first onboarding screen were not exercised on a simulator.
 - English only.
 
 ## Not verified
 
 - No real iPhone was used. Every item in `TESTING.md` is MANUAL_TEST_REQUIRED.
-- The app was not run against the backend (it was not available). Sign-in, joining, status,
-  incidents, preferences and uploads are covered only by unit tests with a fake transport.
+- The screens were never run against a server. Joining, status, incidents, preferences and uploads
+  are covered by unit tests with a fake transport and, for the networking code only, by
+  `make live-ios` against a local development backend.
+- Opening `feluda://join#t=<token>` from the web join page was not tried on a simulator or a phone
+  (MANUAL_TEST_REQUIRED, see `TESTING.md`). Only the parsing of the link is unit-tested.
 - Push registration and delivery need a team, a provisioning profile and backend APNs credentials:
   EXTERNAL_CREDENTIAL_REQUIRED.
 - `BGAppRefreshTask` does not fire on its own in the simulator.

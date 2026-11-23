@@ -5,56 +5,86 @@ This is the behaviour contract for both mobile apps. Field-level types are in
 `shared/api-contracts/openapi.json`). Where this document and the schema disagree, the schema wins
 and this document must be fixed.
 
+Revised 2026-11-23 for the removal of sign-in (decision 0014). The backend implements what is
+described here and its tests pass. The two apps are being updated to it and have not been
+re-verified against this version yet (`docs/STATUS.md`).
+
 ## 1. Configuration (build-time, no secrets)
 
 | Key | Meaning |
 | --- | --- |
 | `API_BASE_URL` | Backend origin, e.g. `https://api.example.org`. All API paths start with `/api/v1`. |
-| `AUTH_BASE_URL` | Supabase Auth (GoTrue) origin plus `/auth/v1`, e.g. `https://xyz.supabase.co/auth/v1`. In local development the backend emulates it at `http://<host>:8000/auth/v1`. |
-| `AUTH_PUBLIC_KEY` | Supabase publishable (anon) key, sent as the `apikey` header to the auth endpoints. Public by design. Never the service-role key. |
 | `SOURCE_REPO_URL`, `PRIVACY_URL`, `SECURITY_CONTACT` | Shown in the Transparency screen. |
 
 Debug builds may point at `http://10.0.2.2:8000` (Android emulator) or `http://localhost:8000`
 (iOS simulator). Release builds must use HTTPS only.
 
-## 2. Authentication (email one-time code)
+The apps register the URL scheme `feluda` so that the invitation page can open them
+(`feluda://join#t=<token>`). There are no sign-in settings: no identity provider is involved.
 
-The apps talk to the auth service directly; the backend only verifies the resulting access token.
+## 2. Identity of a phone (no sign-in)
 
-1. `POST {AUTH_BASE_URL}/otp` body `{"email": "...", "create_user": true}` with header `apikey`. Response 200 `{}`.
-2. `POST {AUTH_BASE_URL}/verify` body `{"type": "email", "email": "...", "token": "123456"}`.
-   Response 200 `{"access_token", "refresh_token", "expires_in", "token_type": "bearer", "user": {"id", "email"}}`.
-3. `POST {AUTH_BASE_URL}/token?grant_type=refresh_token` body `{"refresh_token": "..."}`. Same response shape.
-   Refresh tokens rotate: store the new one, discard the old one.
-4. `POST {AUTH_BASE_URL}/logout` with `Authorization: Bearer <access_token>`.
+Nobody signs in. There are no accounts, e-mail addresses, passwords, one-time codes, access tokens
+or refresh tokens.
+
+1. Enrolment (`POST /api/v1/enroll`, section 3) returns `device_token`: a random secret for this
+   phone. It is returned once.
+2. Store it only in the Keychain (iOS, this device only) or in a Keystore-encrypted store
+   (Android). Never log it, never put it in a backup, never show it.
+3. Every API request after enrolment sends `Authorization: Bearer <device_token>`.
+4. The secret does not expire and is never refreshed. There is no logout call.
 
 Rules:
-- Store access and refresh tokens only in the Keychain (iOS) or in a Keystore-encrypted store (Android).
-- Refresh when the access token has less than 60 seconds left, and once on a `401` from the API, then retry once.
-- Serialise refreshes: never run two refresh calls at once (rotation would invalidate one).
-- Every API request sends `Authorization: Bearer <access_token>`.
-- An API `403` with code `not_a_member` means the email is not registered through an invitation: show the "enter invitation" screen.
+- A `401` from an authenticated call means this phone is not enrolled any more (it was removed by
+  its household or the organizer, or the household was removed). Do not retry with the same
+  secret. Stop monitoring, delete the secret, and show the "enter invitation" screen. Generate a
+  new install id before enrolling again: the id of a removed phone is refused.
+- A `403` with code `household_suspended` means the organizer suspended the household. Keep the
+  secret, stop uploading, show the message. `GET /api/v1/households/me`, removing a phone and
+  leaving still work.
+- The phone never sends a household or neighborhood id; the server takes both from the enrolment.
 
 ## 3. Onboarding flow
 
 1. Welcome and education screens (what is monitored, what is transmitted, what is not collected, why
    cellular is used, why background monitoring is limited, how correlation works, how to turn it
    off, how to leave). Explicit consent checkbox and button. Monitoring never starts before consent.
-2. Sign in with email code (section 2).
-3. `GET /api/v1/households/me`.
-   - 200: member. Continue.
-   - 403 `not_a_member`: ask for the invitation link or code, house number, street name, optional
-     label and provider, then `POST /api/v1/households/join`. (Residents who registered on the web
-     page already are members and skip this.)
-4. `POST /api/v1/devices/register` with a random install UUID (generated once, stored locally; never
-   a hardware identifier) and the capability flags.
+2. Obtain the invitation: the app was opened by `feluda://join#t=<token>`, or the resident pastes
+   the invitation link (`https://<host>/join#t=<token>`) or the bare token. Optionally call
+   `POST /api/v1/auth/verify-invitation` with `{"invitation_token": "..."}` to show the
+   neighborhood name before asking anything. (The path keeps an old name; it needs no credential.)
+3. Ask for the street name (required) and the house number (optional, may be left empty). Ask for
+   nothing else: no name, no e-mail address, no phone number.
+4. `POST /api/v1/enroll` with `invitation_token`, `street_name`, `house_number` (or null),
+   `privacy_acknowledged: true` (only after the resident saw the privacy summary and agreed), a
+   random install UUID as `device_id` (generated once, stored locally; never a hardware
+   identifier), `platform`, `os_version`, `app_version` and the capability flags. The 201 response
+   has `device_token`, `household` and `device`. Store the secret (section 2).
+   - If the answer is lost (timeout, crash), send the same request again with the same `device_id`
+     and the same invitation. The server returns a fresh secret and does not count a second use.
+   - `404 invitation_invalid`: the link is unknown, expired, used up or withdrawn. Say so and ask
+     for a new link from the organizer.
+   - `409 household_already_registered`: that address already takes part and this link is not the
+     one for it. Show the server's message (use the home's own link, or ask the organizer).
+   - `409 device_conflict`: this install id is already enrolled another way. Show the message.
+   - `422 validation_error`: the street was empty or unusable, or the privacy summary was not
+     acknowledged.
 5. Ask for notification permission, obtain the push token, `POST /api/v1/notifications/register`.
 6. Home-network step: ask the resident to confirm "this phone is on my home Wi-Fi now" and store the
    home-network fingerprint locally (section 5). Skippable; if skipped, `home_network_match` is null.
 7. Start monitoring; emit `MONITORING_STARTED`.
 
+An optional household label and the internet provider are not part of enrolment. The resident can
+set them afterwards (`PATCH /api/v1/households/me`).
+
+`POST /api/v1/devices/register` no longer creates anything. Call it with the phone's own
+`device_id` when the OS version, the app version or the capability flags change.
+
 Invitation links look like `https://<host>/join#t=<token>`. The token is in the URL fragment so it is
-not sent to servers by link previews. The app accepts either the full link or the bare token.
+not sent to servers by link previews. The app accepts the `feluda://join#t=<token>` form, the full
+web link or the bare token. One link enrols a limited number of phones (4 by default) into one
+household: the first phone's street and house number define it, and later phones with the same link
+join it whatever they type. Every phone of a home should use the same link.
 
 ## 4. Connectivity states and events
 
@@ -126,7 +156,8 @@ Purpose: a phone leaving the house loses Wi-Fi too. Only loss of the *home* netw
 - iOS: from `NWPath.gateways` on the Wi-Fi interface (IPv4 and IPv6 endpoints). Same hashing.
 - Compare on each Wi-Fi association. `home_network_match` = true / false, or null when no
   fingerprint was stored or the gateways were not available.
-- The fingerprint and the salt never leave the device and are deleted on sign-out.
+- The fingerprint and the salt never leave the device and are deleted when the phone leaves or is
+  found to be no longer enrolled.
 
 ## 6. Reporting
 
@@ -173,8 +204,12 @@ Tapping opens the incident screen. On a new token from the OS, call `/notificati
 
 - Monitoring toggle: off emits `MONITORING_DISABLED_BY_USER` and stops the monitor.
 - Notification preferences: `GET` / `PUT /api/v1/notifications/preferences`.
-- Leave neighborhood: `POST /api/v1/households/leave`. Delete account: `DELETE /api/v1/account`.
-  After either: stop monitoring, clear tokens, queue, fingerprint and install id.
+- Leave: `POST /api/v1/households/leave`. The server deletes this phone, its secret and everything
+  it reported. There is no account, so there is no separate "delete account" action. Afterwards:
+  stop monitoring, clear the device secret, queue, fingerprint and install id.
+- Phones of this home: `GET /api/v1/devices` lists them (platform and versions);
+  `POST /api/v1/devices/revoke` removes one. A phone may remove itself or another phone of its own
+  household, for example a lost one.
 - Transparency screen: source repository link, app version and build, privacy policy, list of data
   transmitted, permissions currently granted, last successful report time, monitoring status and
   platform limits, security review summary link, security contact, and a viewer of the local event
@@ -183,10 +218,11 @@ Tapping opens the incident screen. On a new token from the OS, call `/notificati
 ## 10. Errors
 
 Error body: `{"error": {"code": "...", "message": "...", "request_id": "..."}}`.
-Codes used: `unauthorized` (401), `not_a_member` (403), `forbidden` (403), `household_suspended` (403),
+Codes used: `unauthorized` (401: not enrolled), `forbidden` (403), `household_suspended` (403),
 `device_revoked` (403), `device_not_registered` (404), `invitation_invalid` (404),
-`address_not_recognized` (422), `household_already_registered` (409), `validation_error` (422),
+`household_already_registered` (409), `device_conflict` (409), `validation_error` (422),
 `rate_limited` (429, with `Retry-After`), `not_found` (404).
+`not_a_member` and `address_not_recognized` no longer exist.
 
 ## 11. Clarifications agreed while building the apps
 
@@ -208,9 +244,10 @@ Codes used: `unauthorized` (401), `not_a_member` (403), `forbidden` (403), `hous
   occurred).
 - Queue cap drop order: heartbeats, then lifecycle events, then the oldest connectivity events.
 - A `422` on a batch is retried one event at a time; the refused event is dropped and logged
-  locally. A `404 device_not_registered` triggers one re-registration and one retry.
-- Sign-out sends `MONITORING_STOPPED`, flushes for up to 5 seconds, then revokes this install's
-  device registration before logging out.
+  locally. A `404 device_not_registered` means the `device_id` in the request is not the id this
+  phone enrolled with; registration cannot repair that any more, so the events stay queued and the
+  app reports the error locally.
+- There is no sign-out. The nearest thing is leaving (section 9).
 - Push payload custom keys: FCM puts them in `data`; APNs puts them at the top level of the
   payload next to `aps`. Apps should read both places.
 - `reported_via` is the transport the app believes the upload used. It is not proof of routing.
@@ -231,7 +268,5 @@ Codes used: `unauthorized` (401), `not_a_member` (403), `forbidden` (403), `hous
   `MONITORING_GAP_DETECTED` (mostly `app_suspended`), and sends callbacks that arrive within 10
   seconds after such a stretch as `RECONCILED`. Gaps are therefore frequent on both platforms; the
   backend treats a gap as unknown, never as healthy.
-- `MONITORING_STOPPED` is sent on sign-out. Leaving the neighborhood or deleting the account removes
-  the device on the server, so no stop event is sent for those.
-- Token refresh uses the default network, not the cellular-bound one.
+- Leaving removes the phone on the server, so no `MONITORING_STOPPED` event is sent for it.
 - Rejection reason for a rate limit is exactly `rate_limited`.

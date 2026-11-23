@@ -64,12 +64,19 @@ final class FakeTransport: HTTPTransport, @unchecked Sendable {
     }
 }
 
-final class MemoryTokenStore: TokenStore, @unchecked Sendable {
-    let tokens: Locked<AuthTokens?>
-    init(_ tokens: AuthTokens? = nil) { self.tokens = Locked(tokens) }
-    func load() -> AuthTokens? { tokens.value }
-    func save(_ tokens: AuthTokens) throws { self.tokens.value = tokens }
-    func clear() { tokens.value = nil }
+/// Holds the device secret in memory. `failSaving` stands in for a Keychain that refuses to write.
+final class MemoryDeviceTokenStore: DeviceTokenStore, @unchecked Sendable {
+    struct SaveFailed: Error {}
+
+    let token: Locked<String?>
+    let failSaving = Locked(false)
+    init(_ token: String? = nil) { self.token = Locked(token) }
+    func load() -> String? { token.value }
+    func save(_ token: String) throws {
+        if failSaving.value { throw SaveFailed() }
+        self.token.value = token
+    }
+    func clear() { token.value = nil }
 }
 
 final class MemoryFingerprintStore: FingerprintStore, @unchecked Sendable {

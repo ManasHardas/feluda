@@ -1,5 +1,6 @@
 package org.neighborhoodwatchdog.android.domain
 
+import org.neighborhoodwatchdog.android.domain.auth.CredentialStore
 import org.neighborhoodwatchdog.android.domain.model.Clock
 import org.neighborhoodwatchdog.android.domain.model.ConnectivityEvent
 import org.neighborhoodwatchdog.android.domain.model.ConnectivityState
@@ -17,6 +18,17 @@ import org.neighborhoodwatchdog.android.domain.reporting.SendResult
 import org.neighborhoodwatchdog.android.domain.reporting.SentEventLog
 import org.neighborhoodwatchdog.android.domain.reporting.SentRecord
 import java.time.Instant
+
+class InMemoryCredentialStore(var deviceToken: String? = null) : CredentialStore {
+    override fun load(): String? = deviceToken
+    override fun save(deviceToken: String) {
+        this.deviceToken = deviceToken
+    }
+
+    override fun clear() {
+        deviceToken = null
+    }
+}
 
 class FakeClock(var now: Long = 1_800_000_000_000L) : Clock {
     override fun nowMs(): Long = now

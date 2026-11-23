@@ -24,11 +24,10 @@ import org.neighborhoodwatchdog.android.session.SessionCoordinator
 import org.neighborhoodwatchdog.android.ui.incidents.IncidentDetailScreen
 import org.neighborhoodwatchdog.android.ui.incidents.IncidentListScreen
 import org.neighborhoodwatchdog.android.ui.main.MainScreen
-import org.neighborhoodwatchdog.android.ui.onboarding.ConsentScreen
-import org.neighborhoodwatchdog.android.ui.onboarding.DeviceSetupScreen
 import org.neighborhoodwatchdog.android.ui.onboarding.HomeNetworkScreen
-import org.neighborhoodwatchdog.android.ui.onboarding.MembershipScreen
-import org.neighborhoodwatchdog.android.ui.onboarding.SignInScreen
+import org.neighborhoodwatchdog.android.ui.onboarding.IntroScreen
+import org.neighborhoodwatchdog.android.ui.onboarding.JoinScreen
+import org.neighborhoodwatchdog.android.ui.onboarding.NotificationSetupScreen
 import org.neighborhoodwatchdog.android.ui.settings.SettingsScreen
 import org.neighborhoodwatchdog.android.ui.transparency.TransparencyScreen
 import javax.inject.Inject
@@ -46,14 +45,14 @@ private object Routes {
     const val INCIDENT = "incident/{incidentId}"
     const val SETTINGS = "settings"
     const val TRANSPARENCY = "transparency"
+    const val ONBOARDING_PREFIX = "onboarding/"
 
     fun incident(id: String) = "incident/$id"
 
     fun forStage(stage: OnboardingStage): String = when (stage) {
-        OnboardingStage.CONSENT -> "onboarding/consent"
-        OnboardingStage.SIGN_IN -> "onboarding/sign-in"
-        OnboardingStage.MEMBERSHIP -> "onboarding/membership"
-        OnboardingStage.DEVICE_SETUP -> "onboarding/device"
+        OnboardingStage.INTRO -> "onboarding/intro"
+        OnboardingStage.JOIN -> "onboarding/join"
+        OnboardingStage.NOTIFICATIONS -> "onboarding/notifications"
         OnboardingStage.HOME_NETWORK -> "onboarding/home-network"
         OnboardingStage.READY -> MAIN
     }
@@ -61,7 +60,7 @@ private object Routes {
 
 /**
  * One navigation graph. The onboarding stage decides the root screen; when the stage changes the
- * back stack is replaced, so a resident can never navigate "back" past consent or sign-in.
+ * back stack is replaced, so a resident can never navigate "back" past the introduction or joining.
  */
 @Composable
 fun AppRoot(pendingIncidentId: String?, onIncidentOpened: () -> Unit, viewModel: AppViewModel = hiltViewModel()) {
@@ -72,7 +71,7 @@ fun AppRoot(pendingIncidentId: String?, onIncidentOpened: () -> Unit, viewModel:
     LaunchedEffect(stage) {
         val target = Routes.forStage(stage)
         val current = navController.currentDestination?.route
-        val alreadyThere = if (stage == OnboardingStage.READY) current != null && !current.startsWith("onboarding/") else current == target
+        val alreadyThere = if (stage == OnboardingStage.READY) current != null && !current.startsWith(Routes.ONBOARDING_PREFIX) else current == target
         if (!alreadyThere) {
             navController.navigate(target) {
                 popUpTo(navController.graph.id) { inclusive = true }
@@ -92,10 +91,9 @@ fun AppRoot(pendingIncidentId: String?, onIncidentOpened: () -> Unit, viewModel:
 @Composable
 private fun AppNavHost(navController: NavHostController, start: String) {
     NavHost(navController = navController, startDestination = start) {
-        composable(Routes.forStage(OnboardingStage.CONSENT)) { ConsentScreen() }
-        composable(Routes.forStage(OnboardingStage.SIGN_IN)) { SignInScreen() }
-        composable(Routes.forStage(OnboardingStage.MEMBERSHIP)) { MembershipScreen() }
-        composable(Routes.forStage(OnboardingStage.DEVICE_SETUP)) { DeviceSetupScreen() }
+        composable(Routes.forStage(OnboardingStage.INTRO)) { IntroScreen() }
+        composable(Routes.forStage(OnboardingStage.JOIN)) { JoinScreen(onOpenTransparency = { navController.navigate(Routes.TRANSPARENCY) }) }
+        composable(Routes.forStage(OnboardingStage.NOTIFICATIONS)) { NotificationSetupScreen() }
         composable(Routes.forStage(OnboardingStage.HOME_NETWORK)) { HomeNetworkScreen() }
         composable(Routes.MAIN) {
             MainScreen(

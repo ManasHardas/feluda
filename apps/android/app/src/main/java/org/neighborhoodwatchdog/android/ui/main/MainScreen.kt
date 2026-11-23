@@ -36,7 +36,6 @@ import org.neighborhoodwatchdog.android.domain.model.StatusColor
 import org.neighborhoodwatchdog.android.monitoring.MonitorStatus
 import org.neighborhoodwatchdog.android.monitoring.MonitoringController
 import org.neighborhoodwatchdog.android.monitoring.PermissionStatus
-import org.neighborhoodwatchdog.android.session.SessionCoordinator
 import org.neighborhoodwatchdog.android.ui.common.InfoRow
 import org.neighborhoodwatchdog.android.ui.common.ScreenScaffold
 import org.neighborhoodwatchdog.android.ui.common.SectionCard
@@ -68,7 +67,6 @@ class MainViewModel @Inject constructor(
     private val repository: WatchdogRepository,
     private val controller: MonitoringController,
     private val permissionStatus: PermissionStatus,
-    private val session: SessionCoordinator,
     localState: LocalState,
 ) : ViewModel() {
     val monitor: StateFlow<MonitorStatus> = controller.status
@@ -93,10 +91,6 @@ class MainViewModel @Inject constructor(
         val status = repository.status()
         val neighborhood = repository.neighborhood()
         val failure = (status as? ApiResult.Failure) ?: (neighborhood as? ApiResult.Failure)
-        if (failure?.error?.code == "not_a_member") {
-            session.membershipLost()
-            return
-        }
         _backend.update {
             BackendView(
                 loading = false,

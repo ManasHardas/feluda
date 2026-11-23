@@ -97,35 +97,35 @@ def test_nothing_personal_is_stored_or_accepted(world, client, owner_conn):
 
 
 def test_street_is_mandatory_and_house_number_is_optional(world, client):
-    token = world.admin.invite(max_uses=6)
+    token = world.admin.invite()
     missing = enroll_body(token)
     del missing["street_name"]
     assert client.post("/api/v1/enroll", json=missing).status_code == 422
     assert enroll(client, token, street="   ").status_code == 422
     assert enroll(client, token, street="!!!").status_code == 422
 
-    without = enroll(client, token, street="Willow Way")
+    without = enroll(client, token, street="Willow Way")  # the refused attempts did not use up the link
     assert without.status_code == 201 and without.json()["household"]["house_number"] is None
-    blank = enroll(client, token, street="Birch Row", house_number="  ")
+    blank = enroll(client, world.admin.invite(), street="Birch Row", house_number="  ")
     assert blank.status_code == 201 and blank.json()["household"]["house_number"] is None
-    numbered = enroll(client, token, street="Willow Way", house_number=" 12-B ")
+    numbered = enroll(client, world.admin.invite(), street="Willow Way", house_number=" 12-B ")
     assert numbered.status_code == 201 and numbered.json()["household"]["house_number"] == "12b"
 
 
-def test_phones_from_one_link_form_one_household(world, client):
-    family = world.admin.invite(max_uses=3)
+def test_one_link_is_one_household_whatever_is_typed(world, client, owner_conn):
+    family = world.admin.invite(max_uses=4)
     first = enroll(client, family, street="Willow Way")
     second = enroll(client, family, street="Willow way")
-    assert first.json()["household"]["household_id"] == second.json()["household"]["household_id"]
-    assert second.json()["household"]["device_count"] == 2
+    # Typing other addresses with the same link cannot create more households (and so cannot fake a
+    # multi-household disruption from one link).
+    third = enroll(client, family, street="Elm Street", house_number="1")
+    fourth = enroll(client, family, street="Oak Lane", house_number="2")
+    ids = {r.json()["household"]["household_id"] for r in (first, second, third, fourth)}
+    assert len(ids) == 1 and fourth.json()["household"]["device_count"] == 4
+    assert owner_conn.execute("SELECT count(*) AS n FROM nw.households WHERE invitation_id IS NOT NULL").fetchone()["n"] == 1
     # Another home on the same street, enrolled with its own link, is a different household.
     neighbour = enroll(client, world.admin.invite(), street="Willow Way")
-    assert neighbour.json()["household"]["household_id"] != first.json()["household"]["household_id"]
-    # With a house number, the same link still groups the phones.
-    numbered = world.admin.invite(max_uses=2)
-    a = enroll(client, numbered, street="Cedar Row", house_number="9")
-    b = enroll(client, numbered, street="Cedar Row", house_number="9")
-    assert a.json()["household"]["household_id"] == b.json()["household"]["household_id"]
+    assert neighbour.json()["household"]["household_id"] not in ids
 
 
 def test_another_link_cannot_attach_a_phone_to_an_enrolled_home(world, client, owner_conn):
@@ -231,6 +231,20 @@ def test_leaving_removes_the_phone_and_everything_it_reported(world, owner_conn)
     assert household["membership_status"] == "approved"  # the bare address stays so the home can join again
     assert resident.get("/api/v1/households/me").status_code == 401
     assert resident.submit([resident.heartbeat()]).status_code == 401
+
+
+def test_when_the_last_phone_leaves_the_typed_address_is_deleted(world, client, owner_conn):
+    family = world.admin.invite(max_uses=2)
+    first, second = enroll(client, family, street="Hidden Lane", house_number="7"), enroll(client, family)
+    household_id = first.json()["household"]["household_id"]
+    assert client.post("/api/v1/households/leave", headers=bearer(first)).status_code == 200
+    assert owner_conn.execute("SELECT count(*) AS n FROM nw.households WHERE id = %s", [household_id]).fetchone()["n"] == 1
+    assert client.post("/api/v1/households/leave", headers=bearer(second)).status_code == 200
+    assert owner_conn.execute("SELECT count(*) AS n FROM nw.households WHERE id = %s", [household_id]).fetchone()["n"] == 0
+    assert (
+        owner_conn.execute("SELECT count(*) AS n FROM nw.households WHERE normalized_street_name = 'hidden ln'").fetchone()["n"]
+        == 0
+    )
 
 
 def test_a_phone_can_be_removed_by_its_household_only(world, client):

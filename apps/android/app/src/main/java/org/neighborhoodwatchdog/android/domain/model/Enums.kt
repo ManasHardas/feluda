@@ -105,12 +105,6 @@ enum class HouseholdStatus {
 }
 
 @Serializable
-enum class MemberRole {
-    @SerialName("resident") RESIDENT,
-    @SerialName("admin") ADMIN,
-}
-
-@Serializable
 enum class DeviceStatus {
     @SerialName("active") ACTIVE,
     @SerialName("revoked") REVOKED,

@@ -14,11 +14,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import org.neighborhoodwatchdog.android.data.api.ApiResult
 import org.neighborhoodwatchdog.android.data.local.FingerprintStore
 import org.neighborhoodwatchdog.android.data.local.LocalState
 import org.neighborhoodwatchdog.android.data.repository.DeviceRepository
-import org.neighborhoodwatchdog.android.domain.auth.TokenManager
+import org.neighborhoodwatchdog.android.domain.auth.DeviceCredentials
 import org.neighborhoodwatchdog.android.domain.model.Clock
 import org.neighborhoodwatchdog.android.domain.model.ConnectivityState
 import org.neighborhoodwatchdog.android.domain.model.Diagnostics
@@ -50,10 +49,10 @@ data class MonitorStatus(
 )
 
 enum class ClearMode {
-    /** Sign-out: keep the consent and the install id. */
-    SIGN_OUT,
+    /** The server no longer accepts this phone: keep only that the introduction was read. */
+    ENROLMENT_ENDED,
 
-    /** Leave neighborhood or delete account: forget everything. */
+    /** Leave neighborhood: forget everything. */
     FORGET_EVERYTHING,
 }
 
@@ -74,7 +73,7 @@ class MonitoringController(
     private val sentLog: SentEventLog,
     private val fingerprintStore: FingerprintStore,
     private val localState: LocalState,
-    private val tokens: TokenManager,
+    private val credentials: DeviceCredentials,
     private val powerTracker: PowerTracker,
     private val aliveClock: AliveClock,
     private val permissions: PermissionStatus,
@@ -149,9 +148,8 @@ class MonitoringController(
         return result.await()
     }
 
-    /** Onboarding is complete: consent given, signed in, household member, device registered. */
-    fun eligible(): Boolean = localState.consentGiven && tokens.isSignedIn() && localState.memberConfirmed &&
-        localState.deviceRegistered && localState.homeStepDone
+    /** Onboarding is complete: introduction read, phone enrolled, home-network step answered. */
+    fun eligible(): Boolean = localState.consentGiven && credentials.isEnrolled && localState.homeStepDone
 
     /** Starts monitoring if it should run and does not run yet. Never starts before consent. */
     fun ensureRunning() = post { startIfNeeded(userInitiated = false) }
@@ -176,6 +174,7 @@ class MonitoringController(
             }
             publish()
         }
+        ioScope.launch { devices.updateRegistrationIfChanged() }
         requestUpload()
     }
 
@@ -491,15 +490,11 @@ class MonitoringController(
     }
 
     suspend fun flushNow(): FlushResult {
-        if (!tokens.isSignedIn()) return FlushResult.Idle
-        var result = try {
+        if (!credentials.isEnrolled) return FlushResult.Idle
+        val result = try {
             uploader.flush()
         } catch (e: java.io.IOException) {
             FlushResult.RetryIn(30_000, "storage")
-        }
-        if (result is FlushResult.Blocked && result.errorCode == "device_not_registered") {
-            // The server does not know this install id (any more): register again, then retry once.
-            if (devices.register() is ApiResult.Success) result = uploader.flush()
         }
         val blocked = (result as? FlushResult.Blocked)?.errorCode
         post {
@@ -540,25 +535,30 @@ class MonitoringController(
         publish()
     }
 
-    /** Sign-out, leave or delete: stop monitoring and remove the queue, the log and the fingerprint. */
-    suspend fun stopAndClear(mode: ClearMode) {
-        val wasRunning = ask {
-            val was = running
-            val m = machine
-            if (was && m != null && mode == ClearMode.SIGN_OUT) {
-                record(EventType.MONITORING_STOPPED, m.currentState(), clock.nowMs(), currentDiagnostics(userInitiated = true))
+    /**
+     * The server answered 401 `unauthorized`: the secret is already removed. Stop monitoring and
+     * clear what belonged to that enrolment, then tell the caller so the join screen is shown.
+     */
+    fun onEnrolmentRejected(done: () -> Unit) {
+        ioScope.launch {
+            try {
+                stopAndClear(ClearMode.ENROLMENT_ENDED)
+            } finally {
+                done()
             }
-            stopMonitor()
-            was
         }
-        if (wasRunning && mode == ClearMode.SIGN_OUT) withTimeoutOrNull(SIGN_OUT_FLUSH_MS) { uploader.flush() }
+    }
+
+    /** Leave, or removed by the server: stop monitoring and remove the queue, the log and the fingerprint. */
+    suspend fun stopAndClear(mode: ClearMode) {
+        ask { stopMonitor() }
         scheduler.cancelAll()
         withContext(Dispatchers.IO) {
             queueStore.clear()
             sentLog.clear()
         }
         fingerprintStore.clear()
-        if (mode == ClearMode.SIGN_OUT) localState.clearSession() else localState.clearAll()
+        if (mode == ClearMode.ENROLMENT_ENDED) localState.clearAfterEnrolmentEnded() else localState.clearAll()
         ask {
             lastEventAtMs = null
             uploadBlockedCode = null
@@ -594,6 +594,5 @@ class MonitoringController(
         const val PROBE_SLOW_MS = 5 * 60_000L
         const val BASELINE_TIMEOUT_MS = 30_000L
         const val PROBE_WAIT_MS = 15_000L
-        const val SIGN_OUT_FLUSH_MS = 5_000L
     }
 }

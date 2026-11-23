@@ -2,16 +2,20 @@
 
 ## What is automated
 
-| Suite | Where | Needs | Count at hand-off |
+| Suite | Where | Needs | Count on 2026-11-23 |
 | --- | --- | --- | --- |
 | Backend unit tests (engine, scoring, normalization, tokens, configuration, limiter) | `backend/tests/test_unit_engine.py` | nothing | 49 |
-| Backend integration (onboarding, devices, leaving, deletion) | `backend/tests/test_onboarding.py`, `test_smoke.py` | PostgreSQL | 18 |
-| Backend security (authorization, isolation, row-level security, replay, malformed input, rate limits, secrets, logs) | `backend/tests/test_security.py` | PostgreSQL | 42 |
+| Backend integration (invitations, enrolment by link, households, removing a phone, leaving) | `backend/tests/test_onboarding.py`, `test_smoke.py` | PostgreSQL | 17 |
+| Backend security (authorization, isolation, row-level security, replay, malformed input, rate limits, secrets, logs) | `backend/tests/test_security.py` | PostgreSQL | 41 |
 | Scenario simulation A to J | `backend/tests/test_scenarios.py` | PostgreSQL | 11 |
 | Notifications (routing, duplicates, retries, expiry, preferences, FCM and APNs request shape) | `backend/tests/test_notifications.py` | PostgreSQL | 14 |
 | Administration, configuration, retention, migrations, schema | `backend/tests/test_admin_and_ops.py` | PostgreSQL | 10 |
-| Android unit tests | `apps/android/app/src/test` | JDK 17, network for the first dependency download | 90 |
-| iOS unit tests | `apps/ios/NeighborhoodWatchdogTests` | Xcode, a simulator | 97 |
+| Android unit tests | `apps/android/app/src/test` | JDK 17, network for the first dependency download | 87 (1 skipped: the live test) |
+| iOS unit tests | `apps/ios/NeighborhoodWatchdogTests` | Xcode, a simulator | 100 (1 skipped: the live test) |
+
+The backend counts add up to 143, all passing locally against PostgreSQL 16 after sign-in was
+removed (decision 0014). Both apps' tests and their live contract checks were run on 2026-11-23
+against the new enrolment flow and passed.
 
 Run them:
 
@@ -24,7 +28,8 @@ make ios-test
 make test                  # everything, plus lint and the API contract check
 make ios-core-test         # iOS core logic natively on the Mac, no simulator
 
-# Live contract checks: each app's real networking code against a running backend
+# Live contract checks: each app's real networking code against a running backend.
+# The fixture now hands the app an invitation link instead of a sign-in; not re-run since the change.
 make live-backend          # terminal 1 (after make docker-up migrate seed)
 make live-ios              # terminal 2
 make live-android
@@ -72,8 +77,10 @@ was available during the build.
 - iOS: `apps/ios/TESTING.md` (Wi-Fi loss, cellular transition, recovery, backgrounding, locking,
   termination, airplane mode, cellular loss, permission changes, push delivery, suspension and
   resume). Use real iPhones; the simulator has no cellular radio and does not run background refresh.
-- End to end: a real push arriving on each platform; the registration page opened from WhatsApp on
-  both platforms; uploads really leaving over cellular when home Wi-Fi is off; battery use over a day.
+- End to end: a real push arriving on each platform; the invitation page opened from WhatsApp on
+  both platforms and its "Open in the app" button actually opening the app with the link; a second
+  phone of the same home joining with the same link; uploads really leaving over cellular when home
+  Wi-Fi is off; battery use over a day.
 
 Suggested first field test: two households, three phones, one evening. Switch a router off for
 three minutes with one phone on charge and one not, and compare what each phone reported with what
@@ -83,7 +90,8 @@ the backend concluded.
 
 - A new detection rule needs a unit test in `test_unit_engine.py` and, if it changes an outcome, a
   scenario.
-- A new endpoint needs an authorization test (no token, wrong role, other neighborhood).
+- A new endpoint needs an authorization test (no credential, a device secret on an administrator
+  route or the operator secret on a resident route, another household, another neighborhood).
 - A new table needs row-level security and a line in the role tests.
 - Never assert on wording that claims confirmation; `test_wording_never_asserts_jamming_and_never_promises_delivery`
   and `test_every_neighborhood_explanation_denies_confirmation_and_never_says_jamming` guard the vocabulary.

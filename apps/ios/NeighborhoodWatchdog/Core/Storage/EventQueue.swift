@@ -104,7 +104,7 @@ actor EventQueue {
         persist()
     }
 
-    /// Removes everything, including the sequence counter (used when leaving or signing out).
+    /// Removes everything, including the sequence counter (used when leaving the neighborhood).
     func clear() {
         contents = FileContents(nextSequence: 0, entries: [])
         store.delete()

@@ -14,62 +14,116 @@ final class LiveBackendTests: XCTestCase {
         return value
     }
 
+    private func expectNotEnrolled(_ work: () async throws -> Void, _ message: String,
+                                   file: StaticString = #filePath, line: UInt = #line) async {
+        do {
+            try await work()
+            XCTFail("expected 401: \(message)", file: file, line: line)
+        } catch {
+            XCTAssertEqual(error as? APIError, .notEnrolled, message, file: file, line: line)
+        }
+    }
+
     func testWholeResidentJourneyAgainstTheRealBackend() async throws {
         let origin = try env("WATCHDOG_LIVE_API")  // throws XCTSkip when not configured
         let base = try XCTUnwrap(URL(string: origin))
         let invitation = try env("WATCHDOG_LIVE_INVITATION")
-        let email = try env("WATCHDOG_LIVE_EMAIL")
-        let code = try env("WATCHDOG_LIVE_CODE")
         let houseNumber = try env("WATCHDOG_LIVE_HOUSE_NUMBER")
         let street = try env("WATCHDOG_LIVE_STREET")
-        let token = try XCTUnwrap(invitation.components(separatedBy: "#t=").last)
+        // The same parser the join screen uses for a pasted link.
+        let token = try XCTUnwrap(InvitationToken.parse(invitation))
 
         let transport = URLSessionTransport(session: URLSession(configuration: .ephemeral))
-        let store = MemoryTokenStore()
-        let auth = AuthService(baseURL: base.appendingPathComponent("auth/v1"), publicKey: "local", transport: transport, store: store)
-        let api = APIClient(baseURL: base, transport: transport, auth: auth)
+        let store = MemoryDeviceTokenStore()
+        let api = APIClient(baseURL: base, transport: transport, credentials: store)
 
         // Public endpoints
         let health = try await api.health()
         XCTAssertEqual(health.database, "ok")
         let verified = try await api.verifyInvitation(token: token)
-        XCTAssertTrue(verified.householdBound)
+        XCTAssertTrue(verified.valid)
+        XCTAssertFalse(verified.neighborhoodName.isEmpty)
 
-        // Sign in with the e-mail code
-        try await auth.requestCode(email: email)
-        try await auth.verify(email: email, code: code)
-        let signedIn = await auth.isSignedIn
-        XCTAssertTrue(signedIn)
+        // Not enrolled yet: nothing is sent without a secret, and a made-up secret is refused.
+        await expectNotEnrolled({ _ = try await api.myHousehold() }, "no secret stored")
+        let stranger = MemoryDeviceTokenStore("not-a-real-device-secret-0123456789")
+        await expectNotEnrolled({ _ = try await APIClient(baseURL: base, transport: transport, credentials: stranger).myHousehold() },
+                                "unknown secret")
+        XCTAssertNil(stranger.token.value, "a refused secret is removed")
 
-        // Not a member yet
+        // A phone that gives only the street (the house number is optional). The link allows 2 phones.
+        let streetOnlyStore = MemoryDeviceTokenStore()
+        let streetOnly = APIClient(baseURL: base, transport: transport, credentials: streetOnlyStore)
+        let streetOnlyEnrolment = try await streetOnly.enroll(EnrollRequest(
+            invitationToken: token, streetName: street, houseNumber: nil, privacyAcknowledged: true,
+            deviceID: UUID(), platform: .ios, osVersion: "18.2", appVersion: "0.1.0 (1)", capabilities: .iOS))
+        XCTAssertNil(streetOnlyEnrolment.household.houseNumber)
+        XCTAssertFalse(streetOnlyEnrolment.household.streetName.isEmpty)
+        let streetOnlyHousehold = try await streetOnly.myHousehold()
+        XCTAssertEqual(streetOnlyHousehold.householdID, streetOnlyEnrolment.household.householdID)
+        XCTAssertEqual(streetOnlyHousehold.deviceCount, 1)
+
+        // A second phone with the same link joins the same household, whatever it types:
+        // one link is one home (it cannot create a second household).
+        let deviceID = UUID()
+        let enrolRequest = EnrollRequest(
+            invitationToken: token, streetName: street, houseNumber: houseNumber, privacyAcknowledged: true,
+            deviceID: deviceID, platform: .ios, osVersion: "18.2", appVersion: "0.1.0 (1)", capabilities: .iOS)
+        let joined = try await api.enroll(enrolRequest)
+        XCTAssertNil(joined.household.houseNumber, "the household keeps what the first phone gave")
+        XCTAssertEqual(joined.device.deviceID, deviceID)
+        XCTAssertEqual(joined.device.status, .active)
+        XCTAssertEqual(joined.household.householdID, streetOnlyEnrolment.household.householdID)
+        XCTAssertEqual(joined.household.deviceCount, 2)
+        XCTAssertEqual(store.token.value, joined.deviceToken)
+
+        // Enrolling again with the same device id and link is safe (a lost answer): a fresh secret,
+        // the link is not used a third time, and the earlier secret stops working.
+        let reissued = try await api.enroll(enrolRequest)
+        XCTAssertNotEqual(reissued.deviceToken, joined.deviceToken)
+        XCTAssertEqual(reissued.household.householdID, joined.household.householdID)
+        XCTAssertEqual(store.token.value, reissued.deviceToken)
+        let stale = MemoryDeviceTokenStore(joined.deviceToken)
+        await expectNotEnrolled({ _ = try await APIClient(baseURL: base, transport: transport, credentials: stale).myHousehold() },
+                                "the replaced secret")
+
+        // Both uses of the link are spent: a third phone is turned away.
         do {
-            _ = try await api.myHousehold()
-            XCTFail("expected not_a_member")
-        } catch let error as APIError {
-            XCTAssertEqual(error.code, "not_a_member")
+            _ = try await APIClient(baseURL: base, transport: transport, credentials: MemoryDeviceTokenStore()).enroll(EnrollRequest(
+                invitationToken: token, streetName: street, houseNumber: nil, privacyAcknowledged: true,
+                deviceID: UUID(), platform: .ios, osVersion: "18.2", appVersion: "0.1.0 (1)", capabilities: .iOS))
+            XCTFail("expected invitation_invalid")
+        } catch {
+            XCTAssertEqual(APIError.from(error).code, "invitation_invalid")
         }
 
-        // Join
-        let joined = try await api.joinHousehold(JoinHouseholdRequest(
-            invitationToken: token, houseNumber: houseNumber, streetName: street, displayLabel: "Live test",
-            isp: .xfinity, privacyAcknowledged: true))
-        XCTAssertEqual(joined.houseNumber, houseNumber)
+        // Authenticated calls with the device secret
         let household = try await api.myHousehold()
-        XCTAssertEqual(household.householdID, joined.householdID)
-        _ = try await api.updateHousehold(UpdateHouseholdRequest(displayLabel: "Renamed", isp: nil))
+        XCTAssertEqual(household.householdID, joined.household.householdID)
+        XCTAssertEqual(household.deviceCount, 2)
+        let renamed = try await api.updateHousehold(UpdateHouseholdRequest(displayLabel: "Renamed", isp: .xfinity))
+        XCTAssertEqual(renamed.displayLabel, "Renamed")
+        XCTAssertEqual(renamed.isp, .xfinity)
 
-        // Device, push token, preferences
-        let deviceID = UUID()
+        // Device update (its own record only), push token, preferences
         let device = try await api.registerDevice(RegisterDeviceRequest(
-            deviceID: deviceID, platform: .ios, osVersion: "18.2", appVersion: "0.1.0 (1)", capabilities: .iOS))
+            deviceID: deviceID, platform: .ios, osVersion: "18.3", appVersion: "0.1.1 (2)", capabilities: .iOS))
         XCTAssertEqual(device.deviceID, deviceID)
+        XCTAssertEqual(device.osVersion, "18.3")
+        do {
+            _ = try await api.registerDevice(RegisterDeviceRequest(
+                deviceID: UUID(), platform: .ios, osVersion: "18.3", appVersion: "0.1.1 (2)", capabilities: .iOS))
+            XCTFail("a phone cannot register another device id")
+        } catch {
+            XCTAssertEqual(APIError.from(error).code, "device_conflict")
+        }
         _ = try await api.registerPushToken(RegisterPushTokenRequest(
             deviceID: deviceID, provider: .apns, token: String(repeating: "ab", count: 32), apnsEnvironment: .sandbox))
         let preferences = try await api.notificationPreferences()
         let saved = try await api.updateNotificationPreferences(preferences)
         XCTAssertEqual(saved, preferences)
         let devices = try await api.devices()
-        XCTAssertEqual(devices.count, 1)
+        XCTAssertEqual(Set(devices.map(\.deviceID)), [deviceID, streetOnlyEnrolment.device.deviceID])
 
         // Events: every diagnostics field the app can fill, plus a gap event with dates
         let now = Date()
@@ -125,22 +179,24 @@ final class LiveBackendTests: XCTestCase {
         }
         _ = try await api.incidents(openOnly: true)
 
-        // Token refresh with rotation against the auth endpoints
-        let before = try XCTUnwrap(store.load())
-        _ = try await auth.accessTokenAfterUnauthorized(rejectedToken: before.accessToken)
-        let after = try XCTUnwrap(store.load())
-        XCTAssertNotEqual(after.refreshToken, before.refreshToken)
-        _ = try await api.myHousehold()
+        // Leaving deletes the phone and what it reported; its secret is then refused (401).
+        let secret = try XCTUnwrap(store.token.value)
+        let left = try await api.leaveHousehold()
+        XCTAssertTrue(left.ok)
+        XCTAssertNil(store.token.value)
+        let afterLeaving = MemoryDeviceTokenStore(secret)
+        let unenrolled = Locked(0)
+        let leftClient = APIClient(baseURL: base, transport: transport, credentials: afterLeaving,
+                                   onUnenrolled: { [unenrolled] in unenrolled.mutate { $0 += 1 } })
+        await expectNotEnrolled({ _ = try await leftClient.myHousehold() }, "401 after leaving")
+        XCTAssertNil(afterLeaving.token.value, "the app removes the secret and shows the join screen")
+        XCTAssertEqual(unenrolled.value, 1)
 
-        // Revoke and leave
-        _ = try await api.revokeDevice(id: deviceID)
-        _ = try await api.leaveHousehold()
-        do {
-            _ = try await api.myHousehold()
-            XCTFail("expected not_a_member after leaving")
-        } catch let error as APIError {
-            XCTAssertEqual(error.code, "not_a_member")
-        }
-        await auth.signOut()
+        // The other phone is untouched by that, and leaves too so the run cleans up after itself.
+        _ = try await streetOnly.connectivityStatus()
+        _ = try await streetOnly.leaveHousehold()
+        let streetOnlyAfter = MemoryDeviceTokenStore(streetOnlyEnrolment.deviceToken)
+        await expectNotEnrolled({ _ = try await APIClient(baseURL: base, transport: transport, credentials: streetOnlyAfter).myHousehold() },
+                                "401 after the second phone left")
     }
 }

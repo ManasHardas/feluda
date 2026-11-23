@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Logical backup of the application schema with pg_dump (custom format, compressed).
 #   OWNER_DATABASE_URL=postgresql://... infrastructure/scripts/backup.sh [output-directory]
-# The dump contains resident addresses and e-mail addresses: store it encrypted and delete old copies
+# The dump contains streets, house numbers where given and connectivity history: store it encrypted and delete old copies
 # in line with docs/PRIVACY.md (suggested: keep 7 daily copies).
 set -euo pipefail
 : "${OWNER_DATABASE_URL:?set OWNER_DATABASE_URL to the owner connection string}"

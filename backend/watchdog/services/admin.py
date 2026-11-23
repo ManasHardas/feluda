@@ -76,7 +76,7 @@ def create_household(db: Database, admin: Operator, body: AdminCreateHouseholdRe
             ).fetchone()
             audit(
                 conn,
-                action="household_approved",
+                action="household_added",
                 neighborhood_id=admin.neighborhood_id,
                 actor_user_id=admin.user_id,
                 target_type="household",
@@ -84,7 +84,7 @@ def create_household(db: Database, admin: Operator, body: AdminCreateHouseholdRe
             )
             return _household_out(conn.execute(_HOUSEHOLD_SELECT + " WHERE h.id = %s", [row["id"]]).fetchone())
     except UniqueViolation as exc:
-        raise ApiError(409, "household_exists", "This address is already on the approved list.") from exc
+        raise ApiError(409, "household_exists", "This address is already in the neighborhood.") from exc
 
 
 def list_households(db: Database, admin: Operator) -> list[AdminHouseholdOut]:

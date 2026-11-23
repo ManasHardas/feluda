@@ -1,11 +1,8 @@
 import Foundation
 
-/// Build-time configuration, injected from Config/*.xcconfig into Info.plist. Contains no secrets:
-/// the auth key is the publishable key, which is public by design.
+/// Build-time configuration, injected from Config/*.xcconfig into Info.plist. Contains no secrets.
 struct AppConfig: Sendable, Equatable {
     var apiBaseURL: URL
-    var authBaseURL: URL
-    var authPublicKey: String
     var sourceRepoURL: URL?
     var privacyURL: URL?
     var securityReviewURL: URL?
@@ -49,8 +46,6 @@ struct AppConfig: Sendable, Equatable {
         }
         return AppConfig(
             apiBaseURL: try serviceURL("WatchdogAPIBaseURL", setting: "API_BASE_URL"),
-            authBaseURL: try serviceURL("WatchdogAuthBaseURL", setting: "AUTH_BASE_URL"),
-            authPublicKey: text("WatchdogAuthPublicKey") ?? "",
             sourceRepoURL: linkURL("WatchdogSourceRepoURL"),
             privacyURL: linkURL("WatchdogPrivacyURL"),
             securityReviewURL: linkURL("WatchdogSecurityReviewURL"),

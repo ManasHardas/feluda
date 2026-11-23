@@ -8,7 +8,7 @@ neighborhood chat until they are fixed.
 - Preferred: GitHub's private vulnerability reporting (repository → Security → Report a
   vulnerability), once the repository is published and the feature is enabled.
 - Or e-mail the security contact: **manas.hardas@gmail.com** (a deployment shows its own contact in
-  the apps and on the registration page through the `SECURITY_CONTACT` setting).
+  the apps and on the invitation page through the `SECURITY_CONTACT` setting).
 
 Include: what is affected (app and version, or backend), how to reproduce it, and what an attacker
 could gain. If the report involves real residents' data, do not include that data.
@@ -21,12 +21,11 @@ reporter, credit them if they wish, and record the outcome in `docs/SECURITY_REV
 
 ## Scope
 
-In scope: the Android and iOS apps, the backend, the database schema and policies, the registration
+In scope: the Android and iOS apps, the backend, the database schema and policies, the invitation
 page, and the build and release pipeline in this repository.
 
-Out of scope: the hosting, database and identity providers themselves (report those to the
-provider), denial of service by volume, and findings that need a resident's unlocked phone or
-mailbox.
+Out of scope: the hosting and database providers themselves (report those to the provider), denial
+of service by volume, and findings that need a resident's unlocked phone.
 
 ## Please do not
 

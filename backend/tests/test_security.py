@@ -121,6 +121,8 @@ def test_administration_is_disabled_without_an_operator_secret(db, clock, sender
 def test_production_settings_refuse_unsafe_configuration():
     with pytest.raises(ValueError, match="ADMIN_API_TOKEN"):
         make_settings(environment="production", admin_api_token="short")
+    with pytest.raises(ValueError, match="placeholder"):
+        make_settings(environment="production", admin_api_token="local-development-admin-token-not-for-production")
     with pytest.raises(ValueError, match="https"):
         make_settings(environment="staging", public_base_url="http://insecure.example")
     with pytest.raises(ValueError, match="IP_HASH_SALT"):

@@ -1,15 +1,11 @@
 package org.neighborhoodwatchdog.android.data.api
 
-import kotlinx.serialization.json.JsonObject
-import okhttp3.ResponseBody
 import org.neighborhoodwatchdog.android.domain.model.SubmitEventsRequest
 import org.neighborhoodwatchdog.android.domain.model.SubmitEventsResponse
 import org.neighborhoodwatchdog.android.domain.model.WatchdogJson
 import retrofit2.Response
 import retrofit2.http.Body
-import retrofit2.http.DELETE
 import retrofit2.http.GET
-import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
@@ -25,8 +21,9 @@ interface WatchdogApi {
     @POST("auth/verify-invitation")
     suspend fun verifyInvitation(@Body body: VerifyInvitationRequest): Response<VerifyInvitationResponse>
 
-    @POST("households/join")
-    suspend fun joinHousehold(@Body body: JoinHouseholdRequest): Response<HouseholdOut>
+    /** Public. Enrols this phone with an invitation link and returns its device secret. */
+    @POST("enroll")
+    suspend fun enroll(@Body body: EnrollRequest): Response<EnrollResponse>
 
     @GET("households/me")
     suspend fun household(): Response<HouseholdOut>
@@ -37,12 +34,10 @@ interface WatchdogApi {
     @POST("households/leave")
     suspend fun leaveHousehold(): Response<OkResponse>
 
-    @DELETE("account")
-    suspend fun deleteAccount(): Response<OkResponse>
-
     @GET("neighborhoods/me")
     suspend fun neighborhood(): Response<NeighborhoodOut>
 
+    /** Updates this phone's own record (versions, capabilities). The device is created by [enroll]. */
     @POST("devices/register")
     suspend fun registerDevice(@Body body: RegisterDeviceRequest): Response<DeviceOut>
 
@@ -74,25 +69,10 @@ interface WatchdogApi {
     suspend fun incident(@Path("incident_id") incidentId: String): Response<IncidentDetailOut>
 }
 
-/** Paths are relative to `{AUTH_BASE_URL}/`. The `apikey` header is added by an interceptor. */
-interface AuthApi {
-    @POST("otp")
-    suspend fun requestCode(@Body body: OtpRequest): Response<JsonObject>
-
-    @POST("verify")
-    suspend fun verify(@Body body: VerifyOtpRequest): Response<SessionResponse>
-
-    @POST("token")
-    suspend fun refresh(@Query("grant_type") grantType: String, @Body body: RefreshRequest): Response<SessionResponse>
-
-    @POST("logout")
-    suspend fun logout(@Header("Authorization") bearer: String): Response<ResponseBody>
-}
-
 data class ApiError(
     /** Null when the request never got an HTTP answer. */
     val httpCode: Int?,
-    /** The API error code (`not_a_member`, `rate_limited`, ...) when the body carried one. */
+    /** The API error code (`invitation_invalid`, `rate_limited`, ...) when the body carried one. */
     val code: String?,
     val message: String?,
     val retryAfterSeconds: Int? = null,

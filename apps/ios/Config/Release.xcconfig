@@ -2,10 +2,8 @@
 
 // Release builds are HTTPS only. The app refuses to start networking with a non-HTTPS URL and the
 // Release Info.plist contains no App Transport Security exceptions.
-// Replace these example values (or override them in Config/Local.xcconfig) before archiving.
+// Replace this example value (or override it in Config/Local.xcconfig) before archiving.
 API_BASE_URL = https:/$()/api.example.org
-AUTH_BASE_URL = https:/$()/auth.example.org/auth/v1
-AUTH_PUBLIC_KEY =
 APNS_ENVIRONMENT = production
 
 #include? "Local.xcconfig"

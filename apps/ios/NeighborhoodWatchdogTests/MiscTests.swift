@@ -8,6 +8,7 @@ final class InvitationTokenTests: XCTestCase {
         XCTAssertEqual(InvitationToken.parse("  \(token)\n"), token)
         XCTAssertEqual(InvitationToken.parse("https://watchdog.example.org/join#t=\(token)"), token)
         XCTAssertEqual(InvitationToken.parse("https://watchdog.example.org/join#x=1&t=\(token)"), token)
+        XCTAssertEqual(InvitationToken.parse("feluda://join#t=\(token)"), token)
     }
 
     func testRejectsAnythingElse() {
@@ -21,37 +22,43 @@ final class InvitationTokenTests: XCTestCase {
 }
 
 final class AppConfigTests: XCTestCase {
-    private func info(api: String, auth: String) -> [String: Any] {
-        ["WatchdogAPIBaseURL": api, "WatchdogAuthBaseURL": auth, "WatchdogAuthPublicKey": "key",
+    private func info(api: String) -> [String: Any] {
+        ["WatchdogAPIBaseURL": api,
          "WatchdogSourceRepoURL": "", "WatchdogProbeFallbackURL": "https://www.apple.com/library/test/success.html",
          "WatchdogAPNsEnvironment": "production"]
     }
 
     func testReleaseRequiresHTTPS() {
-        XCTAssertThrowsError(try AppConfig.make(from: info(api: "http://localhost:8000", auth: "https://a.example.org/auth/v1"), requireHTTPS: true))
-        XCTAssertThrowsError(try AppConfig.make(from: info(api: "https://api.example.org", auth: "http://a.example.org/auth/v1"), requireHTTPS: true))
-        XCTAssertNoThrow(try AppConfig.make(from: info(api: "https://api.example.org", auth: "https://a.example.org/auth/v1"), requireHTTPS: true))
+        XCTAssertThrowsError(try AppConfig.make(from: info(api: "http://localhost:8000"), requireHTTPS: true))
+        XCTAssertThrowsError(try AppConfig.make(from: info(api: "http://api.example.org"), requireHTTPS: true))
+        XCTAssertNoThrow(try AppConfig.make(from: info(api: "https://api.example.org"), requireHTTPS: true))
     }
 
     func testDebugAllowsPlainHTTPOnlyForLocalhost() throws {
-        let config = try AppConfig.make(from: info(api: "http://localhost:8000", auth: "http://localhost:8000/auth/v1"), requireHTTPS: false)
+        let config = try AppConfig.make(from: info(api: "http://localhost:8000"), requireHTTPS: false)
         XCTAssertEqual(config.healthURL.absoluteString, "http://localhost:8000/api/v1/monitoring/health")
         XCTAssertNil(config.sourceRepoURL, "an empty value means not configured")
         XCTAssertEqual(config.apnsEnvironment, .production)
-        XCTAssertThrowsError(try AppConfig.make(from: info(api: "http://192.168.1.20:8000", auth: "http://localhost:8000/auth/v1"), requireHTTPS: false))
+        XCTAssertThrowsError(try AppConfig.make(from: info(api: "http://192.168.1.20:8000"), requireHTTPS: false))
     }
 
     func testMissingValuesAreAnError() {
         XCTAssertThrowsError(try AppConfig.make(from: [:], requireHTTPS: false))
         // An xcconfig URL written without the $() workaround is cut off after "https:".
-        XCTAssertThrowsError(try AppConfig.make(from: info(api: "https:", auth: "https:"), requireHTTPS: true))
+        XCTAssertThrowsError(try AppConfig.make(from: info(api: "https:"), requireHTTPS: true))
     }
 
     func testBuiltInfoPlistCarriesTheConfiguredURLs() throws {
         // The test host is the Debug app: this checks the xcconfig -> Info.plist injection, "//" included.
         let config = try AppConfig.load(bundle: .main)
         XCTAssertNotNil(config.apiBaseURL.host)
-        XCTAssertTrue(config.authBaseURL.path.hasSuffix("/auth/v1"))
+        // There is no sign-in: no auth service is configured in the build.
+        for key in ["WatchdogAuthBaseURL", "WatchdogAuthPublicKey"] {
+            XCTAssertNil(Bundle.main.object(forInfoDictionaryKey: key), "\(key) must be gone")
+        }
+        // The web join page hands the invitation over with feluda://join#t=<token>.
+        let urlTypes = Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]]
+        XCTAssertEqual(urlTypes?.compactMap { $0["CFBundleURLSchemes"] as? [String] }, [[InvitationLink.scheme]])
         XCTAssertEqual(config.probeFallbackURL?.scheme, "https")
         let identifiers = Bundle.main.object(forInfoDictionaryKey: "BGTaskSchedulerPermittedIdentifiers") as? [String]
         XCTAssertEqual(identifiers, [BackgroundRefresh.identifier])
@@ -133,8 +140,10 @@ final class TerminologyTests: XCTestCase {
         for topic in EducationContent.topics {
             assertClean(([topic.title] + topic.paragraphs + topic.bullets).joined(separator: " "), "education topic \(topic.id)")
         }
-        // The eight things the resident must be told before consenting.
+        // The eight things the resident must be told before joining.
         XCTAssertEqual(EducationContent.topics.count, 8)
+        assertClean(EducationContent.privacySummary.joined(separator: " "), "privacy summary on the join screen")
+        XCTAssertFalse(EducationContent.privacySummary.isEmpty)
     }
 
     func testUserInterfaceSourcesContainNoBannedPhrases() throws {

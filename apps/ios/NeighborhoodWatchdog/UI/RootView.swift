@@ -16,12 +16,10 @@ struct RootView: View {
                 }
             case .education:
                 EducationView()
-            case .signIn:
-                SignInView()
+            case .join:
+                JoinHouseholdView()
             case .settingUp:
                 SettingUpView()
-            case .joinHousehold:
-                JoinHouseholdView()
             case .notifications:
                 NotificationPermissionView()
             case .homeNetwork:
@@ -31,6 +29,8 @@ struct RootView: View {
             }
         }
         .task { await model.bootstrap() }
+        // The web join page opens feluda://join#t=<token>.
+        .onOpenURL { model.handleIncomingURL($0) }
     }
 }
 
@@ -47,7 +47,6 @@ struct SettingUpView: View {
                 } actions: {
                     Button("Try again") { Task { await model.retrySetup() } }
                         .buttonStyle(.borderedProminent)
-                    Button("Sign out") { Task { await model.signOut() } }
                 }
             } else {
                 ProgressView("Setting up this phone…")

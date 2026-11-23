@@ -62,7 +62,7 @@ def test_admin_manages_households_and_everything_is_audited(world):
         )
 
     actions = [entry["action"] for entry in admin.get("/api/v1/admin/audit-logs").json()]
-    for expected in ("household_approved", "household_list_viewed", "household_removed"):
+    for expected in ("household_added", "household_list_viewed", "household_removed"):
         assert expected in actions
     removal = next(e for e in admin.get("/api/v1/admin/audit-logs").json() if e["action"] == "household_removed")
     assert removal["metadata"] == {"reason": "moved away"} and removal["actor_reference"] == "admin"
