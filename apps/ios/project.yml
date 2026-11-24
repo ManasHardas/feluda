@@ -27,11 +27,14 @@ targets:
           - Info.plist
           - Info-Debug.plist
           - NeighborhoodWatchdog.entitlements
+          - NeighborhoodWatchdog-Release.entitlements
       - path: NeighborhoodWatchdog/Info.plist
         buildPhase: none
       - path: NeighborhoodWatchdog/Info-Debug.plist
         buildPhase: none
       - path: NeighborhoodWatchdog/NeighborhoodWatchdog.entitlements
+        buildPhase: none
+      - path: NeighborhoodWatchdog/NeighborhoodWatchdog-Release.entitlements
         buildPhase: none
       - path: Config
         buildPhase: none
@@ -53,6 +56,8 @@ targets:
           INFOPLIST_FILE: NeighborhoodWatchdog/Info-Debug.plist
         Release:
           INFOPLIST_FILE: NeighborhoodWatchdog/Info.plist
+          # App Store and TestFlight builds use the production push environment.
+          CODE_SIGN_ENTITLEMENTS: NeighborhoodWatchdog/NeighborhoodWatchdog-Release.entitlements
   NeighborhoodWatchdogTests:
     type: bundle.unit-test
     platform: iOS
