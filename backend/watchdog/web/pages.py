@@ -49,6 +49,10 @@ def _page(name: str, settings: Settings) -> HTMLResponse:
 def build_router(settings: Settings) -> APIRouter:
     router = APIRouter(include_in_schema=False)
 
+    @router.get("/", response_class=HTMLResponse)
+    def home() -> HTMLResponse:
+        return _page("index.html", settings)
+
     @router.get("/join", response_class=HTMLResponse)
     def join() -> HTMLResponse:
         return _page("join.html", settings)

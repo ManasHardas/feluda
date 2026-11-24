@@ -270,6 +270,8 @@ def test_join_page_carries_no_secrets_and_a_strict_policy(client):
     assert "default-src 'none'" in csp and "unsafe-inline" not in csp
     assert page.headers["referrer-policy"] == "no-referrer"
     assert client.get("/privacy").status_code == 200
+    home = client.get("/")
+    assert home.status_code == 200 and "invitation link" in home.text and "{{" not in home.text
 
 
 def test_clock_moves_do_not_invalidate_a_phone(world):

@@ -33,12 +33,14 @@ screens have not been tapped through on screen yet**, and nothing has run on a p
 | iOS app with the new enrolment flow: simulator tests (`make ios-test`, Xcode 27.2) | **100 run, 1 skipped (the live test), 0 failures** | 2026-11-23 |
 | iOS core tests natively (`make ios-core-test`) | **89 run, 1 skipped, 0 failures** | 2026-11-23 |
 | iOS networking code against a running local backend (`make live-ios`): same journey as Android | **passed** | 2026-11-23 |
-| Live contract checks (`make live-ios`, `make live-android`) against the new backend | **not run yet** | |
+| Live contract checks (`make live-ios`, `make live-android`) against the new backend | **passed** | 2026-11-23 |
 | Backend tests inside containers (`make backend-test-docker`) | not re-run since the change | |
 | Backend started as a real server and exercised by hand; invitation page | not repeated since the change | |
-| Administrator tool (`apps/admin/nwadmin.py`) with the operator secret | no recorded run | |
-| Migration 0002 on the staging database | **not applied** | |
-| GitHub Actions on the no-sign-in change | not seen to run yet | |
+| Administrator tool (`apps/admin/nwadmin.py`) with the operator secret, against staging | `summary` worked | 2026-11-23 |
+| Migration 0002 on the staging database | applied and compared with a local database | 2026-11-23 |
+| GitHub Actions on the no-sign-in change (pull request 13) | all checks passed | 2026-11-23 |
+| **Staging backend deployed** on Fly.io (`feluda-staging`, Virginia) against the Supabase database | smoke test passed; an invite, join, status and leave with a throwaway test phone worked end to end and left no data | 2026-11-23 |
+| Push credentials on the staging server | the Firebase key obtained a Google access token; the APNs key signs a provider token. **No push has been sent to a phone** | 2026-11-23 |
 | Anything on a physical phone | **not done** | |
 | Any deployment | **not done** | |
 | Any real push notification | **never sent** | |
@@ -74,7 +76,7 @@ machine; CI does that.
 | 1 | Android application compiles | AUTOMATED_TESTED | Debug and release builds, unit tests and lint pass with enrolment by link (2026-11-23). Never installed on a phone or emulator |
 | 2 | iOS application compiles | AUTOMATED_TESTED | Simulator build and tests pass with enrolment by link (2026-11-23). No signed device build yet |
 | 3 | Backend starts locally | AUTOMATED_TESTED | `test_smoke.py`; started and exercised by hand before the change |
-| 4 | Database migrations execute successfully | AUTOMATED_TESTED | `test_migrations_are_complete_and_immutable` covers 0001 and 0002. 0002 is not applied to staging |
+| 4 | Database migrations execute successfully | AUTOMATED_TESTED | `test_migrations_are_complete_and_immutable` covers 0001 and 0002; both applied to staging |
 | 5 | User registration works | Backend: AUTOMATED_TESTED. Apps: AUTOMATED_TESTED (live journey); screens not run | Registration is now enrolment by invitation link with only a street asked: `test_full_enrolment_journey_asks_only_for_the_street`, `test_nothing_personal_is_stored_or_accepted`. No e-mail is sent, so nothing depends on a mail sender any more |
 | 6 | Invitation verification works | AUTOMATED_TESTED | Use limit, expiry, revocation, uniform errors, retry without using the link twice |
 | 7 | Household membership is enforced server-side | AUTOMATED_TESTED | API tests and direct row-level-security tests; a foreign link cannot attach a phone to an enrolled home |
@@ -101,7 +103,7 @@ machine; CI does that.
 | Invitations, enrolment by link, households, removing a phone, leaving | AUTOMATED_TESTED |
 | Device secret for phones and operator secret for administration (no sign-in) | AUTOMATED_TESTED |
 | Per-person administrator credentials, second factor, expiring or rotating device secrets | NOT_IMPLEMENTED, by decision 0014 |
-| Staging database (Supabase) | Migration 0001 applied on 2026-11-22. Migration 0002 not applied. No backend is deployed against it |
+| Staging database (Supabase) | Migrations 0001 and 0002 applied. The backend connects as the restricted login `nw_app_login` through the session pooler |
 | Row-level security and restricted roles | AUTOMATED_TESTED |
 | Event ingestion, rate limits, replay protection | AUTOMATED_TESTED |
 | Detection engine, correlation, incident lifecycle | AUTOMATED_TESTED with simulated data only; **never validated against a real disruption**. Residents are not asked for a location, so the distance check applies only to households the organizer adds with coordinates |
@@ -143,7 +145,7 @@ machine; CI does that.
 | --- | --- |
 | Each app's networking code talking to the backend | Passed for the old flow on 2026-11-22 (`make live-ios`, `make live-android`). Not re-run for enrolment by link |
 | Each app running as an app (screens, monitoring, background work) against the backend | **Never done.** Needs an emulator or simulator session, or phones |
-| Staging environment | NOT DONE (EXTERNAL_CREDENTIAL_REQUIRED). A database exists; no backend is deployed. The brief asked for a functioning staging environment; it does not exist |
+| Staging environment | DEPLOYED 2026-11-23: https://feluda-staging.fly.dev, one always-on machine. The apps are not yet built against it or distributed. No production environment |
 | GitHub repository, branch protection | Private repository `ManasHardas/feluda`; public or not is the owner's decision; branch protection NOT DONE |
 | Signed release tags, SBOM, provenance | Workflow IMPLEMENTED; never run |
 | Reproducible build demonstrated | NOT DONE |

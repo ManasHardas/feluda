@@ -11,7 +11,7 @@ EXTERNAL_CREDENTIAL_REQUIRED in `docs/STATUS.md`. The steps have never been foll
 | --- | --- | --- | --- |
 | Database | Docker PostgreSQL on localhost | Supabase project `watchdog-staging` | Supabase project `watchdog-production` |
 | Operator secret (`ADMIN_API_TOKEN`) | Fixed placeholder from the `Makefile` | Its own random value | Its own random value |
-| Backend | `make run` | Fly.io app `neighborhood-watchdog-staging` | Fly.io app `neighborhood-watchdog-production` |
+| Backend | `make run` | Fly.io app `feluda-staging` (https://feluda-staging.fly.dev, region `iad`) | Fly.io app `neighborhood-watchdog-production` (not created; rename before the first deploy) |
 | Push | Not configured (deliveries recorded as such) | FCM project and APNs sandbox | FCM and APNs production |
 | Data | Simulated seed | Simulated seed or volunteers | Real residents |
 
@@ -51,13 +51,17 @@ python apps/admin/nwadmin.py invite
 1. **Supabase** (database only): follow `infrastructure/supabase/README.md` (project, migrations,
    login role).
 2. **Fly.io**: install `flyctl`, `fly auth login`, then
-   `fly apps create neighborhood-watchdog-staging` (choose your own unique name and put it, and the
-   resulting URL, into `infrastructure/deployment/fly.staging.toml`).
-3. **Secrets** (never in files):
+   `fly apps create feluda-staging` (done for staging; for another name, put it and the resulting URL
+   into `infrastructure/deployment/fly.staging.toml`). Use region `iad`, next to Supabase `us-east-1`.
+3. **Secrets** (never in files). Through Supabase's pooler the user name is `nw_app_login.<project-ref>`;
+   check which pooler host your project uses (staging: `aws-1-us-east-1`; `aws-0` answers "tenant not
+   found"). On staging the login role was created with a password hash computed locally
+   (`ALTER ROLE nw_app_login PASSWORD 'SCRAM-SHA-256$...'`), so the plain password exists only in
+   Fly's secret store. Prefer `fly secrets import` from stdin over arguments, which land in shell history:
 
    ```bash
-   fly secrets set --app neighborhood-watchdog-staging \
-     DATABASE_URL='postgresql://nw_app_login:<password>@<pooler-host>:5432/postgres?sslmode=require' \
+   fly secrets set --app feluda-staging \
+     DATABASE_URL='postgresql://nw_app_login.<project-ref>:<password>@aws-1-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require' \
      ADMIN_API_TOKEN='<operator secret>' \
      IP_HASH_SALT="$(openssl rand -hex 24)" \
      ANDROID_INSTALL_URL='<Firebase App Distribution invite link>' \
