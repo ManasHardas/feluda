@@ -26,3 +26,4 @@
 - 2026-11-23: **Home page at the root URL** of the backend (it answered "not found", which looked like a broken deployment). Deployed to staging.
 - 2026-11-23: **iOS app icon** (same design as the Android launcher icon) and Release entitlements with the production push environment.
 - 2026-11-23: **First iOS build uploaded to App Store Connect** (Feluda 0.1.0, build 1, pointed at staging), signed with a new Apple Distribution certificate through the App Store Connect API; processed as VALID.
+- 2026-11-23: **First Android build distributed** through Firebase App Distribution (0.1.0, build 1, pointed at staging, signed with the release key) to tester group "Owner".
