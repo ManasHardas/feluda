@@ -49,6 +49,7 @@ def test_every_route_except_the_public_ones_declares_authentication(app):
         "/api/v1/monitoring/health",
         "/api/v1/auth/verify-invitation",
         "/api/v1/enroll",
+        "/",
         "/join",
         "/privacy",
         "/robots.txt",
