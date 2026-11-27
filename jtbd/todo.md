@@ -6,13 +6,10 @@ Last updated 2026-11-27. Source brief: `neighborhood_watchdog_master_build_promp
 4. **Run each app as an app against a local backend** (Android emulator, iOS simulator): tap through sign-in, join, an event upload and an incident screen. The networking layer is verified (`make live-ios`, `make live-android`); the screens and the monitoring service have never run against a server. Needs an Android emulator image installed; the iOS simulator works again. Done when: both complete the flow on screen.
 
 ## Before the first release to residents (decision 0015, owner 2026-11-24)
-R1. **Buy `feluda.app`** (owner). Done when: the domain is in the owner's account and the agent can set DNS.
-R2. **Production backend:** Supabase project for production, Fly app `feluda-production`, `api.feluda.app` with a certificate, GitHub environment `production` (`FLY_API_TOKEN`, `MIGRATION_DATABASE_URL`, owner as required reviewer if wanted), variable `PRODUCTION_API_URL`, production secrets (`IOS_INSTALL_URL=https://testflight.apple.com/join/Mx16mTh8`, `ANDROID_INSTALL_URL`). Done when: the smoke test passes at `https://api.feluda.app`.
-R3. **Staging database password for automatic staging migrations:** `MIGRATION_DATABASE_URL` in GitHub environment `staging` (the owner's Supabase database password; only the connector was used so far). Done when: "Deploy staging" runs green.
-R4. **Repository public, rulesets on `main` and `release`, branch `release` created** (owner chose public, 2026-11-24). Done when: a direct push to either branch is refused and a pull request into `release` needs the "Release guard" and all test checks.
-R5. **TestFlight beta review information** (owner's contact name, phone and e-mail for Apple's reviewer; feedback e-mail; description; a demo invitation link in the review notes). Done when: filled in App Store Connect so the first "Neighbors" build can be submitted.
+R2. **DNS for `api.feluda.app`** (owner, at Hostinger): `A api → 66.241.124.253` and `AAAA api → 2a09:8280:1::229:3027:0`. Everything else in production is set up (see done.md). Done when: `fly certs check api.feluda.app -a feluda-production` shows the certificate issued and the smoke test passes at `https://api.feluda.app`.
+R2a. **Production neighborhood for residents.** Only "App Review" exists in production. Done when: the owner names the real neighborhood and it is created.
+R3. **"Deploy staging" runs green** with the stored `MIGRATION_DATABASE_URL` (first run when this pull request is merged into main). Done when: the run passes.
 R6. **Firebase invite link for group `neighbors`** (console only, no API). Done when: set as `ANDROID_INSTALL_URL` on production.
-R7. **First preview through the workflow** (this pull request) reaches the owner's phones. Done when: the owner installed a preview from TestFlight and App Tester.
 
 ## Needs the owner (cannot be done by the agent)
 8. **Security contact in deployments.** `SECURITY.md` has the address; the `SECURITY_CONTACT` setting of the backend and the app builds is set when staging is created (item 10). Done when: the registration page and both apps show it.

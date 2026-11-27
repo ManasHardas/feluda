@@ -1,17 +1,24 @@
 # Deployment
 
 **Status.** Staging is deployed (Fly.io `feluda-staging`, Supabase project `feluda`, both migrations
-applied; 2026-11-23). Production is not created yet: it needs the domain `feluda.app`, its own
-Supabase project and the GitHub environment `production` (`jtbd/todo.md`). How changes reach each
+applied; 2026-11-23). Production is deployed (2026-11-27): Fly.io `feluda-production` (one machine,
+`iad`), Supabase project `feluda-production` (free plan, `us-east-1`, both migrations applied), smoke
+test passed at https://feluda-production.fly.dev. `https://api.feluda.app` works once its DNS records
+point at Fly (`jtbd/todo.md`). It runs `main` as of 2026-11-27 until the first release replaces it.
+
+Production's database has its own migration login `nw_migrator` (owner of schema `nw`, created with a
+locally computed password hash), so the Supabase `postgres` password is not needed anywhere. Its
+pooler host is `aws-2-us-east-1.pooler.supabase.com` (staging: `aws-1`); the other hosts answer
+"tenant not found". How changes reach each
 environment: `docs/RELEASE_PROCESS.md`.
 
 ## Environments
 
 | | Development | Staging | Production |
 | --- | --- | --- | --- |
-| Database | Docker PostgreSQL on localhost | Supabase project `watchdog-staging` | Supabase project `watchdog-production` |
+| Database | Docker PostgreSQL on localhost | Supabase project `feluda` | Supabase project `feluda-production` |
 | Operator secret (`ADMIN_API_TOKEN`) | Fixed placeholder from the `Makefile` | Its own random value | Its own random value |
-| Backend | `make run` | Fly.io app `feluda-staging` (https://feluda-staging.fly.dev, region `iad`), follows `main` | Fly.io app `feluda-production` at https://api.feluda.app (not created yet), follows `release` |
+| Backend | `make run` | Fly.io app `feluda-staging` (https://feluda-staging.fly.dev, region `iad`), follows `main` | Fly.io app `feluda-production` at https://api.feluda.app (region `iad`), follows `release` |
 | Push | Not configured (deliveries recorded as such) | FCM project and APNs sandbox | FCM and APNs production |
 | Data | Simulated seed | Simulated seed or volunteers | Real residents |
 

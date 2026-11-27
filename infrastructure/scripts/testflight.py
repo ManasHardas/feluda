@@ -3,6 +3,7 @@
 
     ASC_KEY_ID=... ASC_ISSUER_ID=... ASC_PRIVATE_KEY="$(cat AuthKey.p8)" \
       testflight.py --version 1.0.0 --build 123456 [--group Neighbors] [--whats-new "..."] [--submit-review]
+      testflight.py --review-notes "..."      (only replaces the notes for Apple's beta reviewer)
 
 Internal groups with access to all builds (such as "Owner") get every processed build without this
 script. An external group (residents) gets a build only when it is added to the group and, for the
@@ -56,8 +57,9 @@ def call(method: str, path: str, body: dict | None = None, ok: tuple[int, ...] =
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--version", required=True, help="marketing version, e.g. 1.0.0")
-    parser.add_argument("--build", required=True, help="build number (CFBundleVersion)")
+    parser.add_argument("--version", help="marketing version, e.g. 1.0.0")
+    parser.add_argument("--build", help="build number (CFBundleVersion)")
+    parser.add_argument("--review-notes", help="replace the notes shown to Apple's beta reviewer")
     parser.add_argument("--group", help="TestFlight group to add the build to (external testers)")
     parser.add_argument("--whats-new", help="'What to test' text shown in TestFlight")
     parser.add_argument("--submit-review", action="store_true", help="submit for beta app review")
@@ -68,6 +70,19 @@ def main() -> None:
     if not apps:
         sys.exit(f"No App Store Connect app with bundle id {BUNDLE_ID}")
     app_id = apps[0]["id"]
+
+    if args.review_notes:
+        detail = call("GET", f"/v1/apps/{app_id}/betaAppReviewDetail")["data"]
+        call(
+            "PATCH",
+            f"/v1/betaAppReviewDetails/{detail['id']}",
+            {"data": {"type": "betaAppReviewDetails", "id": detail["id"], "attributes": {"notes": args.review_notes}}},
+        )
+        print("review notes updated")
+    if not (args.version and args.build):
+        if not args.review_notes:
+            parser.error("--version and --build are required")
+        return
 
     deadline = time.time() + args.wait_minutes * 60
     build = None

@@ -70,8 +70,31 @@ jobs:
       - name: Smoke test
         run: infrastructure/scripts/smoke_test.sh "${{ vars.PRODUCTION_API_URL }}"
 
+  review_link:
+    # Apple's beta reviewer needs a way in: a fresh 30-day invitation link to the separate
+    # "App Review" neighborhood, written into the review notes.
+    needs: backend
+    runs-on: ubuntu-24.04
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Invitation link for the reviewer
+        env:
+          NWADMIN_API: ${{ vars.PRODUCTION_API_URL }}
+          NWADMIN_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
+          NWADMIN_NEIGHBORHOOD: ${{ vars.APP_REVIEW_NEIGHBORHOOD_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          link=$(python3 apps/admin/nwadmin.py invite --hours 720 --phones 4 | grep -oE 'https://[^ ]+/join#t=[A-Za-z0-9_-]+')
+          [ -n "$link" ] || { echo "::error::no invitation link was created"; exit 1; }
+          python3 -m venv "$RUNNER_TEMP/venv" && "$RUNNER_TEMP/venv/bin/pip" install --quiet "pyjwt[crypto]==2.10.1"
+          "$RUNNER_TEMP/venv/bin/python" infrastructure/scripts/testflight.py --review-notes "Feluda has no accounts and no sign-in. A phone joins a private neighborhood by opening an invitation link from its organizer. For review, open this link on the test device (valid 30 days, up to 4 phones): $link
+          Tap 'Open in the app', enter any street name (the house number is optional) and join the 'App Review' neighborhood, which contains no residents. The app then reports Wi-Fi, internet and mobile connectivity changes to the server and notifies residents when several homes lose connectivity at the same time. It is an anomaly detector, not a jammer detector. Contact: see the review contact details."
+
   ios:
-    needs: [prepare, backend]
+    needs: [prepare, backend, review_link]
     uses: ./.github/workflows/build-ios.yml
     with:
       ref: ${{ github.sha }}
