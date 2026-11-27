@@ -556,6 +556,72 @@
         "title": "ApnsEnvironment",
         "type": "string"
       },
+      "AppCompatibilityOut": {
+        "properties": {
+          "latest_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Version"
+          },
+          "minimum_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum Version"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/Platform"
+          },
+          "supported": {
+            "description": "False: this version is refused (HTTP 426) and must be updated before use",
+            "title": "Supported",
+            "type": "boolean"
+          },
+          "update_available": {
+            "description": "A newer version has been released for this platform",
+            "title": "Update Available",
+            "type": "boolean"
+          },
+          "update_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where to get the newer version; null if not configured",
+            "title": "Update Url"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "platform",
+          "version",
+          "supported",
+          "update_available",
+          "minimum_version",
+          "latest_version",
+          "update_url"
+        ],
+        "title": "AppCompatibilityOut",
+        "type": "object"
+      },
       "BackgroundMonitoring": {
         "description": "What the platform lets this app do while it is not in the foreground.",
         "enum": [
@@ -3732,6 +3798,120 @@
         ]
       }
     },
+    "/api/v1/app/compatibility": {
+      "get": {
+        "description": "Whether this app version is still accepted and whether a newer one exists. No credential needed.",
+        "operationId": "app_compatibility_api_v1_app_compatibility_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "platform",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Platform"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "maxLength": 14,
+              "minLength": 5,
+              "pattern": "^\\d{1,4}\\.\\d{1,4}\\.\\d{1,4}$",
+              "title": "Version",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppCompatibilityOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upgrade Required"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "summary": "App Compatibility",
+        "tags": [
+          "app"
+        ]
+      }
+    },
     "/api/v1/auth/verify-invitation": {
       "post": {
         "operationId": "verify_invitation_api_v1_auth_verify_invitation_post",
@@ -3805,6 +3985,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upgrade Required"
           },
           "429": {
             "content": {
@@ -3897,6 +4087,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upgrade Required"
+          },
           "429": {
             "content": {
               "application/json": {
@@ -3982,6 +4182,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upgrade Required"
           },
           "429": {
             "content": {
@@ -4072,6 +4282,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upgrade Required"
           },
           "429": {
             "content": {
@@ -4169,6 +4389,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upgrade Required"
+          },
           "429": {
             "content": {
               "application/json": {
@@ -4264,6 +4494,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upgrade Required"
           },
           "429": {
             "content": {
@@ -4362,6 +4602,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upgrade Required"
+          },
           "429": {
             "content": {
               "application/json": {
@@ -4442,6 +4692,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upgrade Required"
           },
           "429": {
             "content": {
@@ -4528,6 +4788,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upgrade Required"
           },
           "429": {
             "content": {
@@ -4622,6 +4892,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upgrade Required"
           },
           "429": {
             "content": {
@@ -4737,6 +5017,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upgrade Required"
+          },
           "429": {
             "content": {
               "application/json": {
@@ -4835,6 +5125,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upgrade Required"
+          },
           "429": {
             "content": {
               "application/json": {
@@ -4920,6 +5220,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upgrade Required"
           },
           "429": {
             "content": {
@@ -5012,6 +5322,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upgrade Required"
+          },
           "429": {
             "content": {
               "application/json": {
@@ -5097,6 +5417,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upgrade Required"
           },
           "429": {
             "content": {
@@ -5191,6 +5521,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upgrade Required"
           },
           "429": {
             "content": {
@@ -5287,6 +5627,16 @@
               }
             },
             "description": "Unprocessable Entity"
+          },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upgrade Required"
           },
           "429": {
             "content": {
