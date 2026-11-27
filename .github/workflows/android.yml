@@ -1,8 +1,8 @@
 name: Android
 
 on:
+  # Every pull request runs every test suite: they are required checks for merging into main and release.
   pull_request:
-    paths: ["apps/android/**", "shared/**", ".github/workflows/android.yml"]
   push:
     branches: [main]
     paths: ["apps/android/**", "shared/**", ".github/workflows/android.yml"]

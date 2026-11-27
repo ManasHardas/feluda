@@ -139,9 +139,12 @@ Connect record and API key, test information, first-build review.
 | `android.yml` | changes under `apps/android` | build, unit tests, lint, unsigned release build |
 | `ios.yml` | changes under `apps/ios` | simulator build and tests on a macOS runner |
 | `security.yml` | every change, weekly | dependency audit, secret scan, dependency review, CodeQL |
-| `release.yml` | version tag | artifacts, SBOMs, checksums, provenance, draft release |
-| `distribute-android.yml`, `distribute-ios.yml` | manual | Firebase App Distribution, TestFlight |
-| `deploy-staging.yml` | manual | migrations, deploy, smoke test (production behind an approval) |
+| `preview.yml` | pull request into main touching an app | both apps against staging, to the owner's phones only |
+| `release.yml` | push to `release` | production migrations and deploy, apps to residents, tag, GitHub release |
+| `release-guard.yml` | pull request into `release` | only `main`, new `VERSION`, `CHANGELOG.md` section |
+| `build-ios.yml`, `build-android.yml`, `release-artifacts.yml` | called by the above | signed builds and uploads; SBOMs and provenance |
+| `testflight-refresh.yml` | every second month | re-uploads the released iOS build before TestFlight's 90-day expiry |
+| `deploy-staging.yml` | push to main touching the backend | staging migrations, deploy, smoke test |
 | `uptime.yml` | every 15 minutes | health probe once a URL is configured |
 
 The pull-request workflows ran green on pull request 1 (2026-11-22, before sign-in was removed).
@@ -225,8 +228,8 @@ verified online during the build.
 | Seed sample households | `make seed` (`make seed ARGS=--reset` to recreate) |
 | Replay a scenario | `make simulate SCENARIO=C` |
 | Deploy staging | `MIGRATION_DATABASE_URL=<owner url> infrastructure/scripts/deploy.sh staging` |
-| Generate beta artifacts | Android: `cd apps/android && ./gradlew --no-daemon assembleRelease` with the signing variables set. iOS: run the "Distribute iOS (TestFlight)" workflow, or Xcode → Product → Archive |
-| Tagged release artifacts | `git tag -s v0.1.0 && git push origin v0.1.0` (runs `release.yml`) |
+| Generate beta artifacts | Open a pull request: "Preview build" sends both apps to the owner's phones (`docs/RELEASE_PROCESS.md`). By hand: Android `cd apps/android && ./gradlew --no-daemon assembleRelease` with the signing variables set; iOS Xcode → Product → Archive |
+| Release to residents | Merge `main` into `release` after the owner says "merge" (`docs/RELEASE_PROCESS.md`); tags are created by the workflow |
 
 ## Changes made to this Mac during the build
 

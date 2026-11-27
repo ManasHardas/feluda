@@ -1,155 +1,145 @@
-name: Release artifacts
+name: Release
 
-# Runs when a signed tag such as v0.1.0 is pushed. Builds every artifact from that exact commit, with
-# checksums, software bills of materials (CycloneDX) and build provenance attestations, and attaches
-# them to a draft GitHub release. Nothing is deployed or distributed from here.
+# Runs when the release branch changes, which only happens by merging main into it after the owner
+# says so (see docs/RELEASE_PROCESS.md and the "Release guard" check). In order:
+#   1. refuse unless VERSION is new and CHANGELOG.md has a section for it,
+#   2. migrate and deploy the production backend, then smoke-test it,
+#   3. build both apps against production and send them to residents
+#      (TestFlight group "Neighbors", submitted for beta review; Firebase group "neighbors"),
+#   4. announce the new version to older apps (LATEST_APP_VERSION_*), tag vX.Y.Z and publish a
+#      GitHub release with the APK, checksums, SBOMs and provenance.
 on:
   push:
-    tags: ["v*.*.*"]
-  workflow_dispatch:
+    branches: [release]
 
 permissions:
   contents: read
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
-  backend:
+  prepare:
     runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      build: ${{ steps.meta.outputs.build }}
+      notes: ${{ steps.meta.outputs.notes }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: |
+          version=$(tr -d '[:space:]' < VERSION)
+          echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error::VERSION must be x.y.z, got '$version'"; exit 1; }
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
+            echo "::error::v$version was already released. Raise VERSION (and add a CHANGELOG.md section) on main first."; exit 1
+          fi
+          notes=$(awk -v v="$version" '$0 == "## " v {found=1; next} found && /^## / {exit} found {print}' CHANGELOG.md | sed '/./,$!d')
+          [ -n "$notes" ] || { echo "::error::CHANGELOG.md has no '## $version' section"; exit 1; }
+          build=$(( ( $(date -u +%s) - 1767225600 ) / 60 ))
+          {
+            echo "version=$version"; echo "build=$build"
+            echo "notes<<NOTES_END"; echo "$notes" | head -c 3800; echo; echo "NOTES_END"
+          } >> "$GITHUB_OUTPUT"
+          echo "Releasing $version (build $build)"
+
+  backend:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    environment: production
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refuse to run without credentials
+        run: |
+          [ -n "$FLY_API_TOKEN" ] || { echo "::error::FLY_API_TOKEN is not set in the production environment"; exit 1; }
+          [ -n "$MIGRATION_DATABASE_URL" ] || { echo "::error::MIGRATION_DATABASE_URL is not set in the production environment"; exit 1; }
+          [ -n "${{ vars.PRODUCTION_API_URL }}" ] || { echo "::error::PRODUCTION_API_URL variable is not set"; exit 1; }
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.14"
+      - name: Apply database migrations
+        working-directory: backend
+        run: uv sync --frozen --no-dev && DATABASE_URL="$MIGRATION_DATABASE_URL" uv run python -m watchdog.migrate
+      - uses: superfly/flyctl-actions/setup-flyctl@v1
+      - name: Deploy
+        run: flyctl deploy backend --config infrastructure/deployment/fly.production.toml --remote-only
+      - name: Smoke test
+        run: infrastructure/scripts/smoke_test.sh "${{ vars.PRODUCTION_API_URL }}"
+
+  ios:
+    needs: [prepare, backend]
+    uses: ./.github/workflows/build-ios.yml
+    with:
+      ref: ${{ github.sha }}
+      api_base_url: ${{ vars.PRODUCTION_API_URL }}
+      version: ${{ needs.prepare.outputs.version }}
+      build_number: ${{ needs.prepare.outputs.build }}
+      group: Neighbors
+      whats_new: ${{ needs.prepare.outputs.notes }}
+      submit_review: true
+    secrets: inherit
+
+  android:
+    needs: [prepare, backend]
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/build-android.yml
+    with:
+      ref: ${{ github.sha }}
+      api_base_url: ${{ vars.PRODUCTION_API_URL }}
+      version: ${{ needs.prepare.outputs.version }}
+      build_number: ${{ needs.prepare.outputs.build }}
+      groups: neighbors
+      notes: ${{ needs.prepare.outputs.notes }}
+      artifact_name: android-release
+      attest: true
+    secrets: inherit
+
+  artifacts:
+    needs: prepare
     permissions:
       contents: read
       packages: write
       id-token: write
       attestations: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-        with:
-          version: "0.5.14"
-      - name: Backend SBOM (direct and transitive dependencies from uv.lock)
-        working-directory: backend
-        run: |
-          uv export --frozen --no-dev --format requirements-txt -o requirements.release.txt
-          uvx --from cyclonedx-bom==5.1.1 cyclonedx-py requirements requirements.release.txt -o ../sbom-backend.cdx.json
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - id: image
-        uses: docker/build-push-action@v6
-        with:
-          context: backend
-          target: runtime
-          push: true
-          tags: ghcr.io/${{ github.repository }}/backend:${{ github.ref_name }}
-          provenance: true
-          sbom: true
-      - uses: actions/attest-build-provenance@v2
-        with:
-          subject-name: ghcr.io/${{ github.repository }}/backend
-          subject-digest: ${{ steps.image.outputs.digest }}
-          push-to-registry: true
-      - run: echo "${{ steps.image.outputs.digest }}  ghcr.io/${{ github.repository }}/backend:${{ github.ref_name }}" > backend-image-digest.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: backend-release
-          path: |
-            sbom-backend.cdx.json
-            backend-image-digest.txt
-
-  android:
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      id-token: write
-      attestations: write
-    defaults:
-      run:
-        working-directory: apps/android
-    env:
-      # Optional. Without them the APK and bundle are built unsigned (still useful for comparing builds).
-      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-      API_BASE_URL: ${{ vars.API_BASE_URL }}
-      SOURCE_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
-      PRIVACY_URL: ${{ vars.PRIVACY_URL }}
-      SECURITY_CONTACT: ${{ vars.SECURITY_CONTACT }}
-      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
-      FIREBASE_APPLICATION_ID: ${{ vars.FIREBASE_ANDROID_APP_ID }}
-      FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
-      FIREBASE_SENDER_ID: ${{ vars.FIREBASE_SENDER_ID }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-      - uses: gradle/actions/setup-gradle@v4
-      - name: Decode the signing keystore (if configured)
-        if: env.ANDROID_KEYSTORE_BASE64 != ''
-        run: |
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
-          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
-      - name: Build release APK and bundle
-        run: ./gradlew --no-daemon assembleRelease bundleRelease
-      - name: Android SBOM
-        run: ./gradlew --no-daemon cyclonedxBom || echo "::warning::CycloneDX Gradle task not available; see docs/RELEASE_VERIFICATION.md"
-      - name: Build metadata and checksums
-        run: |
-          mkdir -p "$GITHUB_WORKSPACE/android-out"
-          find app/build/outputs -name '*.apk' -o -name '*.aab' | xargs -I{} cp {} "$GITHUB_WORKSPACE/android-out/"
-          cp build/reports/bom.json "$GITHUB_WORKSPACE/android-out/sbom-android.cdx.json" 2>/dev/null || true
-          cd "$GITHUB_WORKSPACE/android-out"
-          { echo "commit: $GITHUB_SHA"; echo "ref: $GITHUB_REF_NAME"; java -version 2>&1; } > android-build-info.txt
-          (cd "$GITHUB_WORKSPACE/apps/android" && ./gradlew --no-daemon --version) >> android-build-info.txt
-          sha256sum * > SHA256SUMS-android.txt
-      - uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: android-out/*.a*
-      - uses: actions/upload-artifact@v4
-        with:
-          name: android-release
-          path: android-out/
-
-  ios:
-    # Compiles the tagged source and records the toolchain. A signed archive for TestFlight is produced by
-    # the separate "Distribute iOS" workflow, because it needs signing credentials.
-    runs-on: macos-15
-    defaults:
-      run:
-        working-directory: apps/ios
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build (simulator, unsigned) and record the build environment
-        run: |
-          xcodebuild -project NeighborhoodWatchdog.xcodeproj -scheme NeighborhoodWatchdog \
-            -destination 'generic/platform=iOS Simulator' -configuration Release \
-            -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build
-          { echo "commit: $GITHUB_SHA"; echo "ref: $GITHUB_REF_NAME"; xcodebuild -version; swift --version; sw_vers; } > ios-build-info.txt
-          echo '{"bomFormat":"CycloneDX","specVersion":"1.5","version":1,"components":[],"metadata":{"component":{"type":"application","name":"neighborhood-watchdog-ios"}}}' > sbom-ios.cdx.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ios-release
-          path: |
-            apps/ios/ios-build-info.txt
-            apps/ios/sbom-ios.cdx.json
+    uses: ./.github/workflows/release-artifacts.yml
+    with:
+      ref: ${{ github.sha }}
+      tag: v${{ needs.prepare.outputs.version }}
 
   publish:
-    needs: [backend, android, ios]
+    needs: [prepare, ios, android, artifacts]
     runs-on: ubuntu-24.04
+    environment: production
     permissions:
       contents: write
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      BUILD: ${{ needs.prepare.outputs.build }}
+      NOTES: ${{ needs.prepare.outputs.notes }}
     steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@v1
+      - name: Tell older apps that a new version exists
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          flyctl secrets set --app feluda-production LATEST_APP_VERSION_IOS="$VERSION" LATEST_APP_VERSION_ANDROID="$VERSION"
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
-      - name: Checksums for everything attached
-        run: cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
-      - name: Create a draft release with the artifacts
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Tag and publish the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --draft --verify-tag --title "$GITHUB_REF_NAME" --notes "Draft. Fill in from docs/RELEASE_NOTES_TEMPLATE.md."
+        run: |
+          cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt && cd ..
+          printf '%s\n\nBuild %s. iPhone: TestFlight (after Apple'"'"'s beta review for a new version). Android: Firebase App Distribution.\n' "$NOTES" "$BUILD" > "$RUNNER_TEMP/notes.md"
+          gh release create "v$VERSION" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Feluda $VERSION" --notes-file "$RUNNER_TEMP/notes.md"

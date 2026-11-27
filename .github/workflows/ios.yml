@@ -1,8 +1,8 @@
 name: iOS
 
 on:
+  # Every pull request runs every test suite: they are required checks for merging into main and release.
   pull_request:
-    paths: ["apps/ios/**", "shared/**", ".github/workflows/ios.yml"]
   push:
     branches: [main]
     paths: ["apps/ios/**", "shared/**", ".github/workflows/ios.yml"]
@@ -17,7 +17,7 @@ concurrency:
 jobs:
   build-and-test:
     name: Build and unit tests (simulator)
-    # macOS runner minutes are billed at a higher rate on private repositories; this job only runs when iOS files change.
+    # macOS runners are free for public repositories.
     runs-on: macos-15
     defaults:
       run:

@@ -3,11 +3,13 @@
 The pilot needs no public store listing. Android goes out through Firebase App Distribution,
 iOS through TestFlight external testing.
 
-**Status: EXTERNAL_CREDENTIAL_REQUIRED.** Workflows and steps are prepared; no build has been
-distributed. The apps are being updated for the no-sign-in flow (decision 0014) and need no
-sign-in settings any more; the distribution workflows have never run.
-TestFlight external testing additionally needs Apple's review of the first build
-(EXTERNAL_REVIEW_REQUIRED); how long that takes is up to Apple.
+How builds get here is described in `docs/RELEASE_PROCESS.md` (decision 0015): previews go to the
+owner's groups ("Owner" in TestFlight, `owner` in Firebase), releases to the residents' groups
+("Neighbors", `neighbors`), all from GitHub Actions. This page is the one-time setup.
+
+**Status.** Done by hand on 2026-11-23: one build of each app (0.1.0, build 1, against staging)
+reached the owner's groups. The preview and release workflows have not run yet. TestFlight external
+testing needs Apple's review of the first build of each version (EXTERNAL_REVIEW_REQUIRED).
 
 ## Android: Firebase App Distribution
 
@@ -21,7 +23,7 @@ Reference: https://firebase.google.com/docs/app-distribution
 2. Project settings → General: note the **Project ID**, **App ID**, **Web API key** and
    **Sender ID**. The app is configured from these four values at build time; no
    `google-services.json` is committed (`apps/android/README.md`).
-3. App Distribution → Testers and groups: create the group `neighborhood-pilot`.
+3. App Distribution → Testers and groups: the groups `owner` (previews) and `neighbors` (residents) exist.
 4. Cloud Messaging is enabled by default. For the backend, create a service account key with the
    role "Firebase Cloud Messaging API Admin" and store the JSON as the backend secret
    `FCM_SERVICE_ACCOUNT_JSON`. For the distribution workflow, create a service account with
@@ -38,27 +40,12 @@ Reference: https://firebase.google.com/docs/app-distribution
    must uninstall and reinstall, losing local state. Never commit it. If the app later goes to
    Google Play, Play App Signing re-signs with Google's key and this one becomes the upload key.
 
-### GitHub settings (environment `beta`)
+### GitHub settings
 
-| Kind | Name |
-| --- | --- |
-| Secrets | `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `FIREBASE_SERVICE_ACCOUNT_JSON` |
-| Variables | `API_BASE_URL`, `PRIVACY_URL`, `SECURITY_CONTACT`, `FIREBASE_PROJECT_ID`, `FIREBASE_ANDROID_APP_ID`, `FIREBASE_API_KEY`, `FIREBASE_SENDER_ID` |
-
-### Each release
-
-Run the workflow **Distribute Android (Firebase App Distribution)** with the tester group and
-release notes. It runs the unit tests, builds a signed release APK, prints its SHA-256 and uploads
-it. By hand instead:
-
-```bash
-cd apps/android
-ANDROID_KEYSTORE_PATH=/path/release.jks ANDROID_KEYSTORE_PASSWORD=... ANDROID_KEY_ALIAS=watchdog ANDROID_KEY_PASSWORD=... \
-API_BASE_URL=https://api.example.org \
-./gradlew --no-daemon assembleRelease
-firebase appdistribution:distribute app/build/outputs/apk/release/app-release.apk \
-  --app <FIREBASE_ANDROID_APP_ID> --groups neighborhood-pilot --release-notes "..."
-```
+Repository secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD` (key alias `feluda`, key
+password the same), `FIREBASE_SERVICE_ACCOUNT_JSON`; variables `FIREBASE_PROJECT_ID`,
+`FIREBASE_ANDROID_APP_ID`, `FIREBASE_API_KEY`, `FIREBASE_SENDER_ID`, `SECURITY_CONTACT`. Builds are
+made by `.github/workflows/build-android.yml` and uploaded with `infrastructure/scripts/firebase_distribute.py`.
 
 ### Inviting testers
 
@@ -108,24 +95,17 @@ https://developer.apple.com/help/app-store-connect/test-a-beta-version/invite-ex
    there is no account, but a street is stored next to the phone's id. None is used for tracking. Keep it consistent with
    `apps/ios/NeighborhoodWatchdog/PrivacyInfo.xcprivacy`.
 
-### GitHub settings (environment `beta`)
+### GitHub settings
 
-| Kind | Name |
-| --- | --- |
-| Secrets | `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_PRIVATE_KEY` |
-| Variables | `APPLE_TEAM_ID`, `IOS_BUNDLE_ID` (`app.feluda`), `API_BASE_URL`, `PRIVACY_URL`, `SECURITY_CONTACT` |
-
-### Each release
-
-Run the workflow **Distribute iOS (TestFlight)** with a build number higher than the last. It
-archives with automatic signing through the API key and uploads to App Store Connect. By hand:
-open `apps/ios/NeighborhoodWatchdog.xcodeproj` in Xcode, set the team, Product → Archive,
-Distribute App → TestFlight & App Store → Upload. The workflow has never been run; expect to adjust
-signing settings on the first attempt.
+Repository secrets `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_PRIVATE_KEY`, `IOS_DISTRIBUTION_P12_BASE64`,
+`IOS_DISTRIBUTION_P12_PASSWORD`, `IOS_APP_STORE_PROFILE_BASE64` (profile "Feluda App Store");
+variable `APPLE_TEAM_ID`. Builds are made by `.github/workflows/build-ios.yml` with manual signing
+and handed to testers with `infrastructure/scripts/testflight.py`.
 
 After processing (minutes to an hour), in TestFlight:
 
-1. Create an external group, for example "Neighborhood pilot", and add the build.
+1. The external group "Neighbors" exists (public link `https://testflight.apple.com/join/Mx16mTh8`);
+   the release workflow adds each release build to it.
 2. The **first** build added to an external group goes to Beta App Review. Later builds of the same
    version usually do not need a full review. Do not promise residents a date.
 3. Enable a **public link** for the group (limit the tester count) and set it as the backend's
@@ -133,7 +113,8 @@ After processing (minutes to an hour), in TestFlight:
    invitation. Inviting testers one by one by e-mail is tighter, but it means collecting e-mail
    addresses the service itself never asks for.
 
-External testing allows up to 10,000 testers; a build expires 90 days after upload. Residents
+External testing allows up to 10,000 testers; a build expires 90 days after upload, which is why
+"TestFlight refresh" re-uploads the released code every second month. Residents
 install Apple's TestFlight app, open the invitation, and tap Install.
 
 ## Release notes template

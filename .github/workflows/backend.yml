@@ -1,8 +1,8 @@
 name: Backend
 
 on:
+  # Every pull request runs every test suite: they are required checks for merging into main and release.
   pull_request:
-    paths: ["backend/**", "shared/**", ".github/workflows/backend.yml"]
   push:
     branches: [main]
     paths: ["backend/**", "shared/**", ".github/workflows/backend.yml"]

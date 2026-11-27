@@ -1,9 +1,9 @@
 # Deployment
 
-**Status: nothing is deployed.** A staging Supabase database exists with migration 0001 applied;
-migration 0002 (no sign-in) has not been applied to it yet. No backend runs anywhere and no hosting
-account exists. Everything below is prepared configuration and exact steps, marked
-EXTERNAL_CREDENTIAL_REQUIRED in `docs/STATUS.md`. The steps have never been followed end to end.
+**Status.** Staging is deployed (Fly.io `feluda-staging`, Supabase project `feluda`, both migrations
+applied; 2026-11-23). Production is not created yet: it needs the domain `feluda.app`, its own
+Supabase project and the GitHub environment `production` (`jtbd/todo.md`). How changes reach each
+environment: `docs/RELEASE_PROCESS.md`.
 
 ## Environments
 
@@ -11,7 +11,7 @@ EXTERNAL_CREDENTIAL_REQUIRED in `docs/STATUS.md`. The steps have never been foll
 | --- | --- | --- | --- |
 | Database | Docker PostgreSQL on localhost | Supabase project `watchdog-staging` | Supabase project `watchdog-production` |
 | Operator secret (`ADMIN_API_TOKEN`) | Fixed placeholder from the `Makefile` | Its own random value | Its own random value |
-| Backend | `make run` | Fly.io app `feluda-staging` (https://feluda-staging.fly.dev, region `iad`) | Fly.io app `neighborhood-watchdog-production` (not created; rename before the first deploy) |
+| Backend | `make run` | Fly.io app `feluda-staging` (https://feluda-staging.fly.dev, region `iad`), follows `main` | Fly.io app `feluda-production` at https://api.feluda.app (not created yet), follows `release` |
 | Push | Not configured (deliveries recorded as such) | FCM project and APNs sandbox | FCM and APNs production |
 | Data | Simulated seed | Simulated seed or volunteers | Real residents |
 
@@ -77,9 +77,10 @@ python apps/admin/nwadmin.py invite
    administrator API.
 
 4. **Deploy**: `MIGRATION_DATABASE_URL='<owner url>' infrastructure/scripts/deploy.sh staging`
-   (migrations, then the image, then a smoke test). Or run the "Deploy staging" workflow after
-   adding `FLY_API_TOKEN` and `MIGRATION_DATABASE_URL` as secrets of a GitHub environment named
-   `staging`, and `PUBLIC_BASE_URL` as a variable.
+   (migrations, then the image, then a smoke test). In normal operation GitHub Actions deploys:
+   staging on every backend change merged into `main` ("Deploy staging"), production on every
+   release ("Release"), with `FLY_API_TOKEN` and `MIGRATION_DATABASE_URL` as secrets of the GitHub
+   environments `staging` and `production` (`docs/RELEASE_PROCESS.md`).
 5. **Create the neighborhood** (run with the owner connection). It starts empty; there is no
    administrator account to create:
 

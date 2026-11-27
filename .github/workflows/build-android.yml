@@ -1,0 +1,103 @@
+name: Build and distribute Android
+
+# Reusable: called by "Preview build" and "Release". Builds a signed release APK of the checked-out
+# commit and sends it to Firebase App Distribution tester groups ("owner" for previews,
+# "neighbors" for releases). The APK is also kept as a workflow artifact.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+      api_base_url:
+        type: string
+        required: true
+      version:
+        type: string
+        required: true
+      build_number:
+        type: string
+        required: true
+      groups:
+        description: Firebase tester group aliases, comma separated
+        type: string
+        required: true
+      notes:
+        type: string
+        default: ""
+      artifact_name:
+        type: string
+        default: android-apk
+      attest:
+        description: Record a build provenance attestation for the APK (releases)
+        type: boolean
+        default: false
+    secrets:
+      ANDROID_KEYSTORE_BASE64: { required: true }
+      ANDROID_KEYSTORE_PASSWORD: { required: true }
+      FIREBASE_SERVICE_ACCOUNT_JSON: { required: true }
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    timeout-minutes: 45
+    env:
+      API_BASE_URL: ${{ inputs.api_base_url }}
+      PRIVACY_URL: ${{ inputs.api_base_url }}/privacy
+      SOURCE_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+      SECURITY_CONTACT: ${{ vars.SECURITY_CONTACT }}
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+      FIREBASE_APPLICATION_ID: ${{ vars.FIREBASE_ANDROID_APP_ID }}
+      FIREBASE_ANDROID_APP_ID: ${{ vars.FIREBASE_ANDROID_APP_ID }}
+      FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+      FIREBASE_SENDER_ID: ${{ vars.FIREBASE_SENDER_ID }}
+      VERSION_NAME: ${{ inputs.version }}
+      VERSION_CODE: ${{ inputs.build_number }}
+      ANDROID_KEY_ALIAS: feluda
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Signed release APK
+        working-directory: apps/android
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.jks"
+          ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.jks" ./gradlew --no-daemon :app:assembleRelease
+          rm -f "$RUNNER_TEMP/release.jks"
+          apk=app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME"/build-tools/35.0.0/apksigner verify --print-certs "$apk" | grep -i "sha-256"
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp "$apk" "$GITHUB_WORKSPACE/out/feluda-${VERSION_NAME}-${VERSION_CODE}.apk"
+          (cd "$GITHUB_WORKSPACE/out" && sha256sum *.apk > SHA256SUMS-android.txt && cat SHA256SUMS-android.txt)
+      - uses: actions/attest-build-provenance@v2
+        if: inputs.attest
+        with:
+          subject-path: out/*.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: out/
+      - name: Send to Firebase App Distribution
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          TESTER_GROUPS: ${{ inputs.groups }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv" && "$RUNNER_TEMP/venv/bin/pip" install --quiet "pyjwt[crypto]==2.10.1"
+          "$RUNNER_TEMP/venv/bin/python" infrastructure/scripts/firebase_distribute.py out/*.apk --groups "$TESTER_GROUPS" --notes "$NOTES"

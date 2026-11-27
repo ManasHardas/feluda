@@ -20,3 +20,4 @@ simplest reliable approach and document it. None has been reviewed by the owner 
 | 0012 | Fly.io as the documented host; one small always-on machine |
 | 0013 | Invitation token in the URL fragment |
 | 0014 | No sign-in: a phone is enrolled by an invitation link (owner's decision, 2026-11-23) |
+| 0015 | Releases only from the release branch; the server decides which app versions still work (owner, 2026-11-24) |

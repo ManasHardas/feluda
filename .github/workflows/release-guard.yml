@@ -1,0 +1,35 @@
+name: Release guard
+
+# Required check on pull requests into the release branch: only main can be released, and only with
+# a new VERSION that has a CHANGELOG.md section. Everything else that reaches residents goes through
+# main first, where it was reviewed and previewed.
+on:
+  pull_request:
+    branches: [release]
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    name: Release guard
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Only main may be merged into release
+        env:
+          HEAD: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          [ "$HEAD" = "main" ] && [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ] || { echo "::error::Only main can be merged into release (got $HEAD_REPO:$HEAD)"; exit 1; }
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: New version with release notes
+        run: |
+          version=$(tr -d '[:space:]' < VERSION)
+          echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error::VERSION must be x.y.z"; exit 1; }
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
+            echo "::error::v$version was already released; raise VERSION on main"; exit 1
+          fi
+          grep -qx "## $version" CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## $version' section"; exit 1; }
+          echo "Will release $version"
