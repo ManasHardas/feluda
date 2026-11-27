@@ -32,6 +32,6 @@ jobs:
         run: uv sync --frozen --no-dev && DATABASE_URL="$MIGRATION_DATABASE_URL" uv run python -m watchdog.migrate
       - uses: superfly/flyctl-actions/setup-flyctl@v1
       - name: Deploy
-        run: flyctl deploy backend --config infrastructure/deployment/fly.staging.toml --remote-only
+        run: flyctl deploy "$GITHUB_WORKSPACE/backend" --config "$GITHUB_WORKSPACE/infrastructure/deployment/fly.staging.toml" --remote-only
       - name: Smoke test
         run: infrastructure/scripts/smoke_test.sh "${{ vars.STAGING_API_URL }}"
