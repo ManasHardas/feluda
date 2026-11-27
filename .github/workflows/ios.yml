@@ -23,7 +23,7 @@ jobs:
       run:
         working-directory: apps/ios
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Toolchain versions (recorded for build provenance)
         run: xcodebuild -version && swift --version
       - name: Core logic tests, natively (no simulator)

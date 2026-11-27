@@ -21,7 +21,7 @@ jobs:
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
           [ "$HEAD" = "main" ] && [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ] || { echo "::error::Only main can be merged into release (got $HEAD_REPO:$HEAD)"; exit 1; }
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha }}
       - name: New version with release notes
