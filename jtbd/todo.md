@@ -19,7 +19,7 @@ R7. **First preview through the workflow** (this pull request) reaches the owner
 9. **Confirm decision 0010** (a lone phone losing Wi-Fi is shown in the app but not pushed). 0012 (paid always-on host) was confirmed 2026-11-22. Done when: 0010 is confirmed or changed.
 10. **First real push to each platform.** Staging is deployed and both push keys work on the server (Firebase token obtained, APNs key signs). Needs the apps on a phone (item 12 and 12a). Done when: one real notification reaches an Android phone and an iPhone.
 12a. **Owner installs the apps.** Builds are in the "Owner" groups (see done.md). Still open: the owner adds himself to both "Owner" groups (TestFlight and Firebase) and installs. Done when: the owner runs both apps on his phones.
-11. **Physical-device tests:** `apps/android/TESTING.md` (17 scenarios) and `apps/ios/TESTING.md` (12 scenarios). Done when: each scenario has a recorded result.
+11. **Physical-device tests:** `apps/android/TESTING.md` (18 scenarios) and `apps/ios/TESTING.md` (13 scenarios). Done when: each scenario has a recorded result.
 12. **TestFlight first-build review** by Apple. Done when: an external tester can install.
 13. **Independent security review** before going beyond a small pilot (`docs/SECURITY_REVIEW.md`). Done when: a summary with scope, date, findings and remediation is published.
 14. **Legal check of the privacy text** for where the pilot runs. Done when: the operator is named in the notice and the owner is satisfied.

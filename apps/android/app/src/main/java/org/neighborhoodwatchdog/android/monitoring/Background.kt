@@ -89,6 +89,8 @@ class UploadWorker @AssistedInject constructor(
         is FlushResult.RetryIn -> Result.retry()
         // The server refuses this device or session; the next heartbeat tries again.
         is FlushResult.Blocked -> Result.success()
+        // This app version is refused: nothing is retried until a compatibility check accepts it.
+        FlushResult.Paused -> Result.success()
     }
 
     /** Only used below Android 12, where expedited work runs as a short foreground service. */

@@ -238,3 +238,18 @@ data class HealthOut(
     val version: String = "",
     @SerialName("server_time") val serverTime: Timestamp,
 )
+
+/**
+ * `GET /api/v1/app/compatibility`. `supported` and `update_available` have no default on purpose:
+ * an answer without them is unreadable and changes nothing, rather than being taken as either.
+ */
+@Serializable
+data class AppCompatibilityOut(
+    val platform: Platform = Platform.ANDROID,
+    val version: String = "",
+    val supported: Boolean,
+    @SerialName("update_available") val updateAvailable: Boolean,
+    @SerialName("minimum_version") val minimumVersion: String? = null,
+    @SerialName("latest_version") val latestVersion: String? = null,
+    @SerialName("update_url") val updateUrl: String? = null,
+)

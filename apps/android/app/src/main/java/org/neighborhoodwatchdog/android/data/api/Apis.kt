@@ -18,6 +18,10 @@ interface WatchdogApi {
     @GET("monitoring/health")
     suspend fun health(): Response<HealthOut>
 
+    /** Public. Whether this app version is still accepted and whether a newer one exists. */
+    @GET("app/compatibility")
+    suspend fun appCompatibility(@Query("platform") platform: String, @Query("version") version: String): Response<AppCompatibilityOut>
+
     @POST("auth/verify-invitation")
     suspend fun verifyInvitation(@Body body: VerifyInvitationRequest): Response<VerifyInvitationResponse>
 

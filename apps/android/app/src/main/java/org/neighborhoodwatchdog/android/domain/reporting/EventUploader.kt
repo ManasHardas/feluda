@@ -35,6 +35,12 @@ sealed interface FlushResult {
 
     /** Events remain and the server refuses this device or session (for example `device_revoked`). */
     data class Blocked(val errorCode: String, val delayMs: Long) : FlushResult
+
+    /**
+     * Nothing is sent because the server refuses this app version (426 `update_required`). The
+     * events stay queued; there is no retry until the gate opens again.
+     */
+    data object Paused : FlushResult
 }
 
 /**
@@ -48,6 +54,8 @@ class EventUploader(
     private val clock: Clock,
     private val backoff: BackoffPolicy = BackoffPolicy(),
     private val onDelivered: suspend (sentAtMs: Long) -> Unit = {},
+    /** True while an app update is required: [flush] sends nothing and returns [FlushResult.Paused]. */
+    private val paused: () -> Boolean = { false },
 ) {
     private val mutex = Mutex()
     private var failures = 0
@@ -62,6 +70,7 @@ class EventUploader(
     suspend fun flush(): FlushResult = mutex.withLock {
         QueuePolicy.enforce(store, clock.nowMs())
         while (true) {
+            if (paused()) return@withLock FlushResult.Paused
             val batch = store.oldest(BATCH_SIZE)
             if (batch.isEmpty()) {
                 failures = 0
@@ -141,6 +150,7 @@ class EventUploader(
                         }
                         null
                     }
+                    result.httpCode == 426 && result.errorCode == UPDATE_REQUIRED -> FlushResult.Paused
                     validation -> {
                         // A single event the server will never accept: drop it and keep a record.
                         store.remove(ids)
@@ -167,5 +177,6 @@ class EventUploader(
     companion object {
         const val BATCH_SIZE = 50
         private const val RATE_LIMITED = "rate_limited"
+        private const val UPDATE_REQUIRED = "update_required"
     }
 }

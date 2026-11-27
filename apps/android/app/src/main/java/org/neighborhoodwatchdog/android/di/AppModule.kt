@@ -14,6 +14,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import org.neighborhoodwatchdog.android.config.AppConfig
 import org.neighborhoodwatchdog.android.data.api.WatchdogApi
+import org.neighborhoodwatchdog.android.data.auth.AppVersionInterceptor
 import org.neighborhoodwatchdog.android.data.auth.DeviceTokenInterceptor
 import org.neighborhoodwatchdog.android.data.auth.EncryptedCredentialStore
 import org.neighborhoodwatchdog.android.data.auth.EncryptedFileStore
@@ -23,9 +24,11 @@ import org.neighborhoodwatchdog.android.data.local.FingerprintStore
 import org.neighborhoodwatchdog.android.data.local.LocalState
 import org.neighborhoodwatchdog.android.data.local.RoomEventQueueStore
 import org.neighborhoodwatchdog.android.data.local.RoomSentEventLog
+import org.neighborhoodwatchdog.android.data.local.UpdateStatePrefs
 import org.neighborhoodwatchdog.android.data.local.WatchdogDatabase
 import org.neighborhoodwatchdog.android.data.repository.DeviceRepository
 import org.neighborhoodwatchdog.android.data.repository.WatchdogRepository
+import org.neighborhoodwatchdog.android.data.update.AppCompatibilityChecker
 import org.neighborhoodwatchdog.android.domain.auth.CredentialStore
 import org.neighborhoodwatchdog.android.domain.auth.DeviceCredentials
 import org.neighborhoodwatchdog.android.domain.model.Clock
@@ -35,6 +38,8 @@ import org.neighborhoodwatchdog.android.domain.reporting.EventQueueStore
 import org.neighborhoodwatchdog.android.domain.reporting.EventTransport
 import org.neighborhoodwatchdog.android.domain.reporting.EventUploader
 import org.neighborhoodwatchdog.android.domain.reporting.SentEventLog
+import org.neighborhoodwatchdog.android.domain.update.AppUpdateGate
+import org.neighborhoodwatchdog.android.domain.update.AppVersionHeader
 import org.neighborhoodwatchdog.android.monitoring.AliveClock
 import org.neighborhoodwatchdog.android.monitoring.CellularNetworkProvider
 import org.neighborhoodwatchdog.android.monitoring.ConnectivityMonitor
@@ -89,8 +94,25 @@ object AppModule {
     @Provides @Singleton
     fun fingerprintStore(files: EncryptedFileStore): FingerprintStore = FingerprintStore(files)
 
+    // ---- app version: the server decides whether this version is still accepted ----
+
+    @Provides @Singleton
+    fun updateGate(@ApplicationContext context: Context, config: AppConfig): AppUpdateGate =
+        AppUpdateGate(UpdateStatePrefs(context), config.appVersion)
+
+    @Provides @Singleton
+    fun compatibilityChecker(api: WatchdogApi, gate: AppUpdateGate, config: AppConfig, clock: Clock): AppCompatibilityChecker =
+        AppCompatibilityChecker(api, gate, config.versionName, clock)
+
+    /**
+     * Every client below is built from this one, so every request to the backend carries
+     * `X-App-Version` and a 426 `update_required` from any of them sets the gate.
+     */
     @Provides @Singleton @Named("base")
-    fun baseClient(): OkHttpClient = OkHttpClient.Builder()
+    fun baseClient(config: AppConfig, gate: AppUpdateGate): OkHttpClient = OkHttpClient.Builder()
+        .addInterceptor(
+            AppVersionInterceptor(config.apiRoot, AppVersionHeader.value(config.versionName, config.versionCode), gate::markRequired),
+        )
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .writeTimeout(15, TimeUnit.SECONDS)
@@ -149,8 +171,15 @@ object AppModule {
     ): EventTransport = NetworkEventTransport(client, cellular, config, localState)
 
     @Provides @Singleton
-    fun uploader(store: EventQueueStore, sentLog: SentEventLog, transport: EventTransport, clock: Clock, localState: LocalState): EventUploader =
-        EventUploader(store, sentLog, transport, clock, onDelivered = { localState.recordReport(it) })
+    fun uploader(
+        store: EventQueueStore,
+        sentLog: SentEventLog,
+        transport: EventTransport,
+        clock: Clock,
+        localState: LocalState,
+        gate: AppUpdateGate,
+    ): EventUploader =
+        EventUploader(store, sentLog, transport, clock, onDelivered = { localState.recordReport(it) }, paused = { gate.isRequired })
 
     @Provides @Singleton
     fun eventFactory(localState: LocalState, config: AppConfig): EventFactory =
@@ -189,6 +218,7 @@ object AppModule {
         scheduler: WorkScheduler,
         devices: DeviceRepository,
         clock: Clock,
+        updateGate: AppUpdateGate,
     ): MonitoringController = MonitoringController(
         monitor = ConnectivityMonitor(context, handler, fingerprintStore),
         monitorDispatcher = handler.asCoroutineDispatcher("watchdog-monitor"),
@@ -206,6 +236,7 @@ object AppModule {
         scheduler = scheduler,
         devices = devices,
         clock = clock,
+        updateGate = updateGate,
     ).also { controller ->
         // The server no longer accepts this phone: show the join screen at once, then again when
         // the local data of the old enrolment has been cleared.

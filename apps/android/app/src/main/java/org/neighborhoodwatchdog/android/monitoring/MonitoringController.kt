@@ -36,6 +36,7 @@ import org.neighborhoodwatchdog.android.domain.reporting.EventQueueStore
 import org.neighborhoodwatchdog.android.domain.reporting.EventUploader
 import org.neighborhoodwatchdog.android.domain.reporting.FlushResult
 import org.neighborhoodwatchdog.android.domain.reporting.SentEventLog
+import org.neighborhoodwatchdog.android.domain.update.AppUpdateGate
 
 /** What the UI shows about this phone's own monitoring. Local facts only. */
 data class MonitorStatus(
@@ -80,6 +81,7 @@ class MonitoringController(
     private val scheduler: WorkScheduler,
     private val devices: DeviceRepository,
     private val clock: Clock,
+    private val updateGate: AppUpdateGate,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + monitorDispatcher)
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -130,6 +132,29 @@ class MonitoringController(
             }
         }
         ioScope.launch { uploadLoop() }
+        ioScope.launch { followUpdateGate() }
+    }
+
+    /**
+     * While the server refuses this app version nothing runs in the background: the monitor stops
+     * and the WorkManager jobs are cancelled, so nothing retries. Queued events are kept. When a
+     * compatibility check accepts the version again, monitoring starts and the queue is sent; the
+     * time in between is reported as a monitoring gap, as for any other stop.
+     */
+    private suspend fun followUpdateGate() {
+        var required = updateGate.isRequired
+        updateGate.state.collect { state ->
+            if (state.required == required) return@collect
+            required = state.required
+            if (required) {
+                ask { stopMonitor() }
+                scheduler.cancelAll()
+                post { publish() }
+            } else {
+                ensureRunning()
+                requestUpload()
+            }
+        }
     }
 
     private fun post(action: suspend () -> Unit) {
@@ -174,13 +199,14 @@ class MonitoringController(
             }
             publish()
         }
+        if (updateGate.isRequired) return
         ioScope.launch { devices.updateRegistrationIfChanged() }
         requestUpload()
     }
 
     private suspend fun startIfNeeded(userInitiated: Boolean) {
         if (running) return
-        if (!eligible() || !localState.monitoringEnabled) {
+        if (!eligible() || !localState.monitoringEnabled || updateGate.isRequired) {
             publish()
             return
         }
@@ -440,6 +466,7 @@ class MonitoringController(
      * again, record a HEARTBEAT and flush the queue.
      */
     suspend fun heartbeat(): FlushResult {
+        if (updateGate.isRequired) return FlushResult.Paused
         startAndAwaitBaseline(BASELINE_TIMEOUT_MS)
         val probeDone = ask {
             if (!running) return@ask null
@@ -462,6 +489,7 @@ class MonitoringController(
 
     /** Asks for an upload soon: in this process right away, and through WorkManager as a backup. */
     fun requestUpload() {
+        if (updateGate.isRequired) return
         scheduler.enqueueUpload()
         uploadKick.trySend(Unit)
     }
@@ -469,13 +497,13 @@ class MonitoringController(
     private suspend fun uploadLoop() {
         for (kick in uploadKick) {
             var result = flushNow()
-            while (result !is FlushResult.Idle) {
+            while (result !is FlushResult.Idle && result !is FlushResult.Paused) {
                 // A callback may shorten the backoff, but failed attempts are never closer than this.
                 delay(UPLOAD_MIN_RETRY_MS)
                 val waitMs = when (result) {
                     is FlushResult.RetryIn -> result.delayMs
                     is FlushResult.Blocked -> result.delayMs
-                    FlushResult.Idle -> 0L
+                    FlushResult.Idle, FlushResult.Paused -> 0L
                 }.minus(UPLOAD_MIN_RETRY_MS).coerceAtLeast(0)
                 if (result is FlushResult.Blocked || (result is FlushResult.RetryIn && result.cause == "rate_limited")) {
                     // The server asked for this pause or refuses this device: the wait is served in full.

@@ -7,6 +7,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
 import dagger.hilt.android.HiltAndroidApp
+import org.neighborhoodwatchdog.android.data.update.AppCompatibilityChecker
 import org.neighborhoodwatchdog.android.monitoring.MonitoringController
 import org.neighborhoodwatchdog.android.push.NotificationChannels
 import org.neighborhoodwatchdog.android.push.PushManager
@@ -21,6 +22,7 @@ class WatchdogApp : Application(), Configuration.Provider {
     @Inject lateinit var workerFactory: HiltWorkerFactory
     @Inject lateinit var controller: MonitoringController
     @Inject lateinit var pushManager: PushManager
+    @Inject lateinit var compatibility: AppCompatibilityChecker
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
@@ -33,6 +35,8 @@ class WatchdogApp : Application(), Configuration.Provider {
         controller.ensureRunning()
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
+                // App opened or back in the foreground (at most once an hour). A failure changes nothing.
+                compatibility.checkSoon()
                 controller.onAppForeground()
             }
         })
