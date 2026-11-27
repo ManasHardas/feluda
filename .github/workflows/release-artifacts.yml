@@ -58,7 +58,7 @@ jobs:
           subject-digest: ${{ steps.image.outputs.digest }}
           push-to-registry: true
       - run: echo "${{ steps.image.outputs.digest }}  ghcr.io/${{ github.repository }}/backend:${{ inputs.tag }}" > backend-image-digest.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: backend-release
           path: |
@@ -84,7 +84,7 @@ jobs:
             -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build
           { echo "commit: $GITHUB_SHA"; echo "tag: ${{ inputs.tag }}"; xcodebuild -version; swift --version; sw_vers; } > ios-build-info.txt
           echo '{"bomFormat":"CycloneDX","specVersion":"1.5","version":1,"components":[],"metadata":{"component":{"type":"application","name":"neighborhood-watchdog-ios"}}}' > sbom-ios.cdx.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ios-release
           path: |
