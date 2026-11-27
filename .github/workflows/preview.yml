@@ -1,0 +1,106 @@
+name: Preview build
+
+# Every pull request into main that changes an app is built and sent to the owner's phones only:
+# TestFlight internal group "Owner" (gets every build automatically) and Firebase group "owner".
+# Previews talk to the staging server. Residents never receive a preview.
+# Pull requests from forks and from Dependabot get no secrets, so they are skipped; run this
+# workflow by hand with the pull request number to preview one of those after reading it.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths: ["apps/**", "shared/**", "VERSION", ".github/workflows/preview.yml", ".github/workflows/build-*.yml"]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number to preview
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number || inputs.pr }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' && !github.event.pull_request.draft)
+    runs-on: ubuntu-24.04
+    outputs:
+      ref: ${{ steps.meta.outputs.ref }}
+      pr: ${{ steps.meta.outputs.pr }}
+      version: ${{ steps.meta.outputs.version }}
+      build: ${{ steps.meta.outputs.build }}
+      notes: ${{ steps.meta.outputs.notes }}
+    steps:
+      - id: meta
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number || inputs.pr }}
+        run: |
+          json=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json headRefOid,title)
+          ref=$(echo "$json" | jq -r .headRefOid)
+          title=$(echo "$json" | jq -r .title)
+          version=$(gh api "repos/$GITHUB_REPOSITORY/contents/VERSION?ref=$ref" --jq .content | base64 -d | tr -d '[:space:]')
+          echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error::VERSION must be x.y.z"; exit 1; }
+          # Minutes since 2026-01-01: always increasing, shared by previews and releases, fits Android's limit.
+          build=$(( ( $(date -u +%s) - 1767225600 ) / 60 ))
+          {
+            echo "ref=$ref"; echo "pr=$PR"; echo "version=$version"; echo "build=$build"
+            echo "notes=PREVIEW of pull request #$PR: $title (staging server, ${ref:0:7})"
+          } >> "$GITHUB_OUTPUT"
+
+  ios:
+    needs: prepare
+    uses: ./.github/workflows/build-ios.yml
+    with:
+      ref: ${{ needs.prepare.outputs.ref }}
+      api_base_url: ${{ vars.STAGING_API_URL }}
+      version: ${{ needs.prepare.outputs.version }}
+      build_number: ${{ needs.prepare.outputs.build }}
+      whats_new: ${{ needs.prepare.outputs.notes }}
+    secrets: inherit
+
+  android:
+    needs: prepare
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/build-android.yml
+    with:
+      ref: ${{ needs.prepare.outputs.ref }}
+      api_base_url: ${{ vars.STAGING_API_URL }}
+      version: ${{ needs.prepare.outputs.version }}
+      build_number: ${{ needs.prepare.outputs.build }}
+      groups: owner
+      notes: ${{ needs.prepare.outputs.notes }}
+      artifact_name: preview-apk
+    secrets: inherit
+
+  comment:
+    needs: [prepare, ios, android]
+    if: always() && needs.prepare.result == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ needs.prepare.outputs.pr }}
+          IOS: ${{ needs.ios.result }}
+          ANDROID: ${{ needs.android.result }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          BUILD: ${{ needs.prepare.outputs.build }}
+          REF: ${{ needs.prepare.outputs.ref }}
+        run: |
+          mark() { [ "$1" = success ] && echo "sent" || echo "**$1** (see the workflow run)"; }
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body "Preview build **$VERSION ($BUILD)** of \`${REF:0:7}\`, talking to the staging server:
+
+          - iPhone: $(mark "$IOS") — open **TestFlight**, choose Feluda, install build $BUILD.
+          - Android: $(mark "$ANDROID") — open **App Tester**, choose Feluda, download $VERSION ($BUILD).
+
+          Only the owner's phones receive previews. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"

@@ -218,3 +218,26 @@ and Transparency all say "Push notifications are not configured in this build".
   list on the Transparency screen.
 - `adb backup` / device-to-device transfer: app data is not included.
 - Inspect a few event JSONs: no SSID, BSSID, IP address or gateway address appears.
+
+## 17. Update required and new-version banner — MANUAL_TEST_REQUIRED
+
+Needs a backend you can configure (`MIN_APP_VERSION_ANDROID`, `LATEST_APP_VERSION_ANDROID`,
+`ANDROID_INSTALL_URL`) and a joined phone running this build (for example `0.1.0`).
+
+- New version: set `LATEST_APP_VERSION_ANDROID` above the installed version, restart the backend,
+  close the app for more than an hour or force-stop it, open it. The main screen shows "A new
+  version is available" with the version; "Update" opens `ANDROID_INSTALL_URL` (without it the banner
+  says to open the Firebase App Tester app). "Not now" closes it; the app works as before.
+- Required: set `MIN_APP_VERSION_ANDROID` above the installed version and restart the backend. Cause
+  an event (Wi-Fi off) or reopen the app. Expect the "Update required" screen over every screen,
+  including onboarding; no way back into the app; "Update" opens the install address.
+- Quiet in the background: with the screen showing, `adb shell dumpsys jobscheduler | grep app.feluda`
+  lists no Watchdog jobs, and the server receives nothing from the phone for 30 minutes (also after
+  force-stop, reboot, and Wi-Fi off and on). The Transparency queue is kept (check after the update).
+- Back again: clear `MIN_APP_VERSION_ANDROID`, restart the backend, tap "Check again". The main screen
+  returns, monitoring resumes with a `MONITORING_GAP_DETECTED` for the quiet time, and the kept events
+  are sent with their original `occurred_at`.
+- Install a build with a higher `VERSION_NAME` while the screen is showing: the new version starts
+  normally.
+- TalkBack and the largest font size: the title is read as a heading, all text is reachable by
+  scrolling, both buttons can be activated.

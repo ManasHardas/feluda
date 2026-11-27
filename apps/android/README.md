@@ -48,6 +48,26 @@ removed). The app then removes the secret, the queue, the home-network fingerpri
 id, and shows the join screen with a note; a new invitation link is needed. A 401 in any other shape
 (for example from a captive portal) changes nothing.
 
+## App version and "Update required"
+
+The server, not the app, decides when a version is too old (residents rarely update apps installed
+outside a store). Every request to the backend carries `X-App-Version: android/<VERSION_NAME>
+(<VERSION_CODE>)`, for example `android/0.1.0 (1)`; requests to other hosts (the internet probe) do
+not. `VERSION_NAME` must be `major.minor.patch` digits or the build fails.
+
+- A 426 with the error code `update_required` from any `/api/v1/...` call switches the app to a
+  full-screen "Update required" screen that cannot be dismissed. The monitor stops and both
+  WorkManager jobs are cancelled, so nothing retries in the background; queued events are kept and
+  sent after the update. The flag is stored (`watchdog_update` preferences) so work started after
+  process death stays quiet too. A 426 in any other shape changes nothing.
+- `GET /api/v1/app/compatibility?platform=android&version=<x.y.z>` (no credential) is asked when the
+  app comes to the foreground, at most once an hour (once a minute while an update is required).
+  `supported = false` shows the same screen; `supported = true` clears it. `update_available = true`
+  shows a "A new version is available" banner on the main screen that can be closed. The "Update"
+  button opens `update_url` (HTTPS only); without one the screen points to the Firebase App Tester
+  app. A failed check changes nothing and never blocks the app.
+- Installing another version clears the stored flag; the next check decides again.
+
 "Leave neighborhood" in Settings deletes the phone and everything it reported on the server, then
 the same local data. There is no account, so there is nothing else to delete. The household label
 and internet provider are not asked when joining; they can be set in Settings.
@@ -315,4 +335,5 @@ on localhost and never contact a real server, except `LiveBackendTest`, which is
 | `DiagnosticsTest` | null-when-unmeasured, band mapping, power rule |
 | `ContractJsonTest` | field names and enum spellings against the contract, round trip |
 | `DeviceCredentialsTest`, `AuthNetworkingTest` | enrolment request, device secret as bearer token, 401 `unauthorized` removes the secret without a retry, any other 401 keeps it |
+| `AppUpdateGateTest`, `AppVersionNetworkingTest` | `X-App-Version` value and scope, 426 `update_required` sets the stored flag, compatibility decoding, `supported = false` requires the update, failures change nothing, hourly limit, uploads send nothing and keep the queue while an update is required |
 | `LiveBackendTest` | the whole journey against a real local backend (only with `make live-android`) |

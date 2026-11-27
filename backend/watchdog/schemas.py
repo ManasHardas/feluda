@@ -333,6 +333,16 @@ class NotificationPreferences(Strict):
 # ---------------------------------------------------------------- monitoring health
 
 
+class AppCompatibilityOut(Out):
+    platform: Platform
+    version: str
+    supported: bool = Field(description="False: this version is refused (HTTP 426) and must be updated before use")
+    update_available: bool = Field(description="A newer version has been released for this platform")
+    minimum_version: str | None
+    latest_version: str | None
+    update_url: str | None = Field(description="Where to get the newer version; null if not configured")
+
+
 class HealthOut(Out):
     status: str
     api: str

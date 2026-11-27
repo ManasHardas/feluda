@@ -21,6 +21,7 @@ final class AppSettings: @unchecked Sendable {
         case backgroundRefreshAvailable = "watchdog.backgroundRefreshAvailable"
         case homeStepDone = "watchdog.homeStepDone"
         case notificationStepDone = "watchdog.notificationStepDone"
+        case updateRequiredForVersion = "watchdog.updateRequiredForVersion"
     }
 
     var hasLaunchedBefore: Bool {
@@ -96,6 +97,14 @@ final class AppSettings: @unchecked Sendable {
     var backgroundRefreshAvailable: Bool? {
         get { defaults.object(forKey: Key.backgroundRefreshAvailable.rawValue) as? Bool }
         set { defaults.set(newValue, forKey: Key.backgroundRefreshAvailable.rawValue) }
+    }
+
+    /// The app version (`SystemInfo.appVersion`) the server last refused with 426. While it equals
+    /// the running version nothing is sent, also after a relaunch in the background; installing
+    /// the update changes the version and so lifts it.
+    var updateRequiredForVersion: String? {
+        get { defaults.string(forKey: Key.updateRequiredForVersion.rawValue) }
+        set { defaults.set(newValue, forKey: Key.updateRequiredForVersion.rawValue) }
     }
 
     /// Removes everything except the "launched before" marker (used when leaving, and when the

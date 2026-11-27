@@ -17,6 +17,9 @@ actor EventReporter {
         var currentTransport: @Sendable () async -> Transport
         /// Called once per flush when the server says the device is not registered.
         var reRegisterDevice: @Sendable () async -> Bool = { false }
+        /// True while the server refuses this app version (HTTP 426). Nothing is sent and no retry
+        /// is scheduled; queued events are kept for when the app has been updated.
+        var isUpdateRequired: @Sendable () -> Bool = { false }
         var now: @Sendable () -> Date = { Date() }
         var random: @Sendable () -> Double = { Double.random(in: 0...1) }
     }
@@ -126,6 +129,10 @@ actor EventReporter {
         var reRegistered = false
         while true {
             let now = dependencies.now()
+            if dependencies.isUpdateRequired() {
+                noteUpdateRequired()
+                break
+            }
             if let until = rateLimitedUntil {
                 if now < until { break }
                 rateLimitedUntil = nil
@@ -153,6 +160,10 @@ actor EventReporter {
                             code: "rate_limited", retryAfter: retryAfter, isRateLimit: true)
             case let .failed(error, removed):
                 removedTotal += removed
+                if error == .updateRequired {
+                    noteUpdateRequired()
+                    break
+                }
                 if error.code == "device_not_registered", !reRegistered {
                     reRegistered = true
                     if await dependencies.reRegisterDevice() { continue }
@@ -168,6 +179,14 @@ actor EventReporter {
     private func retryAfterValue(of error: APIError) -> TimeInterval? {
         if case let .server(_, _, _, _, retryAfter) = error { return retryAfter }
         return nil
+    }
+
+    /// No backoff and no retry: sending resumes only after the update (or a later flush once the
+    /// server accepts this version again).
+    private func noteUpdateRequired() {
+        status.nextRetryAt = nil
+        status.lastError = APIError.updateRequired.userMessage
+        status.lastErrorCode = "update_required"
     }
 
     private func noteFailure(message: String, code: String?, retryAfter: TimeInterval?, isRateLimit: Bool) {

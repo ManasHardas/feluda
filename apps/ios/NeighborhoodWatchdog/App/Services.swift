@@ -11,6 +11,8 @@ struct Services: Sendable {
     let reporter: EventReporter
     let coordinator: MonitoringCoordinator
     let uploadPath: UploadPathObserver
+    /// Set while the server refuses this app version (HTTP 426); nothing is uploaded then.
+    let updateGate: UpdateGate
 
     static var storageDirectory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -25,9 +27,19 @@ struct Services: Sendable {
         let credentials = KeychainDeviceTokenStore(keychain: keychain)
         // The server said this phone is not enrolled (any request, also a background upload).
         let onUnenrolled: @Sendable () async -> Void = { await AppModel.shared.deviceWasUnenrolled() }
-        let api = APIClient(baseURL: config.apiBaseURL, transport: interactive, credentials: credentials, onUnenrolled: onUnenrolled)
+        // The server refused this version (426) or the compatibility check said so. Remembered per
+        // version, so a background relaunch does not try again; an updated app starts clear.
+        let runningVersion = SystemInfo.appVersion
+        let updateGate = UpdateGate(required: settings.updateRequiredForVersion == runningVersion) { required in
+            settings.updateRequiredForVersion = required ? runningVersion : nil
+            Task { @MainActor in AppModel.shared.updateGateChanged(required: required) }
+        }
+        let versionHeader = AppVersion.header(marketingVersion: SystemInfo.marketingVersion, buildNumber: SystemInfo.buildNumber)
+        let api = APIClient(baseURL: config.apiBaseURL, transport: interactive, credentials: credentials, onUnenrolled: onUnenrolled,
+                            appVersionHeader: versionHeader, updateGate: updateGate)
         // Event uploads use the session that waits for connectivity and allows every network type.
-        let reportingAPI = APIClient(baseURL: config.apiBaseURL, transport: reporting, credentials: credentials, onUnenrolled: onUnenrolled)
+        let reportingAPI = APIClient(baseURL: config.apiBaseURL, transport: reporting, credentials: credentials, onUnenrolled: onUnenrolled,
+                                     appVersionHeader: versionHeader, updateGate: updateGate)
 
         let directory = storageDirectory
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -47,12 +59,14 @@ struct Services: Sendable {
                 submit: { try await reportingAPI.submitEvents($0) },
                 deviceID: { settings.registeredSignature == nil ? nil : settings.installID },
                 currentTransport: { uploadPath.currentTransport() },
-                reRegisterDevice: { await DeviceRegistration.register(api: api, settings: settings, force: true) }
+                reRegisterDevice: { await DeviceRegistration.register(api: api, settings: settings, force: true) },
+                isUpdateRequired: { updateGate.isUpdateRequired }
             ))
 
         let probe = ReachabilityProbe(
             healthURL: config.healthURL,
             fallbackURL: config.probeFallbackURL,
+            healthHeaders: versionHeader.map { [AppVersion.headerName: $0] } ?? [:],
             anyPath: URLSessionTransport(session: URLSession(configuration: WatchdogSessions.probeConfiguration(allowCellular: true))),
             withoutCellular: URLSessionTransport(session: URLSession(configuration: WatchdogSessions.probeConfiguration(allowCellular: false))))
 
@@ -70,7 +84,8 @@ struct Services: Sendable {
         ))
 
         return Services(config: config, settings: settings, credentials: credentials, api: api, queue: queue, sentLog: sentLog,
-                        reporter: reporter, coordinator: coordinator, uploadPath: uploadPath)
+                        reporter: reporter, coordinator: coordinator, uploadPath: uploadPath,
+                        updateGate: updateGate)
     }
 
     static func clearKeychain() {

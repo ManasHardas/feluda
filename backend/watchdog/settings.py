@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     support_url: str = ""
     security_contact: str = ""
 
+    # --- app versions (see watchdog/app_versions.py). "major.minor.patch"; empty = no minimum / not announced
+    min_app_version_ios: str = ""
+    min_app_version_android: str = ""
+    latest_app_version_ios: str = ""
+    latest_app_version_android: str = ""
+
     # --- push notifications
     fcm_project_id: str = ""
     fcm_service_account_json: str = ""  # the service-account JSON document itself (from a secret manager)
@@ -50,6 +56,12 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _refuse_unsafe_production(self) -> Settings:
+        from .app_versions import parse_version
+
+        for name in ("min_app_version_ios", "min_app_version_android", "latest_app_version_ios", "latest_app_version_android"):
+            value = getattr(self, name)
+            if value and parse_version(value) is None:
+                raise ValueError(f"{name.upper()} must look like 1.2.3")
         if self.is_production_like:
             if self.admin_api_token and len(self.admin_api_token) < 32:
                 raise ValueError("ADMIN_API_TOKEN must be at least 32 characters")

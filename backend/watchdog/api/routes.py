@@ -8,9 +8,12 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response
 
 from .. import __version__, metrics
+from ..app_versions import is_below, parse_version
 from ..authentication.dependencies import Member, Operator, get_member, get_member_any, get_operator
+from ..enums import Platform
 from ..errors import ApiError
 from ..schemas import (
+    AppCompatibilityOut,
     ConnectivityStatusOut,
     DeviceOut,
     EnrollRequest,
@@ -35,7 +38,7 @@ from ..schemas import (
 from ..services import devices, events, incidents, membership, status
 from .deps import limit_by_client, limit_by_key, now
 
-ERRORS = {code: {"model": ErrorResponse} for code in (401, 403, 404, 409, 422, 429)}
+ERRORS = {code: {"model": ErrorResponse} for code in (401, 403, 404, 409, 422, 426, 429)}
 router = APIRouter(prefix="/api/v1", responses=ERRORS)
 
 
@@ -58,6 +61,30 @@ def health(request: Request, response: Response) -> HealthOut:
         database="ok" if database_ok else "unavailable",
         version=__version__,
         server_time=now(request),
+    )
+
+
+@router.get("/app/compatibility", response_model=AppCompatibilityOut, tags=["app"])
+def app_compatibility(
+    request: Request,
+    platform: Platform,
+    version: str = Query(min_length=5, max_length=14, pattern=r"^\d{1,4}\.\d{1,4}\.\d{1,4}$"),
+) -> AppCompatibilityOut:
+    """Whether this app version is still accepted and whether a newer one exists. No credential needed."""
+    settings = request.app.state.settings
+    ios = platform == Platform.IOS
+    minimum = settings.min_app_version_ios if ios else settings.min_app_version_android
+    latest = settings.latest_app_version_ios if ios else settings.latest_app_version_android
+    url = settings.ios_install_url if ios else settings.android_install_url
+    mine = parse_version(version)
+    return AppCompatibilityOut(
+        platform=platform,
+        version=version,
+        supported=not is_below(mine, minimum),
+        update_available=bool(latest) and is_below(mine, latest),
+        minimum_version=minimum or None,
+        latest_version=latest or None,
+        update_url=url or None,
     )
 
 

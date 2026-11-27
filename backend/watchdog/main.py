@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import __version__, metrics
+from . import __version__, app_versions, metrics
 from .api import admin as admin_routes
 from .api import routes
 from .clock import Clock
@@ -118,8 +118,26 @@ def create_app(
             CORSMiddleware,
             allow_origins=[o.strip() for o in settings.cors_allowed_origins.split(",") if o.strip()],
             allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-            allow_headers=["Authorization", "Content-Type"],
+            allow_headers=["Authorization", "Content-Type", app_versions.HEADER],
         )
+
+    @app.middleware("http")
+    async def refuse_outdated_apps(request: Request, call_next):
+        path = request.url.path
+        if path.startswith("/api/v1/") and not path.startswith(app_versions.EXEMPT_PREFIXES):
+            parsed = app_versions.parse_header(request.headers.get(app_versions.HEADER, ""))
+            if parsed is not None:
+                platform, version = parsed
+                ios = platform.value == "ios"
+                minimum = settings.min_app_version_ios if ios else settings.min_app_version_android
+                if app_versions.is_below(version, minimum):
+                    metrics.incr("app_update_required")
+                    return _error(
+                        426,
+                        "update_required",
+                        "This version of the app is no longer supported. Install the update to keep taking part.",
+                    )
+        return await call_next(request)
 
     @app.middleware("http")
     async def request_context(request: Request, call_next):

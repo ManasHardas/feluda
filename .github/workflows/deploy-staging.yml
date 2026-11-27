@@ -1,14 +1,12 @@
 name: Deploy staging
 
-# Manual on purpose: nothing is deployed automatically, and production is never deployed from CI
-# without a person approving the "production" environment. See docs/DEPLOYMENT.md.
+# Staging follows main: every backend change merged into main is deployed to staging, so previews
+# and the owner's tests run against it. Production is deployed only by the "Release" workflow.
 on:
+  push:
+    branches: [main]
+    paths: ["backend/**", "infrastructure/deployment/fly.staging.toml"]
   workflow_dispatch:
-    inputs:
-      environment:
-        type: choice
-        options: [staging, production]
-        default: staging
 
 permissions:
   contents: read
@@ -16,7 +14,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-24.04
-    environment: ${{ inputs.environment }}
+    environment: staging
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
@@ -34,6 +32,6 @@ jobs:
         run: uv sync --frozen --no-dev && DATABASE_URL="$MIGRATION_DATABASE_URL" uv run python -m watchdog.migrate
       - uses: superfly/flyctl-actions/setup-flyctl@v1
       - name: Deploy
-        run: flyctl deploy backend --config infrastructure/deployment/fly.${{ inputs.environment }}.toml --remote-only
+        run: flyctl deploy backend --config infrastructure/deployment/fly.staging.toml --remote-only
       - name: Smoke test
-        run: infrastructure/scripts/smoke_test.sh "${{ vars.PUBLIC_BASE_URL }}"
+        run: infrastructure/scripts/smoke_test.sh "${{ vars.STAGING_API_URL }}"

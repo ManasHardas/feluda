@@ -234,6 +234,7 @@ fun errorMessage(error: ApiError): Int = when {
         "rate_limited" -> R.string.error_rate_limited
         "validation_error" -> R.string.error_validation
         "unauthorized" -> R.string.error_unauthorized
+        "update_required" -> R.string.error_update_required
         else -> if (error.httpCode == 429) R.string.error_rate_limited else R.string.error_generic
     }
 }

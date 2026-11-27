@@ -1,0 +1,54 @@
+name: TestFlight refresh
+
+# A TestFlight build stops opening 90 days after upload. Residents rarely update, so every second
+# month the code that is on the release branch is rebuilt with a new build number (same version,
+# no code change) and handed to the "Neighbors" group. TestFlight installs it automatically on
+# phones that keep automatic updates on (the default). Android builds do not expire.
+on:
+  schedule:
+    - cron: "0 15 1 */2 *" # 1 January, March, May, July, September, November
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      sha: ${{ steps.meta.outputs.sha }}
+      version: ${{ steps.meta.outputs.version }}
+      build: ${{ steps.meta.outputs.build }}
+      released: ${{ steps.meta.outputs.released }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release
+      - id: meta
+        run: |
+          version=$(tr -d '[:space:]' < VERSION)
+          released=false
+          git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null && released=true
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "released=$released" >> "$GITHUB_OUTPUT"
+          echo "build=$(( ( $(date -u +%s) - 1767225600 ) / 60 ))" >> "$GITHUB_OUTPUT"
+          [ "$released" = true ] || echo "::notice::Nothing released yet; nothing to refresh."
+
+  ios:
+    needs: prepare
+    if: needs.prepare.outputs.released == 'true'
+    uses: ./.github/workflows/build-ios.yml
+    with:
+      ref: ${{ needs.prepare.outputs.sha }}
+      api_base_url: ${{ vars.PRODUCTION_API_URL }}
+      version: ${{ needs.prepare.outputs.version }}
+      build_number: ${{ needs.prepare.outputs.build }}
+      group: Neighbors
+      whats_new: "Same version, renewed so that TestFlight keeps it working. Nothing changes."
+      submit_review: true
+    secrets: inherit

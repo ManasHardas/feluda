@@ -24,6 +24,7 @@
 		5AB6DC6499594F9BFD1912D9 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 523AA59AD98B6FCA0D728C04 /* KeychainStore.swift */; };
 		5BF15C364D9F69136D75E113 /* ContractJSONTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF4AE9B59133EA5B650C0A4 /* ContractJSONTests.swift */; };
 		5C0E9E6553E394EE6D972B60 /* GapAndCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEDA999760D8FA2C8775170A /* GapAndCoordinatorTests.swift */; };
+		635757064C836E56D1F42159 /* UpdateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA265DE749184180D4047C8F /* UpdateViews.swift */; };
 		6AA6727C41BB816EDEE5E355 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70B03136BFA5A14E6FE8DD86 /* AppModel.swift */; };
 		79C8E85A6D58F00080FB4881 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44214B34CF6CE2726AC1C91B /* MainView.swift */; };
 		7BCFFAE0DF271D7085DB53CE /* Services.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4174FD7F8A91EDC0556AF11 /* Services.swift */; };
@@ -38,6 +39,7 @@
 		A15016C4494435255CFF9BB7 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F4F04057E62640F84B65B7A /* SettingsView.swift */; };
 		A56EA44515A92D5087753E5F /* JoinHouseholdView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 865E6C65E1D0E4EEF5EBBBD9 /* JoinHouseholdView.swift */; };
 		A779772B25DE352B7361E04E /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB5ED166F20B37348D02AEF9 /* AppConfig.swift */; };
+		B379F64ACF56798A32F7A7E7 /* AppVersionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8813161A1FCDC74AACB35EC /* AppVersionTests.swift */; };
 		C5EF448E1C67C7158DF9D14C /* HomeNetworkFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E7861EACCDDEC35A23D4B64 /* HomeNetworkFingerprint.swift */; };
 		C91DD8CF7ABA3E33A5D9A2F0 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366B38387B795A10E291DD5D /* APIModels.swift */; };
 		C9AB2FC94A85C5090D9F8EB7 /* HTTPTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF3E1447D09448B4F08E1BEC /* HTTPTransport.swift */; };
@@ -53,6 +55,7 @@
 		F9445A9E539B0B258834B180 /* QueueAndReporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0280A2C76B2E2A6937837ED0 /* QueueAndReporterTests.swift */; };
 		FBCAE73958C089EE2F26DEE2 /* EventModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 398AECF455D9D8BFC48CCEC9 /* EventModels.swift */; };
 		FD489291B1F7F638E4054CEB /* DisplayText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E685D3B7D3F3B5436F061CB /* DisplayText.swift */; };
+		FFD5B8CAE2ED75AF5194704A /* AppVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFDF1C6AF48E4112CA207D4A /* AppVersion.swift */; };
 		FFFF3BAADEB758745EDFA5CB /* LiveBackendTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93E5A8DF1130B76B31D91085 /* LiveBackendTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -120,11 +123,14 @@
 		D4174FD7F8A91EDC0556AF11 /* Services.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services.swift; sourceTree = "<group>"; };
 		D80E63873BC40C2520B6B8C5 /* SystemInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemInfo.swift; sourceTree = "<group>"; };
 		D9E4C12FECC18A80447B72B8 /* TransparencyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransparencyView.swift; sourceTree = "<group>"; };
+		DFDF1C6AF48E4112CA207D4A /* AppVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersion.swift; sourceTree = "<group>"; };
 		E4166CB6E8D770ECFAF1F85D /* FingerprintTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FingerprintTests.swift; sourceTree = "<group>"; };
 		E80E57107D8E61B8CEF26C14 /* Info-Debug.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "Info-Debug.plist"; sourceTree = "<group>"; };
+		E8813161A1FCDC74AACB35EC /* AppVersionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersionTests.swift; sourceTree = "<group>"; };
 		EEDA999760D8FA2C8775170A /* GapAndCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GapAndCoordinatorTests.swift; sourceTree = "<group>"; };
 		EFF4AE9B59133EA5B650C0A4 /* ContractJSONTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContractJSONTests.swift; sourceTree = "<group>"; };
 		F191ECFFE97CD0FD8F92EB2D /* GapDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GapDetector.swift; sourceTree = "<group>"; };
+		FA265DE749184180D4047C8F /* UpdateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateViews.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -209,6 +215,7 @@
 			children = (
 				49BD4D59CCD27E30BA731680 /* Components.swift */,
 				7E685D3B7D3F3B5436F061CB /* DisplayText.swift */,
+				FA265DE749184180D4047C8F /* UpdateViews.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -225,6 +232,7 @@
 			isa = PBXGroup;
 			children = (
 				8F405DA1F80C89121C60BDA1 /* APIClient.swift */,
+				DFDF1C6AF48E4112CA207D4A /* AppVersion.swift */,
 				AF3E1447D09448B4F08E1BEC /* HTTPTransport.swift */,
 			);
 			path = Networking;
@@ -233,6 +241,7 @@
 		412AE29EB0728693A3BCD52D /* NeighborhoodWatchdogTests */ = {
 			isa = PBXGroup;
 			children = (
+				E8813161A1FCDC74AACB35EC /* AppVersionTests.swift */,
 				03F3AE7DC163CDF875945B8F /* AuthAndAPITests.swift */,
 				EFF4AE9B59133EA5B650C0A4 /* ContractJSONTests.swift */,
 				E4166CB6E8D770ECFAF1F85D /* FingerprintTests.swift */,
@@ -437,6 +446,7 @@
 				8439881967DD2AB2DE0C3049 /* AppDelegate.swift in Sources */,
 				6AA6727C41BB816EDEE5E355 /* AppModel.swift in Sources */,
 				9F88AA423E6C8F0FBA978D73 /* AppSettings.swift in Sources */,
+				FFD5B8CAE2ED75AF5194704A /* AppVersion.swift in Sources */,
 				060ADF0C7E9ACD3F086A8AB6 /* Backoff.swift in Sources */,
 				DEA82EAC5D799F9288492A1A /* Components.swift in Sources */,
 				CB06440D65BD7FFC4B42DBE1 /* ConnectivityStateMachine.swift in Sources */,
@@ -466,6 +476,7 @@
 				A15016C4494435255CFF9BB7 /* SettingsView.swift in Sources */,
 				34393187521FF44F21344070 /* SystemInfo.swift in Sources */,
 				A0E1F16D2F267625008AB328 /* TransparencyView.swift in Sources */,
+				635757064C836E56D1F42159 /* UpdateViews.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -473,6 +484,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B379F64ACF56798A32F7A7E7 /* AppVersionTests.swift in Sources */,
 				562A48F17DF6A81F9E4851D6 /* AuthAndAPITests.swift in Sources */,
 				5BF15C364D9F69136D75E113 /* ContractJSONTests.swift in Sources */,
 				D025D355C22C7E3855CCB9FA /* FingerprintTests.swift in Sources */,

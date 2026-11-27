@@ -8,7 +8,7 @@ Status: the release workflow is written but has never run (no release tag has be
 
 ## What a release contains
 
-Pushing a signed tag `vX.Y.Z` runs `.github/workflows/release.yml`, which builds everything from
+Merging `main` into `release` runs `.github/workflows/release.yml`, which tags `vX.Y.Z` and builds everything from
 that commit and attaches to a draft GitHub release:
 
 | Artifact | Contents |

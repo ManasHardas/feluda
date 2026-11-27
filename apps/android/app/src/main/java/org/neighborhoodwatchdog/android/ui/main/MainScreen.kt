@@ -33,6 +33,8 @@ import org.neighborhoodwatchdog.android.data.api.NeighborhoodOut
 import org.neighborhoodwatchdog.android.data.local.LocalState
 import org.neighborhoodwatchdog.android.data.repository.WatchdogRepository
 import org.neighborhoodwatchdog.android.domain.model.StatusColor
+import org.neighborhoodwatchdog.android.domain.update.AppUpdateGate
+import org.neighborhoodwatchdog.android.domain.update.UpdateState
 import org.neighborhoodwatchdog.android.monitoring.MonitorStatus
 import org.neighborhoodwatchdog.android.monitoring.MonitoringController
 import org.neighborhoodwatchdog.android.monitoring.PermissionStatus
@@ -45,6 +47,7 @@ import org.neighborhoodwatchdog.android.ui.common.formatTime
 import org.neighborhoodwatchdog.android.ui.common.monitoringStatusLabel
 import org.neighborhoodwatchdog.android.ui.common.stateExplanation
 import org.neighborhoodwatchdog.android.ui.common.stateLabel
+import org.neighborhoodwatchdog.android.ui.update.UpdateAvailableBanner
 import javax.inject.Inject
 
 data class BackendView(
@@ -68,8 +71,12 @@ class MainViewModel @Inject constructor(
     private val controller: MonitoringController,
     private val permissionStatus: PermissionStatus,
     localState: LocalState,
+    private val updateGate: AppUpdateGate,
 ) : ViewModel() {
     val monitor: StateFlow<MonitorStatus> = controller.status
+    val update: StateFlow<UpdateState> = updateGate.state
+
+    fun dismissUpdateBanner() = updateGate.dismissBanner()
     val lastReportAtMs: StateFlow<Long?> = localState.lastReportAtMs
 
     private val _backend = MutableStateFlow(BackendView())
@@ -117,6 +124,7 @@ fun MainScreen(
     val backend by viewModel.backend.collectAsStateWithLifecycle()
     val permissions by viewModel.permissions.collectAsStateWithLifecycle()
     val lastReport by viewModel.lastReportAtMs.collectAsStateWithLifecycle()
+    val update by viewModel.update.collectAsStateWithLifecycle()
 
     val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(lifecycleOwner) {
@@ -132,6 +140,9 @@ fun MainScreen(
         title = stringResource(R.string.app_name),
         actions = { TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.settings_title)) } },
     ) {
+        // A newer version exists; this one still works. Closing the banner lasts until the app restarts.
+        UpdateAvailableBanner(update, onDismiss = viewModel::dismissUpdateBanner)
+
         // 1. Household monitoring status, as the server sees it.
         val status = backend.status
         when {

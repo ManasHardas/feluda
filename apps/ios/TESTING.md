@@ -6,7 +6,8 @@
 covers the state machine, debounce, gap detection and reconciliation, the monitoring coordinator
 with fake path and probe, the queue, backoff, reporter, fingerprint, JSON contract, enrolment and
 the device secret (stored on enrolment, sent as the bearer token, removed on a 401), the API
-client, invitation-link parsing, configuration and wording rules. These tests use fakes for the
+client, the app-version header, 426 `update_required` (sending stops, events are kept) and the
+compatibility check, invitation-link parsing, configuration and wording rules. These tests use fakes for the
 network and the clock. They do not prove behaviour on a real phone.
 
 `make ios-core-test` (repository root) runs the same tests for `Core/` natively on the Mac.
@@ -154,3 +155,18 @@ says otherwise. Note the wall-clock time of each action.
 5. In Xcode, pause in the debugger and run
    `e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWithIdentifier:@"app.feluda.refresh"]`
    to force one refresh and confirm a `HEARTBEAT` is uploaded.
+
+### 12. Update required and update available — MANUAL_TEST_REQUIRED
+1. With the app enrolled and some events queued (switch Wi-Fi off and on), set
+   `MIN_APP_VERSION_IOS` on the backend above the installed version (for example `99.0.0`) and
+   restart it. Bring the app to the foreground (or wait for the next upload).
+2. Expect the full-screen "Update required" screen. It cannot be closed or swiped away; VoiceOver
+   reads the heading, the text and the "Update" button. Check with the largest Dynamic Type size.
+3. Tap "Update": with `IOS_INSTALL_URL` empty, expect TestFlight to open (or the TestFlight web
+   page if TestFlight is not installed); with it set, expect that link.
+4. Confirm in the backend log that no further event uploads arrive from this phone (only
+   `/api/v1/app/compatibility` and the health probe), also after a background refresh.
+5. Clear `MIN_APP_VERSION_IOS`, restart the backend, force-quit and open the app (the check runs
+   at most once an hour otherwise). Expect the normal screens back and the queued events uploaded.
+6. Set `LATEST_APP_VERSION_IOS` above the installed version. Expect the notice "A new version is
+   available" with "Update" and a close button; the app keeps working; closing hides it.

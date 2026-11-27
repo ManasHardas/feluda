@@ -19,6 +19,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import org.neighborhoodwatchdog.android.data.update.AppCompatibilityChecker
+import org.neighborhoodwatchdog.android.domain.update.AppUpdateGate
+import org.neighborhoodwatchdog.android.domain.update.UpdateState
 import org.neighborhoodwatchdog.android.session.OnboardingStage
 import org.neighborhoodwatchdog.android.session.SessionCoordinator
 import org.neighborhoodwatchdog.android.ui.incidents.IncidentDetailScreen
@@ -30,13 +33,23 @@ import org.neighborhoodwatchdog.android.ui.onboarding.JoinScreen
 import org.neighborhoodwatchdog.android.ui.onboarding.NotificationSetupScreen
 import org.neighborhoodwatchdog.android.ui.settings.SettingsScreen
 import org.neighborhoodwatchdog.android.ui.transparency.TransparencyScreen
+import org.neighborhoodwatchdog.android.ui.update.UpdateRequiredScreen
 import javax.inject.Inject
 
 @HiltViewModel
-class AppViewModel @Inject constructor(session: SessionCoordinator) : ViewModel() {
+class AppViewModel @Inject constructor(
+    session: SessionCoordinator,
+    gate: AppUpdateGate,
+    private val compatibility: AppCompatibilityChecker,
+) : ViewModel() {
     val stage: StateFlow<OnboardingStage> = session.signal.version
         .map { session.stage() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, session.stage())
+
+    /** Set by a 426 `update_required` from any request or by the compatibility check. */
+    val update: StateFlow<UpdateState> = gate.state
+
+    fun checkAgain() = compatibility.checkSoon(force = true)
 }
 
 private object Routes {
@@ -65,6 +78,12 @@ private object Routes {
 @Composable
 fun AppRoot(pendingIncidentId: String?, onIncidentOpened: () -> Unit, viewModel: AppViewModel = hiltViewModel()) {
     val stage by viewModel.stage.collectAsStateWithLifecycle()
+    val update by viewModel.update.collectAsStateWithLifecycle()
+    // Replaces every screen, onboarding included. The navigation graph is built again afterwards.
+    if (update.required) {
+        UpdateRequiredScreen(updateUrl = update.updateUrl, onCheckAgain = viewModel::checkAgain)
+        return
+    }
     val navController = rememberNavController()
     val start = remember { Routes.forStage(viewModel.stage.value) }
 

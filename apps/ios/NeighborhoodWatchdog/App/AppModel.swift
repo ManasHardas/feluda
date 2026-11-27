@@ -65,6 +65,14 @@ final class AppModel {
     private(set) var backgroundRefreshAvailable = true
     /// Incident to open because the resident tapped a notification.
     var pendingIncidentID: UUID?
+    /// The server refuses this app version (HTTP 426 or the compatibility check). The root view
+    /// then shows only the "Update required" screen, and nothing is sent.
+    private(set) var updateRequired = false
+    /// A newer version exists; this one still works. Shown as a notice the resident can close.
+    private(set) var updateAvailable = false
+    var updateNoticeDismissed = false
+    /// Where the "Update" button goes, from the server. Nil: TestFlight.
+    private(set) var updateURL: URL?
 
     @ObservationIgnored private var bootstrapTask: Task<Void, Never>?
     @ObservationIgnored private var monitorStartTask: Task<Void, Never>?
@@ -72,6 +80,10 @@ final class AppModel {
     /// The Keychain could not be read at launch (phone not unlocked since it restarted), so it is
     /// not known yet whether the device secret is still there.
     @ObservationIgnored private var enrolmentUnknown = false
+    @ObservationIgnored private var lastCompatibilityCheck: Date?
+    @ObservationIgnored private var compatibilityCheckRunning = false
+    /// The compatibility check runs at launch and on coming to the foreground, at most this often.
+    static let compatibilityCheckInterval: TimeInterval = 60 * 60
 
     private init() {}
 
@@ -104,6 +116,7 @@ final class AppModel {
         }
         let services = Services.make(config: config, settings: settings)
         self.services = services
+        updateRequired = services.updateGate.isUpdateRequired
 
         await services.coordinator.setOnSnapshot { snapshot in
             Task { @MainActor in AppModel.shared.monitoring = snapshot }
@@ -453,6 +466,7 @@ final class AppModel {
     func appBecameActive() async {
         await bootstrap()
         guard let services else { return }
+        await checkCompatibility()
         await resolveUnknownEnrolment()
         await refreshPermissions()
         await services.coordinator.appBecameActive()
@@ -478,6 +492,51 @@ final class AppModel {
         guard let services else { return }
         await monitorStartTask?.value
         await services.coordinator.backgroundRefresh()
+    }
+
+    // MARK: App version
+
+    /// Asks the server whether this version is still accepted. Runs at launch and when the app
+    /// comes to the foreground, at most once an hour unless `force`. A failure changes nothing.
+    func checkCompatibility(force: Bool = false) async {
+        guard !Self.isRunningTests, let services, !compatibilityCheckRunning else { return }
+        if !force, let last = lastCompatibilityCheck, Date().timeIntervalSince(last) < Self.compatibilityCheckInterval { return }
+        guard let version = AppVersion.semantic(SystemInfo.marketingVersion) else { return }
+        compatibilityCheckRunning = true
+        defer { compatibilityCheckRunning = false }
+        guard let outcome = await Compatibility.check(api: services.api, gate: services.updateGate, version: version) else { return }
+        lastCompatibilityCheck = Date()
+        updateURL = outcome.updateURL
+        updateAvailable = outcome.updateAvailable
+        // `updateRequired` follows the gate through `updateGateChanged`.
+    }
+
+    /// The update gate changed (a 426 from any request, also a background upload, or the check).
+    func updateGateChanged(required _: Bool) {
+        guard let services else { return }
+        let required = services.updateGate.isUpdateRequired
+        guard required != updateRequired else { return }
+        updateRequired = required
+        if required {
+            // Learn where the update is, unless the check just ran.
+            if lastCompatibilityCheck.map({ Date().timeIntervalSince($0) > 60 }) ?? true,
+               UIApplication.shared.applicationState == .active {
+                Task { await self.checkCompatibility(force: true) }
+            }
+        } else {
+            // Accepted again: send what waited in the queue and bring the screens up to date.
+            Task {
+                await services.reporter.connectivityChanged()
+                await self.refresh()
+            }
+        }
+    }
+
+    /// Opens the server's update link, else the TestFlight app, else the TestFlight web page.
+    func openUpdate() async {
+        for url in UpdateLink.candidates(serverURL: updateURL) {
+            if await UIApplication.shared.open(url) { return }
+        }
     }
 
     func refreshPermissions() async {

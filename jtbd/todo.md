@@ -1,17 +1,22 @@
 # To do, in priority order
 
-Last updated 2026-11-23. Source brief: `neighborhood_watchdog_master_build_prompt_v2.md`. What has and has not been verified: `docs/STATUS.md`. Summary for whoever picks this up: `docs/HANDOFF.md`.
+Last updated 2026-11-27. Source brief: `neighborhood_watchdog_master_build_prompt_v2.md`. What has and has not been verified: `docs/STATUS.md`. Summary for whoever picks this up: `docs/HANDOFF.md`.
 
 ## Verification still owed (agent can do these)
 4. **Run each app as an app against a local backend** (Android emulator, iOS simulator): tap through sign-in, join, an event upload and an incident screen. The networking layer is verified (`make live-ios`, `make live-android`); the screens and the monitoring service have never run against a server. Needs an Android emulator image installed; the iOS simulator works again. Done when: both complete the flow on screen.
 
+## Before the first release to residents (decision 0015, owner 2026-11-24)
+R2. **DNS for `api.feluda.app`** (owner, at Hostinger): `A api → 66.241.124.253` and `AAAA api → 2a09:8280:1::229:3027:0`. Everything else in production is set up (see done.md). Done when: `fly certs check api.feluda.app -a feluda-production` shows the certificate issued and the smoke test passes at `https://api.feluda.app`.
+R2a. **Production neighborhood for residents.** Only "App Review" exists in production. Done when: the owner names the real neighborhood and it is created.
+R3. **"Deploy staging" runs green** with the stored `MIGRATION_DATABASE_URL` (first run when this pull request is merged into main). Done when: the run passes.
+R6. **Firebase invite link for group `neighbors`** (console only, no API). Done when: set as `ANDROID_INSTALL_URL` on production.
+
 ## Needs the owner (cannot be done by the agent)
-6. **Publishing, remaining part.** The repository is private at `ManasHardas/feluda`; pull request 1 is merged. Still open: the owner says whether to make it public (dependency review and CodeQL result upload only work when public), and branch protection is set as in `CONTRIBUTING.md`. Done when: both are settled.
 8. **Security contact in deployments.** `SECURITY.md` has the address; the `SECURITY_CONTACT` setting of the backend and the app builds is set when staging is created (item 10). Done when: the registration page and both apps show it.
 9. **Confirm decision 0010** (a lone phone losing Wi-Fi is shown in the app but not pushed). 0012 (paid always-on host) was confirmed 2026-11-22. Done when: 0010 is confirmed or changed.
 10. **First real push to each platform.** Staging is deployed and both push keys work on the server (Firebase token obtained, APNs key signs). Needs the apps on a phone (item 12 and 12a). Done when: one real notification reaches an Android phone and an iPhone.
-12a. **Build the apps against staging and distribute them.** Done 2026-11-23: Android release keystore generated (git-ignored `secrets/`, owner must back it up); signed release APK built against staging. App ID `app.feluda` registered with Push Notifications; App Store Connect app "Feluda" created; distribution certificate and App Store profile created (key in `secrets/` and keychain `feluda-signing`); build 0.1.0 (1) uploaded, processed as VALID; internal TestFlight group "Owner" created. Android release 0.1.0 (1) uploaded to Firebase App Distribution and distributed to tester group "Owner". Still open: owner adds himself to both "Owner" groups (TestFlight and Firebase) and installs; the join page's install buttons (`ANDROID_INSTALL_URL`, `IOS_INSTALL_URL`) are not set yet. Original scope: Android: Firebase App Distribution enabled, signed APK uploaded. iOS: App Store Connect app record, signed build uploaded to TestFlight with the ASC key. Both with `API_BASE_URL=https://feluda-staging.fly.dev`. Done when: the owner installs both on his phones.
-11. **Physical-device tests:** `apps/android/TESTING.md` (17 scenarios) and `apps/ios/TESTING.md` (12 scenarios). Done when: each scenario has a recorded result.
+12a. **Owner installs the apps.** Builds are in the "Owner" groups (see done.md). Still open: the owner adds himself to both "Owner" groups (TestFlight and Firebase) and installs. Done when: the owner runs both apps on his phones.
+11. **Physical-device tests:** `apps/android/TESTING.md` (18 scenarios) and `apps/ios/TESTING.md` (13 scenarios). Done when: each scenario has a recorded result.
 12. **TestFlight first-build review** by Apple. Done when: an external tester can install.
 13. **Independent security review** before going beyond a small pilot (`docs/SECURITY_REVIEW.md`). Done when: a summary with scope, date, findings and remediation is published.
 14. **Legal check of the privacy text** for where the pilot runs. Done when: the operator is named in the notice and the owner is satisfied.
@@ -27,7 +32,7 @@ Last updated 2026-11-23. Source brief: `neighborhood_watchdog_master_build_promp
 15. **Per-person administrator access.** Administration uses one shared operator secret (decision 0014): no per-person audit trail, no second factor. Done when: there is more than one organizer and each has their own revocable credential, or the owner accepts the shared secret for good.
 15a. **Street suggestions when joining.** The street is free text, so two spellings that normalization does not unify count as different streets. Done when: the join screen offers the streets already in the neighborhood, or the owner decides it is not needed.
 15b. **Decide the app's display name and custom link scheme.** The link scheme is `feluda://`; the app is still called "Neighborhood Watchdog" on screen. Done when: the owner confirms or renames.
-16. **Android SBOM task** (CycloneDX Gradle plugin). Done when: `release.yml` attaches `sbom-android.cdx.json`.
+16. **Android SBOM task** (CycloneDX Gradle plugin). Done when: the GitHub release made by `release.yml` includes `sbom-android.cdx.json`.
 18. **Pin CI actions by commit hash and base images by digest; Gradle dependency verification metadata.** Done when: `docs/RELEASE_VERIFICATION.md` "Known gaps" is empty.
 19. **Reproducible-build check for Android** on two machines. Done when: the comparison in `docs/RELEASE_VERIFICATION.md` has been carried out and the result written down.
 20. **Scheduled database backups** (the Supabase free plan has none). Done when: a dump runs on a schedule and one restore has been tested.

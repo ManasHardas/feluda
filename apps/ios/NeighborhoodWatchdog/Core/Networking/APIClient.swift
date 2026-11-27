@@ -12,19 +12,30 @@ protocol DeviceTokenStore: Sendable {
 /// and is never refreshed. When the server answers 401 `unauthorized` the phone is no longer
 /// enrolled (removed, revoked or reinstalled): the stored secret is removed and the caller gets
 /// `APIError.notEnrolled`.
+///
+/// Every request carries `X-App-Version` (see `AppVersion`). When the server answers 426
+/// `update_required` this version is refused: the update gate is set, the caller gets
+/// `APIError.updateRequired`, and from then on requests outside the server's exempt paths (`app/`, `monitoring/`) are not
+/// sent at all until a compatibility check says the version is accepted again.
 struct APIClient: Sendable {
     let baseURL: URL
     let transport: HTTPTransport
     let credentials: DeviceTokenStore
     /// Called after a 401 removed the stored secret, so the app can show the join screen.
     var onUnenrolled: (@Sendable () async -> Void)?
+    /// `ios/0.1.0 (1)`; nil sends no version header.
+    let appVersionHeader: String?
+    let updateGate: UpdateGate?
 
     init(baseURL: URL, transport: HTTPTransport, credentials: DeviceTokenStore,
-         onUnenrolled: (@Sendable () async -> Void)? = nil) {
+         onUnenrolled: (@Sendable () async -> Void)? = nil,
+         appVersionHeader: String? = nil, updateGate: UpdateGate? = nil) {
         self.baseURL = baseURL
         self.transport = transport
         self.credentials = credentials
         self.onUnenrolled = onUnenrolled
+        self.appVersionHeader = appVersionHeader
+        self.updateGate = updateGate
     }
 
     private struct NoBody: Encodable, Sendable {}
@@ -35,6 +46,14 @@ struct APIClient: Sendable {
 
     func health() async throws -> HealthOut {
         try await call("GET", "monitoring/health", authenticated: false)
+    }
+
+    /// Whether this app version is still accepted and whether a newer one exists. No credential.
+    func compatibility(platform: Platform, version: String) async throws -> AppCompatibilityOut {
+        try await call("GET", "app/compatibility", query: [
+            URLQueryItem(name: "platform", value: platform.rawValue),
+            URLQueryItem(name: "version", value: version),
+        ], authenticated: false)
     }
 
     func verifyInvitation(token: String) async throws -> VerifyInvitationResponse {
@@ -128,6 +147,9 @@ struct APIClient: Sendable {
     private func call<Body: Encodable & Sendable, Response: Decodable>(
         _ method: String, _ path: String, query: [URLQueryItem] = [], body: Body?, authenticated: Bool = true
     ) async throws -> Response {
+        // This version was refused: send nothing more until a compatibility check clears it.
+        if updateGate?.isUpdateRequired == true, !AppVersion.isExempt(path: path) { throw APIError.updateRequired }
+
         var components = URLComponents(
             url: baseURL.appendingPathComponent("api/v1").appendingPathComponent(path), resolvingAgainstBaseURL: false)
         if !query.isEmpty { components?.queryItems = query }
@@ -136,6 +158,7 @@ struct APIClient: Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let appVersionHeader { request.setValue(appVersionHeader, forHTTPHeaderField: AppVersion.headerName) }
         if let body {
             do {
                 request.httpBody = try WatchdogJSON.encoder().encode(body)
@@ -156,6 +179,13 @@ struct APIClient: Sendable {
             (data, response) = try await transport.send(request)
         } catch {
             throw APIError.from(error)
+        }
+
+        if response.statusCode == 426 {
+            let error = APIError.fromResponse(data: data, response: response)
+            guard error.code == "update_required" else { throw error }
+            updateGate?.setRequired(true)
+            throw APIError.updateRequired
         }
 
         if response.statusCode == 401, let rejected = token {

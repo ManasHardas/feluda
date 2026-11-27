@@ -28,6 +28,12 @@ val appId = setting("APPLICATION_ID") ?: "app.feluda"
 val appVersionCode = (setting("VERSION_CODE") ?: "1").toInt()
 val appVersionName = setting("VERSION_NAME") ?: "0.1.0"
 
+// The backend reads the version from `X-App-Version: android/<major.minor.patch> (<code>)` and refuses
+// versions below its minimum. A name in any other form could never be told to update, so it is refused here.
+if (!Regex("^\\d{1,4}\\.\\d{1,4}\\.\\d{1,4}$").matches(appVersionName)) {
+    throw GradleException("VERSION_NAME must be major.minor.patch digits, for example 1.2.3 (got '$appVersionName').")
+}
+
 // Release signing. The keystore and its passwords are never in the repository.
 val keystorePath = setting("ANDROID_KEYSTORE_PATH")
 val keystorePassword = setting("ANDROID_KEYSTORE_PASSWORD")

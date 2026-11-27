@@ -88,6 +88,9 @@ enum APIError: Error, Sendable, Equatable {
     /// Enrolment succeeded but the device secret could not be written to the Keychain.
     case credentialStorage
     case invalidConfiguration(String)
+    /// The server answered 426 `update_required`: this app version is no longer accepted. Nothing
+    /// is sent until the app is updated (events stay queued on the phone).
+    case updateRequired
 
     var code: String? {
         if case let .server(_, code, _, _, _) = self { return code }
@@ -133,6 +136,8 @@ enum APIError: Error, Sendable, Equatable {
             return "This phone could not store its enrolment in the Keychain. Unlock the phone and tap Join again."
         case let .invalidConfiguration(detail):
             return "This build is not configured correctly: \(detail)"
+        case .updateRequired:
+            return "This version of the app is no longer supported. Install the update to keep taking part."
         }
     }
 
