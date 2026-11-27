@@ -32,6 +32,7 @@ def versioned(db, clock, senders):
         yield client
 
 
+@pytest.mark.db
 def test_compatibility_endpoint(versioned):
     old = versioned.get("/api/v1/app/compatibility", params={"platform": "ios", "version": "0.9.0"}).json()
     assert old == {
@@ -50,6 +51,7 @@ def test_compatibility_endpoint(versioned):
     assert versioned.get("/api/v1/app/compatibility", params={"platform": "ios", "version": "1.0"}).status_code == 422
 
 
+@pytest.mark.db
 def test_outdated_app_is_refused_everywhere_except_exempt_paths(versioned):
     old = {"X-App-Version": "ios/0.9.0 (5)"}
     refused = versioned.get("/api/v1/households/me", headers=old)
@@ -63,6 +65,7 @@ def test_outdated_app_is_refused_everywhere_except_exempt_paths(versioned):
         assert versioned.get("/api/v1/households/me", headers=headers).status_code == 401
 
 
+@pytest.mark.db
 def test_no_minimum_configured_accepts_every_version(client):
     assert client.get("/api/v1/households/me", headers={"X-App-Version": "ios/0.0.1"}).status_code == 401
     body = client.get("/api/v1/app/compatibility", params={"platform": "android", "version": "0.0.1"}).json()
