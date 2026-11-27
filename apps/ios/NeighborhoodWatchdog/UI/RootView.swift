@@ -5,6 +5,25 @@ struct RootView: View {
 
     var body: some View {
         Group {
+            if model.updateRequired {
+                // The server refuses this version: nothing else is shown until the update.
+                UpdateRequiredView()
+            } else {
+                phaseView
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        if model.updateAvailable, !model.updateNoticeDismissed {
+                            UpdateAvailableNotice()
+                        }
+                    }
+            }
+        }
+        .task { await model.bootstrap() }
+        // The web join page opens feluda://join#t=<token>.
+        .onOpenURL { model.handleIncomingURL($0) }
+    }
+
+    @ViewBuilder private var phaseView: some View {
+        Group {
             switch model.phase {
             case .loading:
                 ProgressView("Starting…")
@@ -28,9 +47,6 @@ struct RootView: View {
                 MainView()
             }
         }
-        .task { await model.bootstrap() }
-        // The web join page opens feluda://join#t=<token>.
-        .onOpenURL { model.handleIncomingURL($0) }
     }
 }
 

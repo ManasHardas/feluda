@@ -438,3 +438,24 @@ struct HealthOut: Codable, Sendable {
         case serverTime = "server_time"
     }
 }
+
+// MARK: App compatibility
+
+/// `GET /api/v1/app/compatibility`: whether this app version is still accepted.
+struct AppCompatibilityOut: Codable, Sendable, Equatable {
+    let platform: Platform
+    let version: String
+    let supported: Bool
+    let updateAvailable: Bool
+    let minimumVersion: String?
+    let latestVersion: String?
+    let updateURL: String?
+
+    enum CodingKeys: String, CodingKey {
+        case platform, version, supported
+        case updateAvailable = "update_available"
+        case minimumVersion = "minimum_version"
+        case latestVersion = "latest_version"
+        case updateURL = "update_url"
+    }
+}

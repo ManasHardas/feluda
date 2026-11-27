@@ -90,6 +90,25 @@ the app removes the secret, the queue, the home-network fingerprint and the inst
 shows the join screen. A new invitation link is needed. Enrolling again with the same link after a
 lost answer is safe: the server issues a fresh secret without using the link a second time.
 
+### App version and "Update required"
+
+Every request to the backend carries `X-App-Version: ios/<CFBundleShortVersionString> (<CFBundleVersion>)`,
+for example `ios/0.1.0 (1)` (set in one place, `APIClient`; the reachability probe sends it only
+to the service's own health endpoint). The server decides which versions it still accepts
+(`MIN_APP_VERSION_IOS`, `LATEST_APP_VERSION_IOS`, `IOS_INSTALL_URL` on the backend).
+
+- **426 `update_required`** to any request: the app sets its update gate, stops sending (event
+  uploads, device and push-token updates; nothing is retried) and shows only a full-screen
+  "Update required" screen with an "Update" button. Recorded events stay in the queue. The refusal
+  is remembered for this version, so a background relaunch does not try again; installing the
+  update lifts it. The device secret is kept.
+- **`GET /api/v1/app/compatibility?platform=ios&version=<x.y.z>`** (no credential) runs at launch
+  and when the app comes to the foreground, at most once an hour. `supported: false` shows the same
+  screen; `supported: true` lifts it and sends what waited. `update_available: true` shows a small
+  notice "A new version is available" that can be closed. A failed check changes nothing.
+- "Update" opens the server's `update_url` (https, `itms-beta:` or `itms-apps:` only), otherwise
+  the TestFlight app (`itms-beta://`), otherwise `https://testflight.apple.com/`.
+
 **Leave neighborhood** (Settings) calls `POST /api/v1/households/leave`: the server deletes this
 phone and everything it reported, and the app empties itself. There is no account, so there is no
 "delete account".
